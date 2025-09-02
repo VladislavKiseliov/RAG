@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 700px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            overflow: hidden;
+        }
+        .chat-header {
+            padding: 15px 20px;
+            background-color: #5d5dff;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        .chat-history {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #5d5dff;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0;
+        }
+        .assistant-message {
+            background-color: #e5e5ea;
+            color: #000;
+            align-self: flex-start;
+            border-bottom-left-radius: 0;
+        }
+        .chat-input-container {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            background-color: #fff;
+        }
+        #messageInput {
+            flex-grow: 1;
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 25px;
+            outline: none;
+            font-size: 1rem;
+        }
+        #sendButton {
+            margin-left: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            background-color: #5d5dff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        #sendButton:hover {
+            background-color: #4a4acc;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            RAG Chat
+        </div>
+        <div class="chat-history" id="chatHistory">
+            </div>
+        <div class="chat-input-container">
+            <input type="text" id="messageInput" placeholder="Напишите сообщение..." autofocus>
+            <button id="sendButton">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatHistory = document.getElementById('chatHistory');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+
+            // Функция для добавления сообщения в DOM
+            function addMessage(text, role) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                messageDiv.classList.add(`${role}-message`);
+                messageDiv.textContent = text;
+                chatHistory.appendChild(messageDiv);
+                // Прокрутка вниз
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+
+            // Отправка сообщения
+            async function sendMessage() {
+                const userMessage = messageInput.value.trim();
+                if (userMessage === '') return;
+
+                // Добавляем сообщение пользователя сразу
+                addMessage(userMessage, 'user');
+
+                messageInput.value = ''; // Очищаем поле ввода
+
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ user_message: userMessage })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Сетевая ошибка или ошибка сервера');
+                    }
+
+                    const data = await response.json();
+                    addMessage(data.response, 'assistant');
+                } catch (error) {
+                    console.error('Ошибка:', error);
+                    addMessage('Произошла ошибка. Пожалуйста, попробуйте еще раз.', 'assistant');
+                }
+            }
+
+            // Обработчики событий
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            // Загрузка истории чата при загрузке страницы
+            async function loadHistory() {
+                try {
+                    const response = await fetch('/api/history');
+                    if (!response.ok) {
+                        throw new Error('Не удалось загрузить историю');
+                    }
+                    const data = await response.json();
+                    data.history.forEach(msg => {
+                        addMessage(msg.content, msg.role);
+                    });
+                } catch (error) {
+                    console.error('Ошибка загрузки истории:', error);
+                }
+            }
+
+            loadHistory();
+        });
+    </script>
+</body>
+</html>
