@@ -2,6 +2,7 @@ import google.generativeai as genai
 import os
 import pypdf
 import numpy as np
+import  chromadb
 
 # Инициализируем API-ключ и модель один раз
 API_KEY = "AIzaSyBnZJIbKU_EBreWAtpdFlRbBNlKs-s0bCw"
@@ -10,16 +11,31 @@ genai.configure(api_key=API_KEY)
 generative_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
 
 
+# Работа с векторной базой данных
+# Основные переменные
+CHROMA_PATH = "docs/test_chroma_db"
+EMBED_MODEL = 'models/embedding-001'
+COLLECTION_NAME = "Demo_docs"
+
+
+
+
+
+
 # Функция для извлечения текста из PDF-файла
 def load_and_split_pdf(file_path):
     text_chunks = []
     try:
         reader = pypdf.PdfReader(file_path)
-        for page in reader.pages:
+        for index,page in enumerate(reader.pages):
+        # for page in reader.pages:
+            print(index)
             page_text = page.extract_text()
+            print(page_text)
             if page_text:
                 chunks = page_text.split('\n\n')
                 text_chunks.extend(chunks)
+                print(f"{chunks=}")
     except Exception as e:
         print(f"Ошибка при чтении PDF: {e}")
         return []
@@ -56,13 +72,17 @@ def find_relevant_text(query, embeddings_db):
         content=query,
         task_type="RETRIEVAL_QUERY"
     )['embedding']
+
     query_vector = np.array(query_embedding)
 
     best_match_text = ""
     max_similarity = -1
 
     for embedding_data in embeddings_db.values():
+        # print(f"{embedding_data=}")
+
         vector = embedding_data['vector']
+        # print(f"{vector=}")
         similarity = np.dot(query_vector, vector) / (np.linalg.norm(query_vector) * np.linalg.norm(vector))
         if similarity > max_similarity:
             max_similarity = similarity

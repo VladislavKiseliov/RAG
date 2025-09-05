@@ -24,9 +24,7 @@ def chat_endpoint(message: Message):
     Эндпоинт для обработки сообщений чата.
     """
     user_message = message.user_message
-
     # Здесь мы вызываем твою функцию `answer` и сохраняем настоящий ответ.
-    # Я исправил опечатку в имени переменной с 'responce' на 'response'.
     response_text = start(user_message)
 
     # Добавляем сообщение пользователя и ответ в историю
