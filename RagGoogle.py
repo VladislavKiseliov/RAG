@@ -92,7 +92,8 @@ def find_relevant_text(query, embeddings_db):
 
 
 def answer(user_question, embeddings_db):
-    retrieved_context = find_relevant_text(user_question, embeddings_db)
+    retrieved_context = \
+        (user_question, embeddings_db)
     prompt_template = f"""
     Используй следующий контекст, чтобы ответить на вопрос.
     Если ответ не содержится в контексте, так и скажи, не придумывай информацию.А так же к ответу добавь номер пункта откуда взята информация
@@ -126,7 +127,7 @@ def start(user_question):
 
 
 
-if __name__ == "__main__":
+
     pdf_path = "docs/123.pdf"
     pdf_chunks = load_and_split_pdf(pdf_path)
     embeddings_db = create_embeddings(pdf_chunks)
