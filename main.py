@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from RagGoogle import start
+from RagGogNew import answer_question
 
 app = FastAPI()
 
@@ -25,7 +25,8 @@ def chat_endpoint(message: Message):
     """
     user_message = message.user_message
     # Здесь мы вызываем твою функцию `answer` и сохраняем настоящий ответ.
-    response_text = start(user_message)
+    # response_text = start(user_message)
+    response_text = answer_question(user_message)
 
     # Добавляем сообщение пользователя и ответ в историю
     chat_history.append({"role": "user", "content": user_message})
