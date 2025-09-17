@@ -1,17 +1,36 @@
-# RagGoogle.py
+# RagGoogle_FIXED.py
 
 import os
 import pypdf
 import chromadb
+import numpy as np
 from pathlib import Path
 import google.generativeai as genai
-from typing import List, Dict
+from typing import List, Dict, Any
 
-# Настройка Gemini
+from sentence_transformers import SentenceTransformer
+
+# --- КОНФИГУРАЦИЯ ---
+# Токен Hugging Face для модели google/embeddinggemma-300m (если она gated)
+HF_TOKEN = "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"
+# API Key Google для генеративной модели (Gemini)
 API_KEY = "AIzaSyBnZJIbKU_EBreWAtpdFlRbBNlKs-s0bCw"
+
+# Инициализация моделей
+# 1. Эмбеддинги (SentenceTransformer) - ЛОКАЛЬНОЕ ИСПОЛЬЗОВАНИЕ
+try:
+    # Загружаем модель ЛОКАЛЬНО с использованием токена HF
+    embedding_model = SentenceTransformer("google/embeddinggemma-300m", token=HF_TOKEN)
+    print("✅ Локальная модель эмбеддингов 'embeddinggemma-300m' загружена.")
+except Exception as e:
+    print(f"❌ Ошибка загрузки SentenceTransformer: {e}")
+    # Fallback или выход
+    embedding_model = None
+
+# 2. Генеративная модель (Gemini API) - УДАЛЕННОЕ ИСПОЛЬЗОВАНИЕ
 genai.configure(api_key=API_KEY)
-embedding_model = 'models/embedding-001'
 generative_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+print("✅ Генеративная модель 'gemini-1.5-flash-latest' настроена.")
 
 # Пути
 DIRECTORY_DOCS = r"C:\Users\RGG\Desktop\RagProgramm\docs"
@@ -40,7 +59,8 @@ def load_and_split_pdf(file_path: Path) -> List[Dict]:
                 continue
 
             # Разбиваем на блоки по пустым строкам
-            blocks = [b.strip() for b in text.split('\n\n') if len(b.strip()) > 10]
+            # Убеждаемся, что блоки достаточно длинные
+            blocks = [b.strip() for b in text.split('\n\n') if len(b.strip()) > 30]
             for block in blocks:
                 chunks.append({
                     "text": block,
@@ -53,37 +73,51 @@ def load_and_split_pdf(file_path: Path) -> List[Dict]:
 
 
 def create_embeddings(texts: List[str]) -> List[List[float]]:
-    """Создаёт эмбеддинги для списка текстов. Пропускает None/пустые."""
-    print(f"🧠 Создаём эмбеддинги для {len(texts)} текстов...")
-    embeddings = []
-    for i, text in enumerate(texts):
-        if not text or not text.strip():
-            print(f"🟡 Пропущен пустой текст (индекс {i})")
-            continue
-        try:
-            response = genai.embed_content(
-                model=embedding_model,
-                content=text,
-                task_type="RETRIEVAL_DOCUMENT"
-            )
-            embedding = response['embedding']
-            embeddings.append(embedding)
-        except Exception as e:
-            print(f"❌ Ошибка при эмбеддинге текста {i}: {e}")
-            continue
-    print(f"✅ Готово: {len(embeddings)} эмбеддингов")
-    return embeddings
+    """Создаёт эмбеддинги для списка текстов с использованием SentenceTransformer."""
+    if embedding_model is None:
+        return []
+
+    print(f"🧠 Создаём эмбеддинги для {len(texts)} текстов (локально)...")
+
+    # 1. Фильтруем пустые тексты
+    valid_texts = [text for text in texts if text and text.strip()]
+
+    if not valid_texts:
+        print("🟡 Нет корректных текстов для встраивания.")
+        return []
+
+    # 2. Используем метод .encode() из SentenceTransformer
+    try:
+        # SentenceTransformer возвращает numpy array, преобразуем его в List[List[float]]
+        embeddings_np = embedding_model.encode(valid_texts, convert_to_numpy=True)
+        embeddings = embeddings_np.tolist()
+
+        print(f"✅ Готово: {len(embeddings)} эмбеддингов")
+        return embeddings
+
+    except Exception as e:
+        print(f"❌ Критическая ошибка при создании эмбеддингов: {e}")
+        return []
 
 
 def get_or_create_collection():
     """Получает или создаёт коллекцию с документами."""
+    if embedding_model is None:
+        print("❌ Невозможно создать коллекцию: модель эмбеддингов не загружена.")
+        return None
+
     try:
+        # Проверяем наличие коллекции. Если есть, возвращаем.
         collection = chroma_client.get_collection(name=COLLECTION_NAME)
         print("✅ Коллекция найдена.")
         return collection
     except Exception:
+        # Если нет, создаём
         print("🆕 Создаём новую коллекцию...")
 
+    # Создаём коллекцию без указания embedding_function, т.к. мы передадим эмбеддинги вручную.
+    # Для этого Chroma по умолчанию использует E5-small, но мы будем подавлять эту функцию своими
+    # эмбеддингами.
     collection = chroma_client.create_collection(name=COLLECTION_NAME)
     pdf_files = list_pdf_files(DIRECTORY_DOCS)
 
@@ -106,11 +140,12 @@ def get_or_create_collection():
             print(f"❌ Не удалось создать эмбеддинги для {pdf_file.name}")
             continue
 
+        # Внимание: здесь мы передаём заранее созданные эмбеддинги!
         collection.add(
-            ids=ids,
+            ids=ids[:len(embeddings)],  # Обрезаем id по количеству реальных эмбеддингов
             embeddings=embeddings,
-            metadatas=metadatas,
-            documents=texts  # обязательно!
+            metadatas=metadatas[:len(embeddings)],
+            documents=texts[:len(embeddings)]
         )
         print(f"✅ Добавлено {len(embeddings)} чанков из {pdf_file.name}")
 
@@ -121,25 +156,32 @@ def get_or_create_collection():
 def get_relevant_context(query: str, n_results: int = 3) -> List[Dict]:
     """Находит релевантные фрагменты по запросу."""
     collection = get_or_create_collection()
-
-    try:
-        query_embedding = genai.embed_content(
-            model=embedding_model,
-            content=query,
-            task_type="RETRIEVAL_QUERY"
-        )['embedding']
-    except Exception as e:
-        print(f"❌ Ошибка при создании эмбеддинга запроса: {e}")
+    if collection is None:
         return []
 
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=n_results
-    )
+    if embedding_model is None:
+        return []
+
+    try:
+        # 1. Создаём эмбеддинг запроса ЛОКАЛЬНО с помощью SentenceTransformer
+        # [0] потому что encode возвращает массив массивов (для одного текста - [вектор])
+        query_embedding = embedding_model.encode(query, convert_to_numpy=True).tolist()[0]
+    except Exception as e:
+        print(f"❌ Ошибка при создании эмбеддинга запроса (локально): {e}")
+        return []
+
+    try:
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results
+        )
+    except Exception as e:
+        print(f"❌ Ошибка запроса к Chroma: {e}")
+        return []
 
     # Извлекаем данные
     contexts = []
-    if not results['documents'] or not results['documents'][0]:
+    if not results.get('documents') or not results['documents'][0]:
         return contexts
 
     for i in range(len(results['ids'][0])):
@@ -164,10 +206,13 @@ def answer_question(question: str) -> str:
     if not question.strip():
         return "Пожалуйста, задайте корректный вопрос."
 
+    # Находим релевантный контекст
     contexts = get_relevant_context(question.strip(), n_results=2)
 
     if not contexts:
         return "❌ Не удалось найти релевантную информацию по вашему запросу."
+
+    # ... (Остальная логика остаётся неизменной)
 
     # Фильтруем пустые тексты
     valid_contexts = [ctx for ctx in contexts if ctx["text"] and ctx["text"].strip()]
@@ -183,6 +228,7 @@ def answer_question(question: str) -> str:
     full_context = "\n\n".join(context_texts)
     sources_str = "\n".join(sources)
 
+    # ... (Остальной промпт остается неизменным)
     prompt = f"""
     Ты — ассистент, отвечающий на вопросы. Твоя задача — извлечь ответ из предоставленного текста.
     Действуй по следующим правилам:
@@ -214,3 +260,20 @@ def answer_question(question: str) -> str:
             return "❌ Gemini не смог сгенерировать ответ."
     except Exception as e:
         return f"❌ Ошибка при генерации ответа: {e}"
+
+
+# Пример вызова для демонстрации
+if __name__ == '__main__':
+    # Эта функция запустит создание коллекции, если ее нет.
+    # Если она есть, она просто ее получит.
+    get_or_create_collection()
+
+    # Пример вопроса
+    test_question = "Что такое RAG-система?"
+    print(f"\n❓ Вопрос: {test_question}")
+
+    answer = answer_question(test_question)
+    print("\n------------------------------")
+    print("🤖 Ответ:")
+    print(answer)
+    print("------------------------------")
