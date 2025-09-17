@@ -156,20 +156,32 @@ def get_or_create_collection():
 def get_relevant_context(query: str, n_results: int = 3) -> List[Dict]:
     """Находит релевантные фрагменты по запросу."""
     collection = get_or_create_collection()
-    if collection is None:
-        return []
-
-    if embedding_model is None:
+    if collection is None or embedding_model is None:
         return []
 
     try:
         # 1. Создаём эмбеддинг запроса ЛОКАЛЬНО с помощью SentenceTransformer
-        # [0] потому что encode возвращает массив массивов (для одного текста - [вектор])
-        query_embedding = embedding_model.encode(query, convert_to_numpy=True).tolist()[0]
+        # Используем .encode для одного текста
+        embeddings_np = embedding_model.encode(
+            [query],  # Передаем запрос как список из одного элемента
+            convert_to_numpy=True,
+            show_progress_bar=False
+        )
+
+        # 2. Проверяем размерность: должен быть (1, 768)
+        if embeddings_np.shape[0] != 1 or embeddings_np.shape[1] != 768:
+            print(f"❌ Некорректная размерность эмбеддинга: получено {embeddings_np.shape}")
+            return []
+
+        # 3. Извлекаем единственный вектор (размером 768)
+        query_embedding = embeddings_np[0].tolist()
+
     except Exception as e:
+        # Теперь это сообщение будет печататься, если есть сбой при encode()
         print(f"❌ Ошибка при создании эмбеддинга запроса (локально): {e}")
         return []
 
+    # ... (далее код запроса к Chroma)
     try:
         results = collection.query(
             query_embeddings=[query_embedding],
