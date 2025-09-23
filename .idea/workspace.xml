@@ -4,14 +4,27 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="ADD:Add functione creating and connecting to a database">
-      <change afterPath="$PROJECT_DIR$/DockerFile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/LongChain.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Test/TestEmbendings.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/RagGogNew.py" beforeDir="false" afterPath="$PROJECT_DIR$/RagGogNew.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/RagGoogle.py" beforeDir="false" afterPath="$PROJECT_DIR$/Test/RagGoogle.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="UPDATE:update method get_relevant_context">
+      <change afterPath="$PROJECT_DIR$/Chanking.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Rag.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/promts.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DockerFile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/LongChain.py" beforeDir="false" afterPath="$PROJECT_DIR$/Test/LongChain.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/RagGogNew.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Test/TestEmbendings.py" beforeDir="false" afterPath="$PROJECT_DIR$/Test/TestEmbendings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/40c631ea-1878-449d-9e38-f9b96180df00/data_level0.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/40c631ea-1878-449d-9e38-f9b96180df00/header.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/40c631ea-1878-449d-9e38-f9b96180df00/length.bin" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/40c631ea-1878-449d-9e38-f9b96180df00/link_lists.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chroma_db/chroma.sqlite3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/СТО Газпром 2-1.12-802-2014 Организация пусконаладочных работ.pdf" beforeDir="false" afterPath="$PROJECT_DIR$/docs/па/СТО Газпром 2-1.12-802-2014 Организация пусконаладочных работ.pdf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/СТО Газпром 2-2.1-607-2011 Блоки технологические.pdf" beforeDir="false" afterPath="$PROJECT_DIR$/docs/па/СТО Газпром 2-2.1-607-2011 Блоки технологические.pdf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/СТО Газпром 4.2-0-001-2009 Система обеспечения информационной безопасности. Документы системы.pdf" beforeDir="false" afterPath="$PROJECT_DIR$/docs/па/СТО Газпром 4.2-0-001-2009 Система обеспечения информационной безопасности. Документы системы.pdf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/СТО Газпром 4.2-0-003-2009 Система обеспечения информационной безопасности. Общие положения.pdf" beforeDir="false" afterPath="$PROJECT_DIR$/docs/па/СТО Газпром 4.2-0-003-2009 Система обеспечения информационной безопасности. Общие положения.pdf" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,6 +41,11 @@
   </component>
   <component name="Git.Settings">
     <branch-grouping />
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="UPDATE_TYPE" value="REBASE" />
   </component>
@@ -55,7 +73,9 @@
   "keyToString": {
     "DefaultHtmlFileTemplate": "HTML File",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.Chanking.executor": "Run",
     "Python.LongChain.executor": "Run",
+    "Python.RagGogNew.executor": "Run",
     "Python.RagGoogle.executor": "Run",
     "Python.TestEmbendings.executor": "Run",
     "Python.TestGoogle.executor": "Run",
@@ -65,7 +85,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "qdrant",
     "ignore.virus.scanning.warn.message": "true",
     "last_opened_file_path": "C:/Users/RGG/Desktop/RagProgramm",
     "node.js.detected.package.eslint": "true",
@@ -79,6 +99,7 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\docs\па" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\Test" />
       <recent name="C:\Users\RGG\Desktop\rag2" />
     </key>
@@ -112,7 +133,9 @@
       <workItem from="1757648274992" duration="2784000" />
       <workItem from="1757660409550" duration="1236000" />
       <workItem from="1757935602839" duration="2695000" />
-      <workItem from="1758080656535" duration="5687000" />
+      <workItem from="1758080656535" duration="22053000" />
+      <workItem from="1758604404002" duration="23000" />
+      <workItem from="1758606215613" duration="15082000" />
     </task>
     <task id="LOCAL-00001" summary="Update:New requirements.txt">
       <option name="closed" value="true" />
@@ -146,7 +169,23 @@
       <option name="project" value="LOCAL" />
       <updated>1757324714472</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="UPDATE:add new embedding_model">
+      <option name="closed" value="true" />
+      <created>1758088077498</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1758088077498</updated>
+    </task>
+    <task id="LOCAL-00006" summary="UPDATE:update method get_relevant_context">
+      <option name="closed" value="true" />
+      <created>1758089190646</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1758089190646</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -193,16 +232,20 @@
     <MESSAGE value="Update:New requirements.txt" />
     <MESSAGE value="Update:New requirements.txt&#10;ADD: Added functionality for working with chromadb" />
     <MESSAGE value="ADD:Add functione creating and connecting to a database" />
-    <option name="LAST_COMMIT_MESSAGE" value="ADD:Add functione creating and connecting to a database" />
+    <MESSAGE value="UPDATE:add new embedding_model" />
+    <MESSAGE value="UPDATE:update method get_relevant_context" />
+    <option name="LAST_COMMIT_MESSAGE" value="UPDATE:update method get_relevant_context" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/rag2$testmodel.coverage" NAME="testmodel Coverage Results" MODIFIED="1756792014296" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/RagProgramm$TestEmbendings.coverage" NAME="TestEmbendings Coverage Results" MODIFIED="1758087489124" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/Test" />
+    <SUITE FILE_PATH="coverage/RagProgramm$TestEmbendings.coverage" NAME="TestEmbendings Coverage Results" MODIFIED="1758623623528" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/Test" />
     <SUITE FILE_PATH="coverage/RagProgramm$LongChain.coverage" NAME="LongChain Coverage Results" MODIFIED="1757935613776" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/RagProgramm$Chanking.coverage" NAME="Chanking Coverage Results" MODIFIED="1758619518177" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/rag2$RagGoogle.coverage" NAME="RagGoogle Coverage Results" MODIFIED="1756810475987" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/RagProgramm$main.coverage" NAME="main Coverage Results" MODIFIED="1757316062841" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/RagProgramm$RagGoogle.coverage" NAME="RagGoogle Coverage Results" MODIFIED="1757065487659" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/RagProgramm$RagGogNew.coverage" NAME="RagGogNew Coverage Results" MODIFIED="1758629156409" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/RagProgramm$TestWorkChromadb.coverage" NAME="TestWorkChromadb Coverage Results" MODIFIED="1757313046238" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/Test" />
   </component>
 </project>
