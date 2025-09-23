@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List, Dict
 import time
-from RagGogNew import answer_question
+from Rag import answer_question
 
 app = FastAPI()
 

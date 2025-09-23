@@ -1,4 +1,4 @@
-from RagGogNew import answer_question
+from Rag import answer_question
 
 if __name__ == "__main__":
     question = "Что говорится о машинном обучении?"
