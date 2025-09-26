@@ -3,3 +3,48 @@ venv/
 .venv/
 env/
 ENV/
+
+# Секреты
+.env
+*.env.local
+*.env.prod
+
+# База данных
+*.db
+*.sqlite
+conversations.db
+
+# Логи
+logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Векторная база
+qdrant_storage/
+chroma_db/
+
+# Выходные файлы
+output.txt
+output1.txt
+
+# Документы (если содержат конфиденциальную информацию)
+# docs/
+
+# Временные файлы
+*.tmp
+*.temp
