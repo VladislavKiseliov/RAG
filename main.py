@@ -4,16 +4,19 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List, Dict
 import time
-from Rag import answer_question
+from app.core import answer_question,setup_rag_chain
 
 app = FastAPI()
 
-templates = Jinja2Templates(directory=".")
+templates = Jinja2Templates(directory="frontend")
 
 # --- НОВОЕ: Вместо простого списка используем словарь для хранения диалогов ---
 # В реальном приложении здесь была бы база данных (например, SQLite)
 # { "conversation_id_1": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}], ... }
 conversations: Dict[str, List[Dict[str, str]]] = {}
+
+qa_chain = setup_rag_chain()
+
 
 
 class Message(BaseModel):
@@ -63,7 +66,8 @@ def chat_endpoint(conversation_id: str, message: Message):
     conversations[conversation_id].append({"role": "user", "content": user_message})
 
     # Получаем ответ от RAG-системы
-    response_text = answer_question(user_message)
+
+    response_text = answer_question(user_message,qa_chain)
 
     # Сохраняем ответ ассистента
     conversations[conversation_id].append({"role": "assistant", "content": response_text})
