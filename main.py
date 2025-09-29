@@ -5,8 +5,10 @@ from pydantic import BaseModel
 from typing import List, Dict
 import time
 from app.core import answer_question,setup_rag_chain
+from app.db import *
 
 app = FastAPI()
+sqlite = DataBaseManager()
 
 templates = Jinja2Templates(directory="frontend")
 
@@ -16,6 +18,7 @@ templates = Jinja2Templates(directory="frontend")
 conversations: Dict[str, List[Dict[str, str]]] = {}
 
 qa_chain = setup_rag_chain()
+
 
 
 
@@ -30,6 +33,7 @@ def create_conversation():
     """Создает новый пустой диалог и возвращает его ID."""
     conversation_id = str(int(time.time() * 1000))  # Простой уникальный ID на основе времени
     conversations[conversation_id] = []
+    sqlite.add_new_chat(conversation_id, conversation_id, conversations[conversation_id])
     print(f"Создан новый диалог: {conversation_id}")
     return {"conversation_id": conversation_id}
 
