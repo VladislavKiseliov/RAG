@@ -24,100 +24,15 @@ from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
 
 
-# 2. Генеративная модель (Gemini API) - УДАЛЕННОЕ ИСПОЛЬЗОВАНИЕ
-# 1. Эта строка должна быть самой первой, чтобы загрузить ключ
-# 1. Проверяем ключ (используем правильное имя!)
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-
-if not GEMINI_KEY:
-    # Используем правильное имя в сообщении об ошибке
-    raise EnvironmentError("GEMINI_API_KEY не загружен. Проверьте ваш .env файл и убедитесь, что имя переменной написано правильно.")
-
-# 2. Инициализация LLM: Явно передаем ключ
-llm = ChatGoogleGenerativeAI(
-    model=LLM_MODEL_NAME,
-    google_api_key=GEMINI_KEY # <-- ЯВНО ПЕРЕДАЕМ КЛЮЧ
-)
-print("✅ LLM для LangChain настроен.")
-
-# 2. Embedding Model
-try:
-    embeddings = HuggingFaceEmbeddings(
-        model_name="BAAI/bge-m3",
-        encode_kwargs={'normalize_embeddings': True}  # <-- ВАЖНО для косинусного поиска!
-    )
-
-    print("✅ Локальная модель эмбеддингов настроена.")
-except Exception as e:
-    print(f"❌ Ошибка настройки HuggingFaceEmbeddings: {e}")
-    embeddings = None
-
-# --- НАСТРОЙКА ПРОМПТА ---
-CUSTOM_PROMPT = PromptTemplate(
-    template=CUSTOM_PROMPT_TEMPLATE,
-    input_variables=["context", "question"]
-)
-
-def get_retriever():
-    """
-    Создает или загружает Qdrant базу данных и возвращает LangChain Retriever.
-    """
-    if embeddings is None:
-        print("❌ Эмбеддинги не настроены. Невозможно создать ретривер.")
-        return None
-
-    is_indexed = os.path.exists(QDRANT_PATH) and len(list(Path(QDRANT_PATH).glob('*'))) > 0
-
-    if is_indexed:
-        print("✅ Qdrant коллекция найдена. Загружаем...")
-        qdrant_db = Qdrant.from_existing_collection(
-            embedding=embeddings,
-            collection_name=COLLECTION_NAME,
-            path=QDRANT_PATH
-        )
-    else:
-        print("🆕 Коллекция Qdrant не найдена. Создаем и индексируем документы...")
-        list_file = list_pdf_files(DIRECTORY_DOCS)
-
-        # --- ИСПРАВЛЕНИЕ: СБОР ВСЕХ ДОКУМЕНТОВ ---
-        all_docs = []
-        for file_patch in list_file:
-            docs = load_and_split_pdf(file_patch)
-            if docs:
-                all_docs.extend(docs)  # <--- ДОБАВЛЯЕМ ЧАНКИ В ОБЩИЙ СПИСОК
-
-        if not all_docs:
-            print("❌ Документы для индексации не найдены.")
-            return None
-
-        # --- ИНДЕКСАЦИЯ ВСЕХ ДОКУМЕНТОВ ОДНИМ ВЫЗОВОМ ---
-        qdrant_db = Qdrant.from_documents(
-            all_docs,  # <-- Индексируем все чанки
-            embeddings,
-            path=QDRANT_PATH,
-            collection_name=COLLECTION_NAME
-        )
-        print(f"🎉 Qdrant база знаний, содержащая {len(all_docs)} чанков, создана в {QDRANT_PATH}")
-
-    retriever = qdrant_db.as_retriever(
-        search_type="similarity_score_threshold",
-        search_kwargs={
-            "k": 5,
-            "score_threshold": 0.5
-        }
-    )
-    return retriever
 
 
-def setup_rag_chain():
+
+def setup_rag_chain(llm,retriever,CUSTOM_PROMPT):
     """Настраивает всю цепочку RAG (RetrievalQA)."""
     if llm is None:
         return None
-
-    retriever = get_retriever()
     if retriever is None:
         return None
-
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",

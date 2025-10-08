@@ -4,10 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="### Project Structure&#10;- Reorganize into app/, frontend/, tests/ directories&#10;- Add __init__.py files for clean module imports&#10;- Move configuration to app/config/, templates to frontend/&#10;### Security &amp; Configuration  &#10;- Secure .env file and add to .gitignore">
-      <change afterPath="$PROJECT_DIR$/app/db/SQLite.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/db/__init__.py" afterDir="false" />
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="ADD: save chats and mesenge in SQLite">
+      <change afterPath="$PROJECT_DIR$/app/core/initialization.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/db/Qdrant.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/rag_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/rag_pipeline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/db/SQLite.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/SQLite.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -53,36 +55,37 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.Chanking.executor&quot;: &quot;Run&quot;,
-    &quot;Python.CheckModelGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.LongChain.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Qdrant.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGogNew.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestEmbendings.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestWorkChromadb.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testmodel.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;qdrant&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/RGG/Desktop/RagProgramm&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultHtmlFileTemplate": "HTML File",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.Chanking.executor": "Run",
+    "Python.CheckModelGoogle.executor": "Run",
+    "Python.LongChain.executor": "Run",
+    "Python.Qdrant.executor": "Run",
+    "Python.RagGogNew.executor": "Run",
+    "Python.RagGoogle.executor": "Run",
+    "Python.SQLite.executor": "Run",
+    "Python.TestEmbendings.executor": "Run",
+    "Python.TestGoogle.executor": "Run",
+    "Python.TestWorkChromadb.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.testmodel.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "qdrant",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "C:/Users/RGG/Desktop/RagProgramm",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\RGG\Desktop\RagProgramm\docs" />
@@ -94,7 +97,6 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-b598e85cdad2-JavaScript-PY-252.25557.130" />
         <option value="bundled-python-sdk-1bde30d8e611-7b97d883f26b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.25557.130" />
       </set>
     </attachedChunks>
@@ -129,7 +131,7 @@
       <workItem from="1758865706239" duration="3382000" />
       <workItem from="1758887029064" duration="3130000" />
       <workItem from="1759117938741" duration="182000" />
-      <workItem from="1759120598971" duration="12072000" />
+      <workItem from="1759120598971" duration="12282000" />
     </task>
     <task id="LOCAL-00001" summary="Update:New requirements.txt">
       <option name="closed" value="true" />
@@ -195,7 +197,23 @@
       <option name="project" value="LOCAL" />
       <updated>1758890156353</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="ADD: New class work with SQLite,So far, only the creation of the database&#10;UPDATE:Updated dependencies and a new Google model LLM">
+      <option name="closed" value="true" />
+      <created>1759149799691</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1759149799691</updated>
+    </task>
+    <task id="LOCAL-00010" summary="ADD: save chats and mesenge in SQLite">
+      <option name="closed" value="true" />
+      <created>1759840171139</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1759840171139</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -246,17 +264,9 @@
     <MESSAGE value="UPDATE:update method get_relevant_context" />
     <MESSAGE value="ADD: New Files - config.py , Chanking.py , .env &#10;Update: chunking method is stored in a separate file for independent operation" />
     <MESSAGE value="### Project Structure&#10;- Reorganize into app/, frontend/, tests/ directories&#10;- Add __init__.py files for clean module imports&#10;- Move configuration to app/config/, templates to frontend/&#10;### Security &amp; Configuration  &#10;- Secure .env file and add to .gitignore" />
-    <option name="LAST_COMMIT_MESSAGE" value="### Project Structure&#10;- Reorganize into app/, frontend/, tests/ directories&#10;- Add __init__.py files for clean module imports&#10;- Move configuration to app/config/, templates to frontend/&#10;### Security &amp; Configuration  &#10;- Secure .env file and add to .gitignore" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/app/core/rag_pipeline.py</url>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+    <MESSAGE value="ADD: New class work with SQLite,So far, only the creation of the database&#10;UPDATE:Updated dependencies and a new Google model LLM" />
+    <MESSAGE value="ADD: save chats and mesenge in SQLite" />
+    <option name="LAST_COMMIT_MESSAGE" value="ADD: save chats and mesenge in SQLite" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />

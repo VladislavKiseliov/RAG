@@ -7,10 +7,33 @@ from app.config import *
 
 class DataBaseManager:
     """Работа с базой данных SQL_Lite"""
-    def __init__(self):
-        self.db_name = SQLITE
-        self._create_table_chats_and_messages()
 
+    def __init__(self):
+        # self.db_name = SQLITE
+        self.db_name = r"C:\Users\RGG\Desktop\RagProgramm\storage\db_chat\tables.db"
+        check_table = self._check_table()
+        if not check_table:
+            self._create_table_chats_and_messages()
+
+
+    def _check_table(self):
+        """Проверка на наличие базовых таблиц"""
+        try:
+            with sqlite3.connect(self.db_name) as conn:
+                cursor = conn.cursor()
+                # Проверяем существование таблицы chats
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", ('chats',))
+                chat_table = cursor.fetchone()
+
+                # Проверяем существование таблицы messages
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", ('messages',))
+                messages_table = cursor.fetchone()
+
+                # Возвращаем True только если обе таблицы существуют
+                return chat_table is not None and messages_table is not None
+        except sqlite3.Error as e:
+            print(f"Ошибка при проверке таблиц: {e}")
+            return False
 
     def _create_table_chats_and_messages(self):
         """Creates tables chats and messages"""
@@ -38,49 +61,41 @@ class DataBaseManager:
             cursor.execute(create_query_massages)
 
     def add_new_chat(self, chat_id: str, user_id: str, title: str):
-        curent_datetime = datetime.datetime.now()
-        print("233333333")
-        # create_query_chats = f"""INSERT INTO chats ({chat_id}, {user_id}, {title}, {curent_datetime})"""
-        # with sqlite3.connect(self.db_name) as conn:
-        #     cursor = conn.cursor()
-        #     cursor.execute(create_query_chats)
 
+        create_query_chats = """INSERT INTO chats (chat_id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"""
 
-    def _check_exist_table(self, table_name: str):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_name) as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                'SELECT 1 FROM "Initial_Data" WHERE table_name = ? LIMIT 1',
-                (table_name,)
-            )
-            return cursor.fetchone() is not None
+            cursor.execute(create_query_chats, (chat_id, user_id, title, datetime.datetime.now(), datetime.datetime.now()))
 
-    def _create_table_query(self, table_name: str, colums: List[str]) -> str:
-        """Create a request to create a table in the database"""
-        # Проверяем, что колонки не пустые
-        if not colums:
-            self.logger.error("Список колонок пуст!")
-            raise ValueError("Колонки не определены")
-        # Формируем SQL-запрос для создания таблицы
+    def check_chats(self):
+        """Проверка существующих чатов в базе"""
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM chats")
+            chats = cursor.fetchall()
+            print(f"{chats=}")
 
-        create_table_query = f"""
-            CREATE TABLE IF NOT EXISTS '{table_name}' (
-                {", ".join([f"{col} REAL" for col in colums])}  
-            )
-        """
-        self.logger.debug(f"SQL-запрос создания таблицы: {create_table_query} _create_table_query")
-        return create_table_query
+    def check_messages(self,chat_id: str):
 
-    def _insert_query(self, table_name: str, colums: List[str]) -> str:
-        """Create a request to insert data into the table"""
-        insert_query = f"""
-            INSERT INTO '{table_name}' ({", ".join(colums)}) 
-            VALUES ({", ".join(["?"] * len(colums))})
-        """
-        self.logger.debug(f"SQL-запрос вставки данных: {insert_query}")
-        return insert_query
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM messages WHERE chat_id=?", (chat_id,))
+            messages = cursor.fetchall()
+            print(f"{messages=}")
+
+    def add_new_message(self, id: str,chat_id: str, role: str, content: str):
+
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            add_query_messanges = """INSERT INTO messages (id,chat_id,role,content,reated_at) VALUES (?,?,?,?,?)"""
+            cursor.execute(add_query_messanges, (chat_id, role, content, datetime.datetime.now()))
 
 
+if __name__ == "__main__":
+    db = DataBaseManager()
+    db.check_chats()
+    db.check_messages(chat_id=1759839633685)
 
 
 
