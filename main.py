@@ -14,7 +14,8 @@ from app.config import *
 
 
 app = FastAPI()
-sqlite = DataBaseManager()
+sqlite = DataBaseManager(SQLITE)
+
 # Инициализация компонентов
 llm = initialization_llm()
 embeddings = initialization_embenddings_model()
@@ -26,11 +27,12 @@ templates = Jinja2Templates(directory="frontend")
 qdrant_manager = QdrantManager(
     embeddings=embeddings,
     collection_name=COLLECTION_NAME,
-    qdrant_path=SQLITE
+    qdrant_path=QDRANT_PATH
 )
 
 retriever = qdrant_manager.get_retriever(DIRECTORY_DOCS)
-qa_chain = setup_rag_chain(llm,retriever,COLLECTION_NAME)
+# Исправлено: передаем prompt_template (объект PromptTemplate) вместо CUSTOM_PROMPT_TEMPLATE (строки)
+qa_chain = setup_rag_chain(llm,retriever,prompt_template)
 
 
 
@@ -56,7 +58,7 @@ def create_conversation():
     """Создает новый пустой диалог и возвращает его ID."""
     conversation_id = str(int(time.time() * 1000))  # Простой уникальный ID на основе времени
     conversations[conversation_id] = []
-    sqlite.check_chats()
+
     sqlite.add_new_chat(chat_id= conversation_id,user_id= conversation_id, title="тест")
 
     print(f"Создан новый диалог: {conversation_id}")
@@ -78,7 +80,8 @@ def get_conversation_history(conversation_id: str):
     """Возвращает историю сообщений для конкретного диалога."""
     if conversation_id not in conversations:
         raise HTTPException(status_code=404, detail="Диалог не найден")
-    return {"history": conversations[conversation_id]}
+    result = sqlite.get_chat_messages(conversation_id)
+    return {"history": result}
 
 
 # --- ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ ---
@@ -94,7 +97,7 @@ def chat_endpoint(conversation_id: str, message: Message):
     # Сохраняем сообщение пользователя
     conversations[conversation_id].append({"role": "user", "content": user_message})
 
-    sqlite.add_new_message(conversation_id, conversation_id, "user", user_message)
+    sqlite.add_new_message( conversation_id, "user", user_message)
 
 
     # Получаем ответ от RAG-системы
@@ -104,7 +107,7 @@ def chat_endpoint(conversation_id: str, message: Message):
     # Сохраняем ответ ассистента
     conversations[conversation_id].append({"role": "assistant", "content": response_text})
 
-    sqlite.add_new_message(conversation_id, conversation_id, "assistant", response_text)
+    sqlite.add_new_message( conversation_id, "assistant", response_text)
 
     return {"response": response_text}
 
