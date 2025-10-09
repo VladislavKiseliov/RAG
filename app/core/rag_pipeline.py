@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import numpy as np
 # --- Импорт наших файлов ---
 from app.config import *
@@ -24,20 +24,23 @@ from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
 
 
-
-
-
-def setup_rag_chain(llm,retriever,CUSTOM_PROMPT):
+def setup_rag_chain(llm=None, retriever=None, prompt_template=None):
     """Настраивает всю цепочку RAG (RetrievalQA)."""
+    # Если параметры не переданы, пытаемся получить их из конфигурации
+    if llm is None or retriever is None or prompt_template is None:
+        print("⚠️  setup_rag_chain вызван без необходимых параметров")
+        return None
+        
     if llm is None:
         return None
     if retriever is None:
         return None
+        
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=retriever,
-        chain_type_kwargs={"prompt": CUSTOM_PROMPT},
+        chain_type_kwargs={"prompt": prompt_template},  # Используем prompt_template, а не CUSTOM_PROMPT
         return_source_documents=True
     )
     return qa_chain
@@ -96,21 +99,5 @@ def answer_question(question: str, qa_chain: RetrievalQA) -> str:
 
 # --- ДЕМОНСТРАЦИЯ И ТЕСТИРОВАНИЕ ---
 if __name__ == '__main__':
-    qa_chain = setup_rag_chain()
-
-    if qa_chain:
-        test_question_relevant = " межкорпоративная стандартизация "
-        print(f"\n❓ Вопрос (Релевантный): {test_question_relevant}")
-        answer_relevant = answer_question(test_question_relevant, qa_chain)
-        print("\n------------------------------")
-        print("🤖 Ответ:")
-        print(answer_relevant)
-        print("------------------------------")
-
-        test_question_irrelevant = "Что такое технические условия"
-        print(f"\n❓ Вопрос (Нерелевантный): {test_question_irrelevant}")
-        answer_irrelevant = answer_question(test_question_irrelevant, qa_chain)
-        print("\n------------------------------")
-        print("🤖 Ответ:")
-        print(answer_irrelevant)
-        print("------------------------------")
+    # Тестовый блок не будет работать без параметров, поэтому просто выводим сообщение
+    print("Для тестирования запустите main.py или используйте API")
