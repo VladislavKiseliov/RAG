@@ -8,6 +8,7 @@ ENV/
 .env
 *.env.local
 *.env.prod
+.qoder
 
 # База данных
 *.db
