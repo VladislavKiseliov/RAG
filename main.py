@@ -27,19 +27,14 @@ templates = Jinja2Templates(directory="frontend")
 qdrant_manager = QdrantManager(
     embeddings=embeddings,
     collection_name=COLLECTION_NAME,
-    qdrant_path=QDRANT_PATH
+    qdrant_path=QDRANT_PATH,
+    docs_directory=DIRECTORY_DOCS
 )
 
-retriever = qdrant_manager.get_retriever(DIRECTORY_DOCS)
+retriever = qdrant_manager.get_retriever()
 qa_chain = setup_rag_chain(llm,retriever,prompt_template)
 
 
-
-
-# --- НОВОЕ: Вместо простого списка используем словарь для хранения диалогов ---
-# В реальном приложении здесь была бы база данных (например, SQLite)
-# { "conversation_id_1": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}], ... }
-conversations: Dict[str, List[Dict[str, str]]] = {}
 
 # --- КОНСТАНТНЫЙ ID ПОЛЬЗОВАТЕЛЯ (user_id) ---
 # В реальном приложении этот ID извлекается из JWT-токена после входа.
