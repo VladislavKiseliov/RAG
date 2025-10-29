@@ -24,4 +24,5 @@ __all__ = [
     
     # Промпты
     'CUSTOM_PROMPT_TEMPLATE'
+
 ]
