@@ -116,7 +116,7 @@ def answer(user_question, embeddings_db):
 
 
 def start(user_question):
-    pdf_path = "../docs/123.pdf"
+    pdf_path = "../../docs/123.pdf"
     pdf_chunks = load_and_split_pdf(pdf_path)
     embeddings_db = create_embeddings(pdf_chunks)
     if embeddings_db:
@@ -128,7 +128,7 @@ def start(user_question):
 
 
 
-    pdf_path = "../docs/123.pdf"
+    pdf_path = "../../docs/123.pdf"
     pdf_chunks = load_and_split_pdf(pdf_path)
     embeddings_db = create_embeddings(pdf_chunks)
     if embeddings_db:

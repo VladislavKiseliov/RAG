@@ -8,8 +8,8 @@ import tempfile
 # Добавляем корневую директорию проекта в путь поиска модулей
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from app.db.base_db import DataBase
-from app.db.SQLite import DataBaseManager
+from app.db.interfaces.base_db import DataBase
+from app.db.implementations.SQLite import DataBaseManager
 
 
 def test_database_interface():
