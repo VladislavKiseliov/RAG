@@ -3,9 +3,7 @@ import os
 import sqlite3
 from typing import Any, Dict, List, Optional
 
-from app.config import *
-
-from .base_db import DataBase
+from app.db.interfaces.base_db import DataBase
 
 
 class DataBaseManager(DataBase):

@@ -43,7 +43,7 @@ genai.configure(api_key=API_KEY)
 generative_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
 
 DIRECTORY_DOCS = r"C:\Users\RGG\Desktop\RagProgramm\docs"
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
+chroma_client = chromadb.PersistentClient(path="../chroma_db")
 # collections = chroma_client.create_collection(name="personal_collection")
 
 def list_files(directory: str) -> Dict[str, Path]:

@@ -1,12 +1,12 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List, Dict
 import time
 from app.core import answer_question,setup_rag_chain
 from app.db import *
-from app.db.Qdrant import QdrantManager
+from app.db.implementations.Qdrant import QdrantManager
 from app.core.initialization import initialization_llm, initialization_embenddings_model, initialization_prompt_template
 from app.config import *
 

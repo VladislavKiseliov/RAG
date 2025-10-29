@@ -4,16 +4,26 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="ADD : .env.example file for user environment variables">
-      <change afterPath="$PROJECT_DIR$/app/db/base_vector_db.py" afterDir="false" />
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="UPDATE : filename interface for SQLite.py&#10;ADD : New interface for work with vector database&#10;refactor(qdrant): move docs path to QdrantManager.__init__ for better encapsulation">
+      <change afterPath="$PROJECT_DIR$/app/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/db/implementations/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/db/interfaces/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/SQLITEAlchemy.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/config/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/db/Qdrant.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/Qdrant.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/db/SQLite.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/SQLite.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/db/Qdrant.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/implementations/Qdrant.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/db/SQLite.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/implementations/SQLite.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/db/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/db/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/base_db.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/db/base_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/interfaces/base_db.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/db/base_vector_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/interfaces/base_vector_db.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/db/test_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/test_interface.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/CheckModelGoogle.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/CheckModelGoogle.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/LongChain.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/LongChain.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/RagGoogle.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/RagGoogle.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/TestEmbendings.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/TestEmbendings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/TestWorkChromadb.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/TestWorkChromadb.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/test.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -58,43 +68,45 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.Chanking.executor&quot;: &quot;Run&quot;,
-    &quot;Python.CheckModelGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.LongChain.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Qdrant.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGogNew.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.SQLite.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestEmbendings.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestWorkChromadb.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testmodel.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;qdrant&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/RGG/Desktop/RagProgramm&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultHtmlFileTemplate": "HTML File",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.Chanking.executor": "Run",
+    "Python.CheckModelGoogle.executor": "Run",
+    "Python.LongChain.executor": "Run",
+    "Python.Qdrant.executor": "Run",
+    "Python.RagGogNew.executor": "Run",
+    "Python.RagGoogle.executor": "Run",
+    "Python.SQLITEAlchemy.executor": "Run",
+    "Python.SQLite.executor": "Run",
+    "Python.TestEmbendings.executor": "Run",
+    "Python.TestGoogle.executor": "Run",
+    "Python.TestWorkChromadb.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.testmodel.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "qdrant",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "C:/Users/RGG/Desktop/RagProgramm",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\OldFile" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\implementations" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\interfaces" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\docs" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\Test" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\docs\па" />
-      <recent name="C:\Users\RGG\Desktop\rag2" />
     </key>
   </component>
   <component name="SharedIndexes">
@@ -256,7 +268,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760522373428</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="UPDATE : filename interface for SQLite.py&#10;ADD : New interface for work with vector database&#10;refactor(qdrant): move docs path to QdrantManager.__init__ for better encapsulation">
+      <option name="closed" value="true" />
+      <created>1761729726162</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1761729726162</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -314,7 +334,8 @@
     <MESSAGE value="Added : New text_splitter" />
     <MESSAGE value="Update: main.py updated to work with user_id" />
     <MESSAGE value="ADD : .env.example file for user environment variables" />
-    <option name="LAST_COMMIT_MESSAGE" value="ADD : .env.example file for user environment variables" />
+    <MESSAGE value="UPDATE : filename interface for SQLite.py&#10;ADD : New interface for work with vector database&#10;refactor(qdrant): move docs path to QdrantManager.__init__ for better encapsulation" />
+    <option name="LAST_COMMIT_MESSAGE" value="UPDATE : filename interface for SQLite.py&#10;ADD : New interface for work with vector database&#10;refactor(qdrant): move docs path to QdrantManager.__init__ for better encapsulation" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
