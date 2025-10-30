@@ -8,14 +8,14 @@ from dotenv import load_dotenv
 load_dotenv()  # загружает переменные из .env
 
 # --- Импорты LangChain и компонентов ---
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Qdrant
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import RetrievalQA
-from langchain.schema import Document
-from langchain.prompts import PromptTemplate
+
+from langchain_core.documents import Document
+
 from sentence_transformers import SentenceTransformer
 
 # --- Импорт наших файлов ---
