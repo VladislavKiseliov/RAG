@@ -1,7 +1,9 @@
 from pathlib import Path
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# Стало: Импорт из отдельного пакета для Text Splitters
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
 from dotenv import load_dotenv
+# Этот импорт, вероятно, верен, так как SemanticChunker - экспериментальный модуль
 from langchain_experimental.text_splitter import SemanticChunker
 
 load_dotenv()
