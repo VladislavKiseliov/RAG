@@ -4,13 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="Updated : dependencies&#10;Added :  table creation via SQLAlchemy">
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="Updated : requirements.txt">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/config/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/document_processing.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/document_processing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/initialization.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/initialization.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/rag_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/rag_pipeline.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/SQLITEAlchemy.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/SQLITEAlchemy.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -271,7 +268,15 @@
       <option name="project" value="LOCAL" />
       <updated>1761740395501</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="Updated : requirements.txt">
+      <option name="closed" value="true" />
+      <created>1761827153586</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1761827153586</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -331,7 +336,8 @@
     <MESSAGE value="ADD : .env.example file for user environment variables" />
     <MESSAGE value="UPDATE : filename interface for SQLite.py&#10;ADD : New interface for work with vector database&#10;refactor(qdrant): move docs path to QdrantManager.__init__ for better encapsulation" />
     <MESSAGE value="Updated : dependencies&#10;Added :  table creation via SQLAlchemy" />
-    <option name="LAST_COMMIT_MESSAGE" value="Updated : dependencies&#10;Added :  table creation via SQLAlchemy" />
+    <MESSAGE value="Updated : requirements.txt" />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated : requirements.txt" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
