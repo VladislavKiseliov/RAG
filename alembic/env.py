@@ -19,9 +19,12 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
+
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
-from tests.SQLITEAlchemy import Base
+
+from app.models.database_models import Base
+
 target_metadata = Base.metadata
 
 
@@ -70,7 +73,8 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata,
+            render_as_batch=True,  # ← ЭТО ОБЯЗАТЕЛЬНО ДЛЯ SQLite
         )
 
         with context.begin_transaction():

@@ -4,10 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="Updated : requirements.txt">
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="ADD  alembic for versioned database">
+      <change afterPath="$PROJECT_DIR$/app/models/database_models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/SQLITEAlchemy.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/SQLITEAlchemy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/env.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/SQLITEAlchemy.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/implementations/SQLITEAlchemy.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -86,9 +87,9 @@
 }</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\implementations" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\tests" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\OldFile" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\implementations" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\interfaces" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\docs" />
     </key>
@@ -276,7 +277,15 @@
       <option name="project" value="LOCAL" />
       <updated>1761827153586</updated>
     </task>
-    <option name="localTasksCounter" value="19" />
+    <task id="LOCAL-00019" summary="ADD  alembic for versioned database">
+      <option name="closed" value="true" />
+      <created>1761912656386</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1761912656386</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -337,7 +346,8 @@
     <MESSAGE value="UPDATE : filename interface for SQLite.py&#10;ADD : New interface for work with vector database&#10;refactor(qdrant): move docs path to QdrantManager.__init__ for better encapsulation" />
     <MESSAGE value="Updated : dependencies&#10;Added :  table creation via SQLAlchemy" />
     <MESSAGE value="Updated : requirements.txt" />
-    <option name="LAST_COMMIT_MESSAGE" value="Updated : requirements.txt" />
+    <MESSAGE value="ADD  alembic for versioned database" />
+    <option name="LAST_COMMIT_MESSAGE" value="ADD  alembic for versioned database" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
