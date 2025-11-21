@@ -3,8 +3,8 @@ from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
 from dotenv import load_dotenv
-# Этот импорт, вероятно, верен, так как SemanticChunker - экспериментальный модуль
-from langchain_experimental.text_splitter import SemanticChunker
+# # Этот импорт, вероятно, верен, так как SemanticChunker - экспериментальный модуль
+# from langchain_experimental.text_splitter import SemanticChunker
 
 load_dotenv()
 
@@ -40,7 +40,7 @@ embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2") # Пример
 
 # 2. Инициализация SemanticChunker
 # В качестве разделителя используется 'sentence'
-text_splitter = SemanticChunker(embeddings)
+# text_splitter = SemanticChunker(embeddings)
 
 # # 3. Разбиение текста
 # long_text = "Ваш очень длинный текст с разными темами..."
