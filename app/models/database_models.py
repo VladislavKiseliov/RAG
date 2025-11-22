@@ -1,7 +1,8 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import String, ForeignKey, DateTime, BigInteger
 from datetime import datetime
-
+from sqlalchemy import String
+import uuid
 
 
 class Base(DeclarativeBase):
@@ -31,7 +32,7 @@ class Users(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(String(36),primary_key=True,default=lambda: str(uuid.uuid4()))
     chat_id: Mapped[int] = mapped_column(BigInteger)
     login: Mapped[str] = mapped_column(String(100))
     password: Mapped[str] = mapped_column(String(100))
