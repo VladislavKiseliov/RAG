@@ -1,14 +1,41 @@
 # --- ЭНДПОИНТЫ ---
-
+import os
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status,Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import sessionmaker
 
-from app.sevices.security import create_jwt_token
+
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.db.implementations.SQLITEAlchemy import Data_Base_Alchemy
+from app.sevices.security import Auth
+
 
 # Создаем роутер для всех эндпоинтов
 router = APIRouter()
+
+DATABASE_URL = os.getenv("SQLITE")
+SECRET_KEY = os.getenv("SECRET_KEY")  # В реальной практике генерируйте ключ, например, с помощью 'openssl rand -hex 32', и храните его в безопасности
+ALGORITHM = os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))  # Время жизни токена
+print(type(ACCESS_TOKEN_EXPIRE_MINUTES))
+print(ACCESS_TOKEN_EXPIRE_MINUTES)
+engine = create_engine(DATABASE_URL,echo=True)
+SessionLocal = sessionmaker(bind=engine)
+sqlite = Data_Base_Alchemy()
+auth = Auth(SECRET_KEY,ALGORITHM,ACCESS_TOKEN_EXPIRE_MINUTES)
+
+def get_db():
+    db = SessionLocal() # Создаем сессию
+    try:
+        yield db       # Передаем ее эндпоинту
+    finally:
+        db.close()     # Закрываем сессию (FastAPI это гарантирует)
+
 
 # --- СХЕМА ДАННЫХ (Pydantic) ---
 
@@ -39,29 +66,45 @@ class Message(BaseModel):
 
 
 @router.post("/auth/login")
-def login(user_data: LoginRequest) -> Dict[str, Any]:
+def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
      Этот маршрут проверяет учетные данные пользователя и возвращает JWT токен, если данные правильные.
     """
 
     print(f"Пользователь {user_data.username} и пароль {user_data.password}")
-    # 💡 ВРЕМЕННАЯ ЗАГЛУШКА: Проверка логина/пароля
-    if user_data.username == "test" and user_data.password == "password":
-        token = create_jwt_token({"sub": user_data.username})  # "sub" — это subject, в нашем случае имя пользователя
-        print(f'{token=}')
-        # Успешный ответ, который ждет React:
+
+    # Получить пользователя из бд
+    user = sqlite.get_user_by_id(db,user_data.username)
+    # Пытаемся получить токен
+    try:
+        jwt_token = auth.authenticate_user(user.id,user.password,user_data.password)
+        print(jwt_token)
+        print(f"ID из токена = {auth.get_user_from_token(jwt_token)}")
         return {
-            "message": "Login successful",
-            "access_token": "fake_jwt_token_for_test",
-            "token_type": "bearer",
-        }
-    else:
-        # 🚨 Ошибка: Возвращаем HTTP-код 401 Unauthorized
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверное имя пользователя или пароль.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+                "message": "Login successful",
+                "access_token": jwt_token,
+                "token_type": "bearer",
+            }
+    except Exception as e:
+        print(e)
+
+    # # 💡 ВРЕМЕННАЯ ЗАГЛУШКА: Проверка логина/пароля
+    # if user_data.username == "test" and user_data.password == "password":
+    #     # token = create_jwt_token({"sub": user_data.username})  # "sub" — это subject, в нашем случае имя пользователя
+    #     print(f'{token=}')
+    #     # Успешный ответ, который ждет React:
+    #     return {
+    #         "message": "Login successful",
+    #         "access_token": "fake_jwt_token_for_test",
+    #         "token_type": "bearer",
+    #     }
+    # else:
+    #     # 🚨 Ошибка: Возвращаем HTTP-код 401 Unauthorized
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="Неверное имя пользователя или пароль.",
+    #         headers={"WWW-Authenticate": "Bearer"},
+    #     )
 
 # # Защищённый маршрут, который возвращает информацию о пользователе,
 # # если токен в запросе действителен.
