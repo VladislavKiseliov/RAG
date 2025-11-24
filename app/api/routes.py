@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import uuid6
 
 from app.db.implementations.SQLITEAlchemy import Data_Base_Alchemy
 from app.sevices.security import Auth
@@ -72,11 +73,15 @@ def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, An
     """
 
     print(f"Пользователь {user_data.username} и пароль {user_data.password}")
-
-    # Получить пользователя из бд
-    user = sqlite.get_user_by_id(db,user_data.username)
-    # Пытаемся получить токен
     try:
+        # Получить пользователя из бд
+        user = sqlite.get_user_by_login(db,user_data.username)
+        # Пытаемся получить токен
+        if not user:
+            hashed_password = auth.get_password_hash(user_data.password)
+            sqlite.add_new_user(db,user_data.username,hashed_password)
+            user = sqlite.get_user_by_login(db,user_data.username)
+
         jwt_token = auth.authenticate_user(user.id,user.password,user_data.password)
         print(jwt_token)
         print(f"ID из токена = {auth.get_user_from_token(jwt_token)}")
@@ -86,25 +91,13 @@ def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, An
                 "token_type": "bearer",
             }
     except Exception as e:
-        print(e)
-
-    # # 💡 ВРЕМЕННАЯ ЗАГЛУШКА: Проверка логина/пароля
-    # if user_data.username == "test" and user_data.password == "password":
-    #     # token = create_jwt_token({"sub": user_data.username})  # "sub" — это subject, в нашем случае имя пользователя
-    #     print(f'{token=}')
-    #     # Успешный ответ, который ждет React:
-    #     return {
-    #         "message": "Login successful",
-    #         "access_token": "fake_jwt_token_for_test",
-    #         "token_type": "bearer",
-    #     }
-    # else:
-    #     # 🚨 Ошибка: Возвращаем HTTP-код 401 Unauthorized
-    #     raise HTTPException(
-    #         status_code=status.HTTP_401_UNAUTHORIZED,
-    #         detail="Неверное имя пользователя или пароль.",
-    #         headers={"WWW-Authenticate": "Bearer"},
-    #     )
+        print(f"Login error: {e}")
+        # Возвращаем HTTP-код 401 Unauthorized
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 # # Защищённый маршрут, который возвращает информацию о пользователе,
 # # если токен в запросе действителен.
@@ -122,18 +115,23 @@ def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, An
 
 #
 #
-# @app.post("/api/conversations")
-# def create_conversation():
-#     """Создает новый пустой диалог и возвращает его ID, используя константный user_id."""
-#     # conversation_id (chat_id) генерируется как уникальная метка времени
-#     conversation_id = str(int(time.time() * 1000))
-#     conversations[conversation_id] = []
-#
-#     # Используем константный user_id
-#     sqlite.add_new_chat(chat_id=conversation_id, user_id=user_id, title="Новый чат")
-#
-#     print(f"Создан новый диалог: {conversation_id} для user: {user_id}")
-#     return {"conversation_id": conversation_id}
+@router.post("/api/conversations")
+def create_conversation(current_user: str = Depends(auth.get_user_from_token),db: Session = Depends(get_db)):
+    """Создает новый пустой диалог и возвращает его ID, используя константный user_id."""
+    # user_id = current_user
+    print(current_user)
+    # user = sqlite.get_user_by_login(db,user_data.username)
+
+
+    # conversation_id (chat_id) генерируется как уникальная метка времени
+    # conversation_id = str(int(time.time() * 1000))
+    # conversations[conversation_id] = []
+
+    # Используем константный user_id
+    # sqlite.add_new_chat(chat_id=conversation_id, user_id=user_id, title="Новый чат")
+    #
+    # print(f"Создан новый диалог: {conversation_id} для user: {user_id}")
+    # return {"conversation_id": conversation_id}
 #
 #
 # @app.get("/api/conversations")
