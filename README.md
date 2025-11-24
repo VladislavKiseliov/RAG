@@ -1,81 +1,125 @@
-# RAG Чат Приложение
+# RAG Chat Application
 
-Продвинутое приложение для чата с технологией Retrieval-Augmented Generation (RAG), которое сочетает мощность больших языковых моделей с извлечением информации из документов для предоставления точных, контекстно-зависимых ответов.
+Advanced chat application with Retrieval-Augmented Generation (RAG) technology that combines the power of large language models with document information retrieval to provide accurate, context-aware responses.
 
-## Обзор
+## Overview
 
-Это приложение реализует полнофункциональный интерфейс чата с постоянной историей разговоров, ответами на вопросы на основе документов и современным веб-интерфейсом. Оно использует модель Google Gemini для обработки естественного языка и Qdrant для векторного извлечения документов.
+This application implements a full-featured chat interface with persistent conversation history, document-based question answering, and a modern web interface. It uses the Google Gemini model for natural language processing and Qdrant for vector document retrieval.
 
-## Особенности
+## Features
 
-- **Ответы на вопросы по документам**: Задавайте вопросы о ваших документах с использованием технологии RAG
-- **Постоянные разговоры**: Сохраняйте и возобновляйте сессии чата с помощью базы данных SQLite
-- **Современный веб-интерфейс**: Чистый, отзывчивый интерфейс чата с боковой панелью истории разговоров
-- **Атрибуция источников**: Смотрите, какие документы легли в основу каждого ответа
-- **Поддержка нескольких документов**: Обрабатывайте и задавайте вопросы по нескольким PDF-документам
+- **Document Question Answering**: Ask questions about your documents using RAG technology
+- **Persistent Conversations**: Save and resume chat sessions using SQLite database
+- **Modern Web Interface**: Clean, responsive chat interface with conversation history sidebar
+- **Source Attribution**: See which documents formed the basis of each answer
+- **Multi-Document Support**: Process and ask questions about multiple PDF documents
 
-## Архитектура
+## Architecture
 
-Приложение состоит из нескольких ключевых компонентов:
+The application consists of several key components:
 
-1. **Фронтенд** ([frontend/index.html](file:///c%3A/Users/RGG/Desktop/RagProgramm/frontend/index.html)): Респонсивный веб-интерфейс, созданный на чистом JavaScript
-2. **Бэкенд** ([main.py](file:///c%3A/Users/RGG/Desktop/RagProgramm/main.py)): Сервер FastAPI, обрабатывающий API-эндпоинты и маршрутизацию
-3. **Основная логика** ([app/core/](file:///c%3A/Users/RGG/Desktop/RagProgramm/app/core/)): 
-   - Обработка документов и разделение на части
-   - Настройка RAG-цепочки и ответы на вопросы
-4. **База данных** ([app/db/](file:///c%3A/Users/RGG/Desktop/RagProgramm/app/db/)): Постоянство разговоров и сообщений с помощью SQLite
-5. **Векторное хранилище** ([app/db/Qdrant.py](file:///c%3A/Users/RGG/Desktop/RagProgramm/app/db/Qdrant.py)): Интеграция Qdrant для извлечения документов
+1. **Frontend** (`frontend/src/`): React application with Vite build tool
+2. **Backend** (`main.py`): FastAPI server handling API endpoints and routing
+3. **Core Logic** (`app/core/`): 
+   - Document processing and chunking
+   - RAG pipeline setup and question answering
+4. **Database Layer** (`app/db/`): Conversation persistence with SQLite and vector storage with Qdrant
+5. **Models** (`app/models/`): Data models for database entities
 
-## Как это работает
+## How It Works
 
-1. **Загрузка документов**: PDF-документы в директории [docs/](file:///c%3A/Users/RGG/Desktop/RagProgramm/docs/) обрабатываются и преобразуются в векторные представления
-2. **Хранение векторов**: Части документов сохраняются в векторной базе данных Qdrant с метаданными
-3. **Обработка вопросов**: Вопросы пользователей встраиваются и сопоставляются с сохраненными векторами документов
-4. **Извлечение контекста**: Наиболее релевантные части документов извлекаются на основе коэффициентов схожести
-5. **Генерация ответов**: Модель Google Gemini генерирует ответы, используя извлеченный контекст
-6. **Сохранение разговора**: Все взаимодействия сохраняются в SQLite для последующего просмотра
+1. **Document Loading**: PDF documents in the `docs/` directory are processed and converted to vector representations
+2. **Vector Storage**: Document chunks are stored in the Qdrant vector database with metadata
+3. **Question Processing**: User questions are embedded and matched against stored document vectors
+4. **Context Retrieval**: Most relevant document chunks are retrieved based on similarity scores
+5. **Response Generation**: Google Gemini model generates answers using the retrieved context
+6. **Conversation Persistence**: All interactions are saved to SQLite for later review
 
-## Инструкции по установке
+## Installation Instructions
 
-1. Установите зависимости:
+### Prerequisites
+- Python 3.12+
+- Node.js 16+
+- Poetry (for Python dependency management)
+
+### Backend Setup
+
+1. Install Poetry if not already installed:
+   ```bash
+   pip install poetry
    ```
-   pip install -r requirements.txt
+
+2. Install Python dependencies using Poetry:
+   ```bash
+   poetry install
    ```
 
-2. Настройте переменные окружения в файле [.env](file:///c%3A/Users/RGG/Desktop/RagProgramm/.env):
+3. Activate the Poetry virtual environment:
+   ```bash
+   poetry shell
    ```
+   or
+   ```bash
+   poetry env activate
+   ```
+
+4. Set up environment variables in `.env` file:
+   ```env
    GOOGLE_API_KEY=your_api_key_here
    ```
 
-3. Поместите ваши PDF-документы в папку [docs/](file:///c%3A/Users/RGG/Desktop/RagProgramm/docs/)
+5. Place your PDF documents in the `docs/` folder
 
-4. Запустите приложение:
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
    ```
+
+2. Install frontend dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the frontend:
+   ```bash
+   npm run build
+   ```
+
+### Running the Application
+
+1. Make sure you're in the Poetry virtual environment (from backend setup)
+2. Run the application:
+   ```bash
    python main.py
    ```
 
-5. Откройте веб-интерфейс по адресу `http://localhost:8000`
+3. Open the web interface at `http://localhost:8000`
 
-## API Эндпоинты
+## API Endpoints
 
-- `POST /api/conversations` - Создать новый разговор
-- `GET /api/conversations` - Список всех разговоров
-- `GET /api/conversations/{id}` - Получить историю разговора
-- `POST /api/conversations/{id}/messages` - Отправить сообщение в разговоре
+- `POST /api/conversations` - Create a new conversation
+- `GET /api/conversations` - List all conversations
+- `GET /api/conversations/{id}` - Get conversation history
+- `POST /api/conversations/{id}/messages` - Send a message in a conversation
 
-## Технические детали
+## Technical Details
 
-- **LLM**: Google Gemini (через `langchain-google-genai`)
-- **Встраивания**: BAAI/bge-m3 (через `langchain-huggingface`)
-- **Векторное хранилище**: Qdrant
-- **База данных**: SQLite
-- **Веб-фреймворк**: FastAPI
-- **Фронтенд**: Чистый HTML/CSS/JavaScript
+- **Web Framework**: FastAPI
+- **LLM**: Google Gemini (via `langchain-google-genai`)
+- **Embeddings**: BAAI/bge-m3 (via `langchain-huggingface`)
+- **Vector Store**: Qdrant
+- **Database**: SQLite with SQLAlchemy ORM
+- **Frontend**: React with Vite
+- **Dependency Management**: Poetry (Python), npm (Frontend)
+- **Migration Tool**: Alembic
 
-## Последние улучшения
+## Recent Improvements
 
-- Расширены модули базы данных с улучшенной обработкой ошибок
-- Исправлены проблемы подключения и запросов SQLite
-- Улучшена интеграция Qdrant и управление коллекциями
-- Оптимизированы рабочие процессы обработки документов
-- Улучшено постоянство и извлечение разговоров
+- Migration from pip to Poetry for Python dependency management
+- Enhanced database modules with improved error handling
+- Fixed SQLite connection and query issues
+- Improved Qdrant integration and collection management
+- Optimized document processing workflows
+- Enhanced conversation persistence and retrieval
