@@ -70,6 +70,7 @@ class Auth:
         Функция для извлечения информации о пользователе из токена. Проверяем токен и извлекаем утверждение о пользователе.
         """
         try:
+            print(f" Зашли в функция {token}")
             payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])  # Декодируем токен с помощью секретного ключа
             return payload.get("sub")  # Возвращаем утверждение о пользователе (subject) из полезной нагрузки
         except jwt.ExpiredSignatureError:
@@ -80,11 +81,11 @@ class Auth:
     def _verify_password(self,plain_password, hashed_password):
         return self.password_hash.verify(plain_password, hashed_password)
 
-    def _get_password_hash(self,password):
+    def get_password_hash(self,password):
         return self.password_hash.hash(password)
 
     def authenticate_user(self,user_id: str, password: str,password_db:str):
-        password_db_hash = self._get_password_hash(password_db)
+        password_db_hash = self.get_password_hash(password_db)
         if not self._verify_password(password, password_db_hash):
             return False
         jwt_token = self._create_jwt_token({"sub": user_id})

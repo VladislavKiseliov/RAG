@@ -1,18 +1,47 @@
-// src/pages/ChatPage.jsx (Полная замена)
+
+// src/pages/ChatPage.jsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import MessageInput from '../components/MessageInput.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import Message from '../components/Message.jsx';
 
-const initialMessages = [
-    { id: 1, content: 'Привет! Я RAG Chat Pro. Задайте мне вопрос.', role: 'assistant' },
-];
-
-function ChatPage() {
-    const [messages, setMessages] = useState(initialMessages);
-    const [currentConversationId, setCurrentConversationId] = useState('temp-1');
+function ChatPage({ accessToken }) { // <-- Принимаем токен как пропс
+    const [messages, setMessages] = useState([
+        { id: 1, content: 'Привет! Я RAG Chat Pro. Задайте мне вопрос.', role: 'assistant' },
+    ]);
+    const [currentConversationId, setCurrentConversationId] = useState(null);
+    const [conversations, setConversations] = useState([]); // <-- Список чатов
     const messagesEndRef = useRef(null);
+
+    // Загружаем список чатов пользователя
+    useEffect(() => {
+        if (accessToken) {
+            loadUserConversations();
+        }
+    }, [accessToken]);
+
+    // Функция для загрузки чатов пользователя
+    const loadUserConversations = async () => {
+        try {
+            const response = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`, // <-- Передаем токен в заголовке
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setConversations(data.conversations || []);
+            } else {
+                console.error('Failed to load conversations:', response.status);
+            }
+        } catch (error) {
+            console.error('Error loading conversations:', error);
+        }
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -37,16 +66,13 @@ function ChatPage() {
     };
 
     return (
-        // Классический двухколоночный контейнер
         <div className="app-layout">
-
-            {/* 1. Левая колонка (История чатов) */}
             <Sidebar
                 currentConversationId={currentConversationId}
                 setCurrentConversationId={setCurrentConversationId}
+                conversations={conversations}
+                accessToken={accessToken} // <-- Передаем токен в сайдбар для API запросов
             />
-
-            {/* 2. Правая колонка (Сам чат) */}
             <main className="main-chat">
                 <div className="chat-container">
                     <div className="chat-history" id="chatHistory">

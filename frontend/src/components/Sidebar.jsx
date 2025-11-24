@@ -1,14 +1,36 @@
 // src/components/Sidebar.js
 
 import React from 'react';
+import { BASE_API_URL, ENDPOINTS } from '../config/api';
 
-function Sidebar({ currentConversationId, setCurrentConversationId }) {
-    // В реальном приложении здесь будет загрузка списка чатов с FastAPI
+function Sidebar({ currentConversationId, setCurrentConversationId, accessToken }) { // <-- Добавлено: принимаем accessToken как пропс
+    // Функция для создания нового чата
+    const handleNewChat = async () => {
+        try {
+            const response = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, { // <-- Исправлено: используем ENDPOINTS.CONVERSATIONS
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`, // accessToken - токен, полученный при вход
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Устанавливаем новый чат как текущий
+                setCurrentConversationId(data.conversation_id);
+            } else {
+                console.error('Failed to create new chat:', response.status);
+            }
+        } catch (error) {
+            console.error('Error creating new chat:', error);
+        }
+    };
 
     return (
         <nav className="sidebar">
             <div className="sidebar-header">
-                <button className="new-chat-btn" id="newChatBtn">
+                <button className="new-chat-btn" id="newChatBtn" onClick={handleNewChat}>
                     + Новый чат
                 </button>
             </div>

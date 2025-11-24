@@ -8,5 +8,5 @@ export const BASE_API_URL = "http://127.0.0.1:8000";
 export const ENDPOINTS = {
     LOGIN: "/auth/login",
     MESSAGES: (conversationId) => `/conversations/${conversationId}/messages`,
-    CONVERSATIONS: "/conversations",
+     CONVERSATIONS: "/api/conversations",
 };

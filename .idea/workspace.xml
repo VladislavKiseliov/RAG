@@ -4,9 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: Implement JWT authentication with database integration&#10;&#10;- Fixed circular import issues by reorganizing database session management&#10;- Implemented proper JWT token generation and validation&#10;- Update users table:colomn id type int-&gt;uuid&#10;- Integrated password hashing for security&#10;- Fixed SQLAlchemy URL parsing issues&#10;- Resolved timedelta configuration errors&#10;&#10;TODO:&#10;- Implement user registration endpoint&#10;- Add login validation with database lookup&#10;- Complete full authentication flow&quot;">
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="git commit -m &quot;Update README.md:">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/db/implementations/SQLITEAlchemy.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/implementations/SQLITEAlchemy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/db/interfaces/base_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/interfaces/base_db.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/sevices/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/sevices/security.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/config/api.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/config/api.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/AuthPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/AuthPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/poetry.lock" beforeDir="false" afterPath="$PROJECT_DIR$/poetry.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -80,7 +90,7 @@
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
+    "settings.editor.selected.configurable": "terminal",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -311,7 +321,23 @@
       <option name="project" value="LOCAL" />
       <updated>1763811656978</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="git commit -m &quot;Migration to Poetry:&#10;- Deleted file requirements.txt&#10;- - Added the pyproject.toml configuration file&#10;   - Added the poetry.lock dependency lock file&#10;   - Updated IDE configuration files (.idea/)&#10;- Configured dependency management via Poetry&quot;">
+      <option name="closed" value="true" />
+      <created>1763967438349</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1763967438349</updated>
+    </task>
+    <task id="LOCAL-00024" summary="git commit -m &quot;Update README.md:">
+      <option name="closed" value="true" />
+      <created>1763967767774</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1763967767774</updated>
+    </task>
+    <option name="localTasksCounter" value="25" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -341,6 +367,17 @@
               <option name="CUSTOM_BOOLEAN_PROPERTIES">
                 <map>
                   <entry key="Show.Git.Branches" value="true" />
+                </map>
+              </option>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="feature/react-migration-jwt-auth" />
+                      </list>
+                    </value>
+                  </entry>
                 </map>
               </option>
               <option name="TEXT_FILTER_SETTINGS">
@@ -376,7 +413,9 @@
     <MESSAGE value="ADD  alembic for versioned database&#10;new file database_models.py for model table database" />
     <MESSAGE value="feat: Migrate frontend to React with JWT authentication&#10;&#10;- Migrated frontend from vanilla HTML/JS to React with Vite&#10;- Implemented JWT-based authentication system&#10;- Extracted API routes to separate module for better organization&#10;- Added login page with token-based authentication&#10;- Created React components for chat interface&#10;- Setup CORS for frontend-backend communication&#10;&#10;TODO:&#10;- Implement user registration in database&#10;- Add password hashing for security&#10;- Complete JWT token validation middleware" />
     <MESSAGE value="feat: Implement JWT authentication with database integration&#10;&#10;- Fixed circular import issues by reorganizing database session management&#10;- Implemented proper JWT token generation and validation&#10;- Update users table:colomn id type int-&gt;uuid&#10;- Integrated password hashing for security&#10;- Fixed SQLAlchemy URL parsing issues&#10;- Resolved timedelta configuration errors&#10;&#10;TODO:&#10;- Implement user registration endpoint&#10;- Add login validation with database lookup&#10;- Complete full authentication flow&quot;" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: Implement JWT authentication with database integration&#10;&#10;- Fixed circular import issues by reorganizing database session management&#10;- Implemented proper JWT token generation and validation&#10;- Update users table:colomn id type int-&gt;uuid&#10;- Integrated password hashing for security&#10;- Fixed SQLAlchemy URL parsing issues&#10;- Resolved timedelta configuration errors&#10;&#10;TODO:&#10;- Implement user registration endpoint&#10;- Add login validation with database lookup&#10;- Complete full authentication flow&quot;" />
+    <MESSAGE value="git commit -m &quot;Migration to Poetry:&#10;- Deleted file requirements.txt&#10;- - Added the pyproject.toml configuration file&#10;   - Added the poetry.lock dependency lock file&#10;   - Updated IDE configuration files (.idea/)&#10;- Configured dependency management via Poetry&quot;" />
+    <MESSAGE value="git commit -m &quot;Update README.md:" />
+    <option name="LAST_COMMIT_MESSAGE" value="git commit -m &quot;Update README.md:" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
