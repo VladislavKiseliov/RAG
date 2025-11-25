@@ -18,6 +18,11 @@
     --text-dark: #FFFFFF; /* Белый текст */
     --border-color: #3A3A3A;
     --shadow-dark: 0 4px 12px rgba(0, 0, 0, 0.4); /* Темная тень */
+    
+    /* Цвета для меню действий над чатом */
+    --menu-bg: #2D2D2D;
+    --menu-hover: #3D3D3D;
+    --delete-hover: #FF4444;
 }
 
 body {
@@ -85,6 +90,10 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
 }
 
 .chat-list-item:hover {
@@ -95,6 +104,98 @@ body {
     background-color: var(--primary-color);
     color: var(--text-dark);
     font-weight: 600;
+}
+
+.chat-title {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-menu-button {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 5px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.chat-menu-button:hover {
+    background-color: var(--menu-hover);
+}
+
+.chat-menu {
+    background-color: var(--menu-bg);
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    min-width: 150px;
+    max-width: 200px;
+    /* Позиционирование теперь задается в JSX */
+}
+
+.menu-item {
+    display: block;
+    width: 100%;
+    padding: 10px 15px;
+    background: none;
+    border: none;
+    color: var(--text-light);
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.menu-item:hover {
+    background-color: var(--menu-hover);
+}
+
+.menu-item.delete:hover {
+    background-color: var(--delete-hover);
+}
+
+.chat-title-edit {
+    display: flex;
+    flex-grow: 1;
+    gap: 5px;
+}
+
+.chat-title-edit input {
+    flex-grow: 1;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-light);
+    padding: 5px;
+    font-size: 14px;
+}
+
+.chat-title-edit button {
+    background-color: var(--primary-color);
+    color: var(--text-dark);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-title-edit button:last-child {
+    background-color: #666;
+}
+
+.chat-list-item.empty {
+    text-align: center;
+    font-style: italic;
 }
 
 /* --- 2. Центральная колонка (Чат) --- */

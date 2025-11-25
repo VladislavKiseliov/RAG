@@ -65,7 +65,7 @@ class Auth:
         return jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)  # Кодируем токен с использованием секретного ключа и алгоритма
 
     # Функция для получения пользователя из токена
-    def get_user_from_token(self,token: str = Depends(oauth2_scheme)):
+    def get_user_from_token(self,token: str = Depends(oauth2_scheme))->str:
         """
         Функция для извлечения информации о пользователе из токена. Проверяем токен и извлекаем утверждение о пользователе.
         """
