@@ -1,5 +1,7 @@
 # --- ЭНДПОИНТЫ ---
 import os
+import uuid
+import uuid6
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, status,Depends
@@ -10,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import uuid6
+
 
 from app.db.implementations.SQLITEAlchemy import Data_Base_Alchemy
 from app.sevices.security import Auth
@@ -49,6 +51,9 @@ class LoginRequest(BaseModel):
 
 class Message(BaseModel):
     user_message: str
+
+class ChatUpdate(BaseModel):
+    title: str
 
 
 # Схема для ответов
@@ -119,94 +124,104 @@ def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, An
 def create_conversation(current_user: str = Depends(auth.get_user_from_token),db: Session = Depends(get_db)):
     """Создает новый пустой диалог и возвращает его ID, используя константный user_id."""
     # user_id = current_user
-    print(current_user)
-    # user = sqlite.get_user_by_login(db,user_data.username)
+
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    chat_id = uuid6.uuid7()
+    result = sqlite.add_new_chat(db,str(chat_id),current_user,'test')
+    if not result:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+    print(f"Создан новый диалог: {chat_id} для user: {current_user}")
+    return {"conversation_id": chat_id}
+
+@router.get("/api/conversations")
+def get_all_conversations(current_user: str = Depends(auth.get_user_from_token),db: Session = Depends(get_db)):
+    """Возвращает список всех ID диалогов для константного user_id."""
+    previews = []
+
+    # Используем константный user_id для получения чатов
+    chats = sqlite.get_all_chats(db,current_user)
+
+    for chat in chats:
+        first_message = chat.get("title", "Новый чат")
+        previews.append({"id": chat["chat_id"], "title": first_message})
+
+    return {"conversations": sorted(previews, key=lambda x: x['id'], reverse=True)}
+#
+#
+@router.get("/api/conversations/{conversation_id}")
+def get_conversation_history(conversation_id: str, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
+    """Возвращает историю сообщений для конкретного диалога (conversation_id)."""
+    # Здесь мы используем conversation_id, переданный в URL, для получения истории
+    # Если вы хотите убедиться, что этот чат принадлежит user_id,
+    # вам нужно изменить sqlite.get_chat_messages так, чтобы он также принимал user_id.
+
+    # Пытаемся загрузить историю из БД, если ее нет в локальном кеше
+    try:
+        result = sqlite.get_chat_messages(db, conversation_id)
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Диалог {conversation_id} не найден")
+        # Если нашли в БД, возвращаем результат
+        return {"history": result}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Ошибка БД или диалог {conversation_id} не найден: {str(e)}")
+#
+#
+# --- ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ ---
+@router.post("/api/conversations/{conversation_id}/messages")
+def chat_endpoint(conversation_id: str, message: Message,current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
+    """Обрабатывает сообщение в рамках конкретного диалога (conversation_id)."""
+
+    # # Проверка существования диалога
+    # if conversation_id not in conversations:
+    #     # В реальной ситуации здесь нужно проверить БД
+    #     raise HTTPException(status_code=404, detail="Диалог не найден. Начните новый чат.")
+
+    user_message = message.user_message
+
+    # 1. Сохраняем сообщение пользователя в локальный словарь
+    # user_msg_entry = {"role": "user", "content": user_message}
+    # conversations[conversation_id].append(user_msg_entry)
+
+    # 2. Сохраняем сообщение пользователя в БД
+    # Используем динамический conversation_id
+    sqlite.add_new_message(db,conversation_id, "user", user_message)
+
+    # 3. Получаем ответ от RAG-системы
+    # response_text = answer_question(user_message, qa_chain)
+    response_text = 'Test'
+
+    # 4. Сохраняем ответ ассистента в локальный словарь
+    # assistant_msg_entry = {"role": "assistant", "content": response_text}
+    # conversations[conversation_id].append(assistant_msg_entry)
+
+    # 5. Сохраняем ответ ассистента в БД
+    # Используем динамический conversation_id
+    sqlite.add_new_message(db,conversation_id, "assistant", response_text)
+
+    return {"response": response_text}
+#
+#
+
+# Эндпоинт управлением чатом
+@router.patch("/api/chats/{chat_id}/rename")
+def update_title_chat(chat_id: str, title_data: ChatUpdate, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
+    print(f"Updating title for chat_id: {chat_id}")
+    print(f"New title: {title_data.title}")
+    sqlite.update_chat_title(db, chat_id, title_data.title)
+    return {
+       "status": "success",
+       "message": "Chat title updated successfully"
+     }
 
 
-    # conversation_id (chat_id) генерируется как уникальная метка времени
-    # conversation_id = str(int(time.time() * 1000))
-    # conversations[conversation_id] = []
+@router.delete("/api/chats/{chat_id}")
+def delete_chat(chat_id: str,current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
 
-    # Используем константный user_id
-    # sqlite.add_new_chat(chat_id=conversation_id, user_id=user_id, title="Новый чат")
-    #
-    # print(f"Создан новый диалог: {conversation_id} для user: {user_id}")
-    # return {"conversation_id": conversation_id}
-#
-#
-# @app.get("/api/conversations")
-# def get_all_conversations():
-#     """Возвращает список всех ID диалогов для константного user_id."""
-#     previews = []
-#
-#     # Используем константный user_id для получения чатов
-#     chats = sqlite.get_all_chats(user_id)
-#
-#     for chat in chats:
-#         first_message = chat.get("title", "Новый чат")
-#         previews.append({"id": chat["chat_id"], "title": first_message})
-#
-#     return {"conversations": sorted(previews, key=lambda x: x['id'], reverse=True)}
-#
-#
-# @app.get("/api/conversations/{conversation_id}")
-# def get_conversation_history(conversation_id: str):
-#     """Возвращает историю сообщений для конкретного диалога (conversation_id)."""
-#     # Здесь мы используем conversation_id, переданный в URL, для получения истории
-#     # Если вы хотите убедиться, что этот чат принадлежит user_id,
-#     # вам нужно изменить sqlite.get_chat_messages так, чтобы он также принимал user_id.
-#
-#     # ПРОВЕРКА (необязательно, если история всегда берется из БД)
-#     if conversation_id not in conversations:
-#         # Пытаемся загрузить историю из БД, если ее нет в локальном кеше
-#         try:
-#             result = sqlite.get_chat_messages(conversation_id)
-#             if not result:
-#                 raise HTTPException(status_code=404, detail=f"Диалог {conversation_id} не найден")
-#             # Если нашли в БД, кешируем локально (для примера)
-#             conversations[conversation_id] = result
-#         except Exception:
-#             raise HTTPException(status_code=404, detail=f"Ошибка БД или диалог {conversation_id} не найден")
-#
-#     return {"history": conversations[conversation_id]}
-#
-#
-# # --- ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ ---
-# @app.post("/api/conversations/{conversation_id}/messages")
-# def chat_endpoint(conversation_id: str, message: Message):
-#     """Обрабатывает сообщение в рамках конкретного диалога (conversation_id)."""
-#
-#     # Проверка существования диалога
-#     if conversation_id not in conversations:
-#         # В реальной ситуации здесь нужно проверить БД
-#         raise HTTPException(status_code=404, detail="Диалог не найден. Начните новый чат.")
-#
-#     user_message = message.user_message
-#
-#     # 1. Сохраняем сообщение пользователя в локальный словарь
-#     user_msg_entry = {"role": "user", "content": user_message}
-#     conversations[conversation_id].append(user_msg_entry)
-#
-#     # 2. Сохраняем сообщение пользователя в БД
-#     # Используем динамический conversation_id
-#     sqlite.add_new_message(conversation_id, "user", user_message)
-#
-#     # 3. Получаем ответ от RAG-системы
-#     # response_text = answer_question(user_message, qa_chain)
-#     response_text = 'Test'
-#
-#     # 4. Сохраняем ответ ассистента в локальный словарь
-#     assistant_msg_entry = {"role": "assistant", "content": response_text}
-#     conversations[conversation_id].append(assistant_msg_entry)
-#
-#     # 5. Сохраняем ответ ассистента в БД
-#     # Используем динамический conversation_id
-#     sqlite.add_new_message(conversation_id, "assistant", response_text)
-#
-#     return {"response": response_text}
-#
-#
-# # @app.get("/", response_class=HTMLResponse)
-# # async def serve_chat_page(request: Request):
-# #     """Отдает главную HTML-страницу."""
-# #     return templates.TemplateResponse("index.html", {"request": request})
+    sqlite.delete_chat(db,chat_id,current_user)
+    return {
+       "status": "success",
+       "message": "Chat deleted successfully"
+     }

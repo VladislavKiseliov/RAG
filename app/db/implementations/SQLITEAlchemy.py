@@ -1,6 +1,9 @@
 import asyncio
 import sqlite3
+import uuid
 from typing import List, Dict, Any, Optional
+
+import uuid6
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 import sqlalchemy
@@ -15,10 +18,10 @@ from app.models.database_models import Chats,Messages,Users
 class Data_Base_Alchemy(DataBase):
     """Реализация интерфейса базы данных с использованием SQLAlchemy ORM."""
 
-    def add_new_chat(self, db: Session, chat_id: str, user_id: str, title: str) -> bool:
+    def add_new_chat(self, db: Session,chat_id:str, user_id: str, title: str) -> bool:
         """Добавление нового чата в базу данных."""
         try:
-            chats = Chats(chat_id=chat_id, user_id=user_id, title=title)
+            chats = Chats(chat_id = chat_id, user_id=user_id, title=title)
             db.add(chats)
             db.commit()
             return True
@@ -50,10 +53,12 @@ class Data_Base_Alchemy(DataBase):
         except SQLAlchemyError as e:
             raise Exception(f"Database error when getting chats: {str(e)}")
 
-    def update_chat_title(self, db: Session, chat_id: str, user_id: str, new_title: str) -> bool:
+    def update_chat_title(self, db: Session, chat_id: str, new_title: str) -> bool:
         """Обновление заголовка чата."""
         try:
-            chat = db.get(Chats, (chat_id, user_id))
+            # Используем правильный способ поиска чата по chat_id
+            chat = db.get(Chats, chat_id)
+            print(f"{chat=}")
 
             if not chat:
                 return False
@@ -71,7 +76,8 @@ class Data_Base_Alchemy(DataBase):
     def delete_chat(self, db: Session, chat_id: str, user_id: str) -> bool:
         """Удаление чата и всех связанных сообщений."""
         try:
-            chat = db.get(Chats, (chat_id, user_id))
+            # Сначала проверим, что чат принадлежит пользователю
+            chat = db.query(Chats).filter(Chats.chat_id == chat_id, Chats.user_id == user_id).first()
 
             if not chat:
                 return False
@@ -106,7 +112,7 @@ class Data_Base_Alchemy(DataBase):
             stmt = (
                 select(Messages)
                 .filter_by(chat_id=chat_id)
-                .order_by(Messages.created_at.desc())
+                .order_by(Messages.created_at)
                 .limit(limit or None)
             )
 
@@ -157,10 +163,10 @@ class Data_Base_Alchemy(DataBase):
             db.rollback()
             raise Exception(f"Database error when adding user: {str(e)}")
 
-    def get_user(self, db: Session, user_name: str) -> Optional[Users]:
+    def get_user(self, db: Session, user_id: uuid) -> Optional[Users]:
         """Получение пользователя по имени."""
         try:
-            user = db.get(Users, user_name)
+            user = db.get(Users, user_id)
             return user
         except SQLAlchemyError as e:
             raise Exception(f"Database error when getting user: {str(e)}")
