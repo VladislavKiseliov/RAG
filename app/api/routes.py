@@ -4,7 +4,7 @@ import uuid
 import uuid6
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, status,Depends
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import sessionmaker
 
@@ -27,13 +27,13 @@ ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))  # Время жизни токена
 print(type(ACCESS_TOKEN_EXPIRE_MINUTES))
 print(ACCESS_TOKEN_EXPIRE_MINUTES)
-engine = create_engine(DATABASE_URL,echo=True)
+engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 sqlite = Data_Base_Alchemy()
-auth = Auth(SECRET_KEY,ALGORITHM,ACCESS_TOKEN_EXPIRE_MINUTES)
+auth = Auth(SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES)
 
 def get_db():
-    db = SessionLocal() # Создаем сессию
+    db = SessionLocal()  # Создаем сессию
     try:
         yield db       # Передаем ее эндпоинту
     finally:
@@ -72,7 +72,7 @@ class ChatUpdate(BaseModel):
 
 
 @router.post("/auth/login")
-def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, Any]:
+def login(user_data: LoginRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
      Этот маршрут проверяет учетные данные пользователя и возвращает JWT токен, если данные правильные.
     """
@@ -80,21 +80,30 @@ def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, An
     print(f"Пользователь {user_data.username} и пароль {user_data.password}")
     try:
         # Получить пользователя из бд
-        user = sqlite.get_user_by_login(db,user_data.username)
+        user = sqlite.get_user_by_login(db, user_data.username)
         # Пытаемся получить токен
         if not user:
+            # Если пользователя нет, создаем нового
             hashed_password = auth.get_password_hash(user_data.password)
-            sqlite.add_new_user(db,user_data.username,hashed_password)
-            user = sqlite.get_user_by_login(db,user_data.username)
+            sqlite.add_new_user(db, user_data.username, hashed_password)
+            user = sqlite.get_user_by_login(db, user_data.username)
 
-        jwt_token = auth.authenticate_user(user.id,user.password,user_data.password)
+        # Аутентифицируем пользователя
+        jwt_token = auth.authenticate_user(str(user.id), user.password, user_data.password)
+        if not jwt_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
         print(jwt_token)
         print(f"ID из токена = {auth.get_user_from_token(jwt_token)}")
         return {
-                "message": "Login successful",
-                "access_token": jwt_token,
-                "token_type": "bearer",
-            }
+            "message": "Login successful",
+            "access_token": jwt_token,
+            "token_type": "bearer",
+        }
     except Exception as e:
         print(f"Login error: {e}")
         # Возвращаем HTTP-код 401 Unauthorized
@@ -121,7 +130,7 @@ def login(user_data: LoginRequest,db: Session = Depends(get_db)) -> Dict[str, An
 #
 #
 @router.post("/api/conversations")
-def create_conversation(current_user: str = Depends(auth.get_user_from_token),db: Session = Depends(get_db)):
+def create_conversation(current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
     """Создает новый пустой диалог и возвращает его ID, используя константный user_id."""
     # user_id = current_user
 
@@ -129,20 +138,20 @@ def create_conversation(current_user: str = Depends(auth.get_user_from_token),db
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     chat_id = uuid6.uuid7()
-    result = sqlite.add_new_chat(db,str(chat_id),current_user,'test')
+    result = sqlite.add_new_chat(db, str(chat_id), current_user, 'Новый чат')
     if not result:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
     print(f"Создан новый диалог: {chat_id} для user: {current_user}")
-    return {"conversation_id": chat_id}
+    return {"conversation_id": str(chat_id)}
 
 @router.get("/api/conversations")
-def get_all_conversations(current_user: str = Depends(auth.get_user_from_token),db: Session = Depends(get_db)):
+def get_all_conversations(current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
     """Возвращает список всех ID диалогов для константного user_id."""
     previews = []
 
     # Используем константный user_id для получения чатов
-    chats = sqlite.get_all_chats(db,current_user)
+    chats = sqlite.get_all_chats(db, current_user)
 
     for chat in chats:
         first_message = chat.get("title", "Новый чат")
@@ -171,7 +180,7 @@ def get_conversation_history(conversation_id: str, current_user: str = Depends(a
 #
 # --- ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ ---
 @router.post("/api/conversations/{conversation_id}/messages")
-def chat_endpoint(conversation_id: str, message: Message,current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
+def chat_endpoint(conversation_id: str, message: Message, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
     """Обрабатывает сообщение в рамках конкретного диалога (conversation_id)."""
 
     # # Проверка существования диалога
@@ -187,7 +196,7 @@ def chat_endpoint(conversation_id: str, message: Message,current_user: str = Dep
 
     # 2. Сохраняем сообщение пользователя в БД
     # Используем динамический conversation_id
-    sqlite.add_new_message(db,conversation_id, "user", user_message)
+    sqlite.add_new_message(db, conversation_id, "user", user_message)
 
     # 3. Получаем ответ от RAG-системы
     # response_text = answer_question(user_message, qa_chain)
@@ -199,7 +208,7 @@ def chat_endpoint(conversation_id: str, message: Message,current_user: str = Dep
 
     # 5. Сохраняем ответ ассистента в БД
     # Используем динамический conversation_id
-    sqlite.add_new_message(db,conversation_id, "assistant", response_text)
+    sqlite.add_new_message(db, conversation_id, "assistant", response_text)
 
     return {"response": response_text}
 #
@@ -210,18 +219,23 @@ def chat_endpoint(conversation_id: str, message: Message,current_user: str = Dep
 def update_title_chat(chat_id: str, title_data: ChatUpdate, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
     print(f"Updating title for chat_id: {chat_id}")
     print(f"New title: {title_data.title}")
-    sqlite.update_chat_title(db, chat_id, title_data.title)
+    result = sqlite.update_chat_title(db, chat_id, title_data.title)
+    if not result:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
     return {
-       "status": "success",
-       "message": "Chat title updated successfully"
-     }
+        "status": "success",
+        "message": "Chat title updated successfully"
+    }
 
 
 @router.delete("/api/chats/{chat_id}")
-def delete_chat(chat_id: str,current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
-
-    sqlite.delete_chat(db,chat_id,current_user)
+def delete_chat(chat_id: str, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
+    result = sqlite.delete_chat(db, chat_id, current_user)
+    if not result:
+        raise HTTPException(status_code=404, detail="Chat not found or unauthorized")
+        
     return {
-       "status": "success",
-       "message": "Chat deleted successfully"
-     }
+        "status": "success",
+        "message": "Chat deleted successfully"
+    }

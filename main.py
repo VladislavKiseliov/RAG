@@ -16,14 +16,14 @@ from app.sevices.security import Auth
 # from app.core.initialization import initialization_llm, initialization_embenddings_model, initialization_prompt_template
 # from app.config import *
 
-app = FastAPI()
+
 
 # --- 1. НАСТРОЙКА CORS ---
 origins = [
     "http://localhost:5173",  # Ваш React фронтенд
     "http://127.0.0.1:5173",
 ]
-
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -37,32 +37,25 @@ from app.api.routes import router
 
 app.include_router(router)
 
-# --- КОНСТАНТНЫЙ ID ПОЛЬЗОВАТЕЛЯ (user_id) ---
-# В реальном приложении этот ID извлекается из JWT-токена после входа.
-# Сейчас он используется как заглушка.
-user_id = 1760010918891
-# --- КОНСТАНТНЫЙ ID ПОЛЬЗОВАТЕЛЯ (user_id) ---
-
-# Словарь для хранения диалогов (на случай, если DB не работает или для кеширования)
-# Ключ: conversation_id
-conversations: Dict[str, List[Dict[str, str]]] = {}
-
 # Закомментированные части инициализации (для отключения функциональности RAG)
 
-
+# Инициализация базы данных при запуске
+# @app.on_event("startup")
+# async def startup_event():
 #
-# # Инициализация компонентов
-# llm = initialization_llm()
-# embeddings = initialization_embenddings_model()
-# prompt_template = initialization_prompt_template()
-#
-# # Инициализация Qdrant
-# qdrant_manager = QdrantManager(
-#     embeddings=embeddings,
-#     collection_name=COLLECTION_NAME,
-#     qdrant_path=QDRANT_PATH,
-#     docs_directory=DIRECTORY_DOCS
-# )
-#
-# retriever = qdrant_manager.get_retriever()
-# qa_chain = setup_rag_chain(llm,retriever,prompt_template)
+#     pass
+#     # # Инициализация компонентов
+#     # llm = initialization_llm()
+#     # embeddings = initialization_embenddings_model()
+#     # prompt_template = initialization_prompt_template()
+#     #
+#     # # Инициализация Qdrant
+#     # qdrant_manager = QdrantManager(
+#     #     embeddings=embeddings,
+#     #     collection_name=COLLECTION_NAME,
+#     #     qdrant_path=QDRANT_PATH,
+#     #     docs_directory=DIRECTORY_DOCS
+#     # )
+#     #
+#     # retriever = qdrant_manager.get_retriever()
+#     # qa_chain = setup_rag_chain(llm,retriever,prompt_template)

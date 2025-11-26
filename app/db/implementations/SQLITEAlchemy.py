@@ -12,16 +12,16 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, sess
 from sqlalchemy import String, Integer, ForeignKey, DateTime, create_engine, select, BigInteger
 from datetime import datetime
 from app.db.interfaces.base_db import DataBase
-from app.models.database_models import Chats,Messages,Users
+from app.models.database_models import Chats, Messages, Users
 
 
 class Data_Base_Alchemy(DataBase):
     """Реализация интерфейса базы данных с использованием SQLAlchemy ORM."""
 
-    def add_new_chat(self, db: Session,chat_id:str, user_id: str, title: str) -> bool:
+    def add_new_chat(self, db: Session, chat_id: str, user_id: str, title: str) -> bool:
         """Добавление нового чата в базу данных."""
         try:
-            chats = Chats(chat_id = chat_id, user_id=user_id, title=title)
+            chats = Chats(chat_id=chat_id, user_id=user_id, title=title)
             db.add(chats)
             db.commit()
             return True
@@ -153,7 +153,7 @@ class Data_Base_Alchemy(DataBase):
     def add_new_user(self, db: Session, login: str, password: str):
         """Добавление нового пользователя в базу данных."""
         try:
-            new_user = Users(chat_id = 123,login=login, password=password)
+            new_user = Users(login=login, password=password)
             db.add(new_user)
             db.commit()
         except IntegrityError:
@@ -163,8 +163,8 @@ class Data_Base_Alchemy(DataBase):
             db.rollback()
             raise Exception(f"Database error when adding user: {str(e)}")
 
-    def get_user(self, db: Session, user_id: uuid) -> Optional[Users]:
-        """Получение пользователя по имени."""
+    def get_user(self, db: Session, user_id: str) -> Optional[Users]:
+        """Получение пользователя по ID."""
         try:
             user = db.get(Users, user_id)
             return user

@@ -7,6 +7,6 @@ export const BASE_API_URL = "http://127.0.0.1:8000";
 // Конкретные пути к эндпоинтам
 export const ENDPOINTS = {
     LOGIN: "/auth/login",
-    MESSAGES: (conversationId) => `/conversations/${conversationId}/messages`,
-     CONVERSATIONS: "/api/conversations",
+    MESSAGES: (conversationId) => `/api/conversations/${conversationId}/messages`,
+    CONVERSATIONS: "/api/conversations",
 };

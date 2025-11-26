@@ -9,6 +9,8 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 }); // Позиция меню
     const [editingTitle, setEditingTitle] = useState(null); // null или ID чата, который редактируется
     const [newTitle, setNewTitle] = useState(''); // Новое название чата при редактировании
+    const [error, setError] = useState(null); // Состояние для отображения ошибок
+    const [loading, setLoading] = useState(false); // Состояние загрузки
     const menuButtonRef = useRef({}); // Рефы для кнопок меню
 
     // Функция для закрытия меню при клике вне его области
@@ -26,8 +28,16 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
         };
     }, [showMenu]);
 
+    // Функция для отображения сообщения об ошибке
+    const showError = (message) => {
+        setError(message);
+        setTimeout(() => setError(null), 5000); // Автоматически скрыть ошибку через 5 секунд
+    };
+
     // Функция для создания нового чата
     const handleNewChat = async () => {
+        setLoading(true);
+        setError(null);
         try {
             const response = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, {
                 method: 'POST',
@@ -46,10 +56,16 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                     loadUserConversations();
                 }
             } else {
-                console.error('Failed to create new chat:', response.status);
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || `Failed to create new chat: ${response.status}`;
+                console.error(errorMessage);
+                showError(errorMessage);
             }
         } catch (error) {
-            console.error('Error creating new chat:', error);
+            console.error('Network error when creating new chat:', error);
+            showError('Network error when creating new chat. Please check your connection.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -91,6 +107,7 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
             return;
         }
 
+        setLoading(true);
         try {
             const response = await fetch(`${BASE_API_URL}/api/chats/${chatId}/rename`, {
                 method: 'PATCH',
@@ -108,14 +125,16 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                 }
                 setEditingTitle(null);
             } else {
-                console.error('Failed to save title:', response.status);
-                // Показываем сообщение об ошибке пользователю
-                alert('Не удалось сохранить название чата');
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || `Failed to save title: ${response.status}`;
+                console.error(errorMessage);
+                showError(errorMessage);
             }
         } catch (error) {
-            console.error('Error saving title:', error);
-            // Показываем сообщение об ошибке пользователю
-            alert('Ошибка при сохранении названия чата');
+            console.error('Network error when saving title:', error);
+            showError('Network error when saving title. Please check your connection.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -135,6 +154,7 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
             return;
         }
 
+        setLoading(true);
         try {
             const response = await fetch(`${BASE_API_URL}/api/chats/${chatId}`, {
                 method: 'DELETE',
@@ -157,24 +177,41 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                 
                 setShowMenu(null);
             } else {
-                console.error('Failed to delete chat:', response.status);
-                // Показываем сообщение об ошибке пользователю
-                alert('Не удалось удалить чат');
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || `Failed to delete chat: ${response.status}`;
+                console.error(errorMessage);
+                showError(errorMessage);
             }
         } catch (error) {
-            console.error('Error deleting chat:', error);
-            // Показываем сообщение об ошибке пользователю
-            alert('Ошибка при удалении чата');
+            console.error('Network error when deleting chat:', error);
+            showError('Network error when deleting chat. Please check your connection.');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
         <nav className="sidebar">
             <div className="sidebar-header">
-                <button className="new-chat-btn" id="newChatBtn" onClick={handleNewChat}>
-                    + Новый чат
+                <button className="new-chat-btn" id="newChatBtn" onClick={handleNewChat} disabled={loading}>
+                    {loading ? 'Создание...' : '+ Новый чат'}
                 </button>
             </div>
+            
+            {/* Отображение ошибок */}
+            {error && (
+                <div className="error-message" style={{ 
+                    color: 'red', 
+                    padding: '10px', 
+                    margin: '10px', 
+                    border: '1px solid red', 
+                    borderRadius: '4px',
+                    backgroundColor: '#ffe6e6'
+                }}>
+                    {error}
+                </div>
+            )}
+            
             <div className="chat-list" id="chatList">
                 {/* Отображаем список чатов */}
                 {conversations && conversations.length > 0 ? (
@@ -194,8 +231,12 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                                         onClick={(e) => e.stopPropagation()}
                                         autoFocus
                                     />
-                                    <button onClick={(e) => { e.stopPropagation(); saveTitle(chat.id); }}>✓</button>
-                                    <button onClick={(e) => { e.stopPropagation(); cancelEditing(); }}>✗</button>
+                                    <button onClick={(e) => { e.stopPropagation(); saveTitle(chat.id); }} disabled={loading}>
+                                        {loading ? 'Сохранение...' : '✓'}
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); cancelEditing(); }} disabled={loading}>
+                                        ✗
+                                    </button>
                                 </div>
                             ) : (
                                 // Обычный режим отображения
@@ -205,6 +246,7 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                                         className="chat-menu-button"
                                         onClick={(e) => toggleMenu(chat.id, e)}
                                         ref={(el) => (menuButtonRef.current[chat.id] = el)}
+                                        disabled={loading}
                                     >
                                         ⋮
                                     </button>
@@ -219,7 +261,7 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                 )}
             </div>
             
-            {/* Меню действий над чатом, отображается поверх всех элементов */}
+            {/* Меню действий над чатом, отображается поверх всех элементов */}}
             {showMenu && (
                 <div 
                     className="chat-menu" 
@@ -235,12 +277,14 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                     <button 
                         className="menu-item"
                         onClick={(e) => startEditingTitle(showMenu, conversations.find(c => c.id === showMenu)?.title || '', e)}
+                        disabled={loading}
                     >
                         Изменить название
                     </button>
                     <button 
                         className="menu-item delete"
                         onClick={(e) => deleteChat(showMenu, e)}
+                        disabled={loading}
                     >
                         Удалить чат
                     </button>
