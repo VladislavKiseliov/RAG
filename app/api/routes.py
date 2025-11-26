@@ -22,7 +22,7 @@ from app.sevices.security import Auth
 router = APIRouter()
 
 DATABASE_URL = os.getenv("SQLITE")
-SECRET_KEY = os.getenv("SECRET_KEY")  # В реальной практике генерируйте ключ, например, с помощью 'openssl rand -hex 32', и храните его в безопасности
+SECRET_KEY = os.getenv("SECRET_KEY")  # В реальной практике генерируйте ключ, например, с помощью ' python -c "import secrets; print(secrets.token_hex(32))"', и храните его в безопасности
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))  # Время жизни токена
 print(type(ACCESS_TOKEN_EXPIRE_MINUTES))
@@ -81,6 +81,8 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)) -> Dict[str, A
     try:
         # Получить пользователя из бд
         user = sqlite.get_user_by_login(db, user_data.username)
+        print(f"Пользователь {user_data.username} и пароль {user_data.password}")
+
         # Пытаемся получить токен
         if not user:
             # Если пользователя нет, создаем нового
@@ -90,6 +92,7 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)) -> Dict[str, A
 
         # Аутентифицируем пользователя
         jwt_token = auth.authenticate_user(str(user.id), user.password, user_data.password)
+        print(jwt_token)
         if not jwt_token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

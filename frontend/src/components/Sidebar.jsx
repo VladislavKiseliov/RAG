@@ -261,7 +261,7 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                 )}
             </div>
             
-            {/* Меню действий над чатом, отображается поверх всех элементов */}}
+            {/* Меню действий над чатом, отображается поверх всех элементов */}
             {showMenu && (
                 <div 
                     className="chat-menu" 
