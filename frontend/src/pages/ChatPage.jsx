@@ -12,10 +12,19 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
     ]);
     const [currentConversationId, setCurrentConversationId] = useState(null);
     const [conversations, setConversations] = useState([]); // <-- Список чатов
+    const [error, setError] = useState(null); // <-- НОВОЕ: Для отображения ошибок
+    const [loading, setLoading] = useState(false); // <-- НОВОЕ: Для состояния загрузки
     const messagesEndRef = useRef(null);
+
+    // Функция для отображения сообщения об ошибке
+    const showError = (message) => {
+        setError(message);
+        setTimeout(() => setError(null), 5000); // Автоматически скрыть ошибку через 5 секунд
+    };
 
     // Загружаем список чатов пользователя
     const loadUserConversations = async () => {
+        setLoading(true);
         try {
             const response = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, {
                 method: 'GET',
@@ -29,15 +38,22 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
                 const data = await response.json();
                 setConversations(data.conversations || []);
             } else {
-                console.error('Failed to load conversations:', response.status);
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || `Failed to load conversations: ${response.status}`;
+                console.error(errorMessage);
+                showError(errorMessage);
             }
         } catch (error) {
-            console.error('Error loading conversations:', error);
+            console.error('Network error when loading conversations:', error);
+            showError('Network error when loading conversations. Please check your connection.');
+        } finally {
+            setLoading(false);
         }
     };
 
     // Загружаем историю конкретного чата
     const loadConversationHistory = async (conversationId) => {
+        setLoading(true);
         try {
             const response = await fetch(`${BASE_API_URL}/api/conversations/${conversationId}`, {
                 method: 'GET',
@@ -57,14 +73,20 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
                 }));
                 setMessages(formattedMessages);
             } else {
-                console.error('Failed to load conversation history:', response.status);
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || `Failed to load conversation history: ${response.status}`;
+                console.error(errorMessage);
+                showError(errorMessage);
                 // Если не удалось загрузить историю, очищаем сообщения
                 setMessages([]);
             }
         } catch (error) {
-            console.error('Error loading conversation history:', error);
+            console.error('Network error when loading conversation history:', error);
+            showError('Network error when loading conversation history. Please check your connection.');
             // Если произошла ошибка, очищаем сообщения
             setMessages([]);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -96,7 +118,7 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
 
     const handleSendMessage = async (text) => {
         if (!currentConversationId) {
-            console.error('No conversation selected');
+            showError('Please select or create a conversation first');
             return;
         }
 
@@ -125,21 +147,25 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
                 };
                 setMessages((prev) => [...prev, assistantResponse]);
             } else {
-                console.error('Failed to send message:', response.status);
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || `Failed to send message: ${response.status}`;
+                console.error(errorMessage);
+                showError(errorMessage);
                 // В случае ошибки показываем сообщение об ошибке
-                const errorMessage = {
+                const errorMessageResponse = {
                     id: Date.now() + 1,
-                    content: 'Ошибка при отправке сообщения',
+                    content: 'Ошибка при отправке сообщения: ' + errorMessage,
                     role: 'assistant'
                 };
-                setMessages((prev) => [...prev, errorMessage]);
+                setMessages((prev) => [...prev, errorMessageResponse]);
             }
         } catch (error) {
-            console.error('Error sending message:', error);
+            console.error('Network error when sending message:', error);
+            showError('Network error when sending message. Please check your connection.');
             // В случае ошибки показываем сообщение об ошибке
             const errorMessage = {
                 id: Date.now() + 1,
-                content: 'Ошибка при отправке сообщения',
+                content: 'Ошибка сети при отправке сообщения',
                 role: 'assistant'
             };
             setMessages((prev) => [...prev, errorMessage]);
@@ -148,6 +174,20 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
 
     return (
         <div className="app-layout">
+            {/* Отображение ошибок */}
+            {error && (
+                <div style={{ 
+                    color: 'red', 
+                    padding: '10px', 
+                    margin: '10px', 
+                    border: '1px solid red', 
+                    borderRadius: '4px',
+                    backgroundColor: '#ffe6e6'
+                }}>
+                    {error}
+                </div>
+            )}
+            
             <Sidebar
                 currentConversationId={currentConversationId}
                 setCurrentConversationId={setCurrentConversationId}

@@ -13,6 +13,9 @@ This application implements a full-featured chat interface with persistent conve
 - **Modern Web Interface**: Clean, responsive chat interface with conversation history sidebar
 - **Source Attribution**: See which documents formed the basis of each answer
 - **Multi-Document Support**: Process and ask questions about multiple PDF documents
+- **User Authentication**: Secure login and registration with JWT tokens
+- **Chat Management**: Create, rename, and delete conversations
+- **Real-time Messaging**: Instant message sending and receiving
 
 ## Architecture
 
@@ -65,7 +68,11 @@ The application consists of several key components:
 
 4. Set up environment variables in `.env` file:
    ```env
-   GOOGLE_API_KEY=your_api_key_here
+   SECRET_KEY=your_secret_key_here
+   ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=30
+   SQLITE=sqlite:///./storage/db_chat/alchemy.db
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
 5. Place your PDF documents in the `docs/` folder
@@ -95,14 +102,23 @@ The application consists of several key components:
    python main.py
    ```
 
-3. Open the web interface at `http://localhost:8000`
+3. In a separate terminal, start the frontend development server:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+4. Open the web interface at `http://localhost:5173`
 
 ## API Endpoints
 
+- `POST /auth/login` - User authentication
 - `POST /api/conversations` - Create a new conversation
 - `GET /api/conversations` - List all conversations
 - `GET /api/conversations/{id}` - Get conversation history
 - `POST /api/conversations/{id}/messages` - Send a message in a conversation
+- `PATCH /api/chats/{id}/rename` - Rename a chat
+- `DELETE /api/chats/{id}` - Delete a chat
 
 ## Technical Details
 
@@ -117,9 +133,13 @@ The application consists of several key components:
 
 ## Recent Improvements
 
-- Migration from pip to Poetry for Python dependency management
-- Enhanced database modules with improved error handling
-- Fixed SQLite connection and query issues
-- Improved Qdrant integration and collection management
-- Optimized document processing workflows
-- Enhanced conversation persistence and retrieval
+- Fixed API path inconsistencies between frontend and backend
+- Enhanced error handling and user feedback in frontend
+- Improved database initialization and table creation
+- Fixed authentication flow and token management
+- Enhanced chat management functionality (rename/delete)
+- Improved message handling and conversation history
+- Better CORS configuration for cross-origin requests
+- Added comprehensive environment variable configuration
+- Fixed database model inconsistencies with UUID support
+- Enhanced security with proper password hashing

@@ -48,12 +48,14 @@ function AuthPage({ onLoginSuccess }) {
             } else {
                 // 4. Ошибка (например, 401 Unauthorized от FastAPI)
                 // data.detail содержит сообщение об ошибке, отправленное FastAPI
-                setError(data.detail || 'Неизвестная ошибка входа.');
+                const errorMessage = data.detail || `Login failed with status: ${response.status}`;
+                console.error("Login error:", errorMessage);
+                setError(errorMessage);
             }
 
         } catch (fetchError) {
-            console.error("Ошибка подключения к API:", fetchError);
-            setError("Не удалось подключиться к серверу. Проверьте, запущен ли FastAPI.");
+            console.error("Network error when connecting to API:", fetchError);
+            setError("Network error when connecting to server. Please check your connection and ensure the backend is running.");
         } finally {
             setIsLoading(false); // Снимаем состояние загрузки в любом случае
         }
