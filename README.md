@@ -6,18 +6,42 @@ Advanced chat application with Retrieval-Augmented Generation (RAG) technology t
 
 This application implements a full-featured chat interface with persistent conversation history, document-based question answering, and a modern web interface. It uses the Google Gemini model for natural language processing and Qdrant for vector document retrieval.
 
-## Features
-
-- **Document Question Answering**: Ask questions about your documents using RAG technology
-- **Persistent Conversations**: Save and resume chat sessions using SQLite database
-- **Modern Web Interface**: Clean, responsive chat interface with conversation history sidebar
-- **Source Attribution**: See which documents formed the basis of each answer
-- **Multi-Document Support**: Process and ask questions about multiple PDF documents
-- **User Authentication**: Secure login and registration with JWT tokens
-- **Chat Management**: Create, rename, and delete conversations
-- **Real-time Messaging**: Instant message sending and receiving
-
 ## Architecture
+
+```mermaid
+graph TD
+    A[Frontend - React/Vite] -->|API Calls| B[Backend - FastAPI]
+    B --> C[Authentication - JWT]
+    B --> D[SQLite Database]
+    B --> E[RAG Pipeline]
+    E --> F[Document Processing]
+    E --> G[Qdrant Vector Store]
+    E --> H[Google Gemini LLM]
+    F --> I[PDF Documents]
+    G --> J[Vector Embeddings]
+    
+    subgraph Frontend
+        A
+    end
+    
+    subgraph Backend
+        B
+        C
+        D
+        E
+    end
+    
+    subgraph Core_Components
+        F
+        G
+        H
+    end
+    
+    subgraph Data_Sources
+        I
+        J
+    end
+```
 
 The application consists of several key components:
 
@@ -28,6 +52,17 @@ The application consists of several key components:
    - RAG pipeline setup and question answering
 4. **Database Layer** (`app/db/`): Conversation persistence with SQLite and vector storage with Qdrant
 5. **Models** (`app/models/`): Data models for database entities
+
+## Features
+
+- **Document Question Answering**: Ask questions about your documents using RAG technology
+- **Persistent Conversations**: Save and resume chat sessions using SQLite database
+- **Modern Web Interface**: Clean, responsive chat interface with conversation history sidebar
+- **Source Attribution**: See which documents formed the basis of each answer
+- **Multi-Document Support**: Process and ask questions about multiple PDF documents
+- **User Authentication**: Secure login and registration with JWT tokens
+- **Chat Management**: Create, rename, and delete conversations
+- **Real-time Messaging**: Instant message sending and receiving
 
 ## How It Works
 
