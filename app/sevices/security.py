@@ -86,6 +86,8 @@ class Auth:
 
     def authenticate_user(self, user_id: str, stored_hashed_password: str, provided_password: str):
         # Проверяем, совпадает ли предоставленный пароль с хэшированным паролем в базе данных
+        print(f"{stored_hashed_password=}")
+        print(f"{provided_password=}")
         if not self._verify_password(provided_password, stored_hashed_password):
             return False
         # Если пароль верен, создаем JWT токен
