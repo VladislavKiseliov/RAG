@@ -1,6 +1,10 @@
 import asyncio
 import sqlite3
+import uuid
 from typing import List, Dict, Any, Optional
+
+import uuid6
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 import sqlalchemy
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -8,166 +12,170 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, sess
 from sqlalchemy import String, Integer, ForeignKey, DateTime, create_engine, select, BigInteger
 from datetime import datetime
 from app.db.interfaces.base_db import DataBase
-from app.models.database_models import Chats,Messages,Users
+from app.models.database_models import Chats, Messages, Users
 
 
-class Data_Base_Alchemy():
+class Data_Base_Alchemy(DataBase):
+    """Реализация интерфейса базы данных с использованием SQLAlchemy ORM."""
 
-    def __init__(self,DATABASE_URL:Optional[str]="sqlite:///../storage/db_chat/alchemy.db"):
-        self.DATABASE_URL = DATABASE_URL
-        self.engine = create_engine(self.DATABASE_URL,echo=True)
-        self.SessionLocal = sessionmaker(bind=self.engine)
-
-
-    def add_new_chat(self, chat_id: str, user_id: str, title: str) -> bool:
+    def add_new_chat(self, db: Session, chat_id: str, user_id: str, title: str) -> bool:
         """Добавление нового чата в базу данных."""
+        try:
+            chats = Chats(chat_id=chat_id, user_id=user_id, title=title)
+            db.add(chats)
+            db.commit()
+            return True
 
-        with self.SessionLocal() as session:
-            with session.begin():
-                chats = Chats(chat_id=chat_id, user_id=user_id, title=title)
-                session.add(chats)
+        except IntegrityError:
+            db.rollback()
+            raise Exception("Chat already exists")
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise Exception(f"Database error when adding chat: {str(e)}")
 
-
-
-    def get_all_chats(self, user_id: str) -> List[Dict[str, Any]]:
+    def get_all_chats(self, db: Session, user_id: str) -> List[Dict[str, Any]]:
         """Получение списка всех чатов пользователя."""
         try:
-            with self.SessionLocal() as session:
-                stmt = select(Chats).filter_by(user_id=user_id)
-                chats = session.scalars(stmt).all()
+            stmt = select(Chats).filter_by(user_id=user_id)
+            chats = db.scalars(stmt).all()
 
-                result = []
-                for chat in chats:
-                    result.append(
-                        {
-                            "chat_id": chat[0],
-                            "title": chat[1],
-                            "created_at": chat[2],
-                            "updated_at": chat[3],
-                        }
-                    )
-                return result
-        except sqlite3.Error as e:
-            print(f"Ошибка при получении чатов: {e}")
-            return []
+            result = []
+            for chat in chats:
+                result.append(
+                    {
+                        "chat_id": chat.chat_id,
+                        "title": chat.title,
+                        "created_at": chat.created_at,
+                        "updated_at": chat.updated_at,
+                    }
+                )
+            return result
+        except SQLAlchemyError as e:
+            raise Exception(f"Database error when getting chats: {str(e)}")
 
-    def update_chat_title(self, chat_id: str, user_id: str, new_title: str) -> bool:
+    def update_chat_title(self, db: Session, chat_id: str, new_title: str) -> bool:
         """Обновление заголовка чата."""
         try:
-            with self.SessionLocal() as session:
-                chat = session.get(Chats, chat_id,user_id)
-                chat.title = new_title
-                chat.updated_at = datetime.utcnow()
-                session.commit()
+            # Используем правильный способ поиска чата по chat_id
+            chat = db.get(Chats, chat_id)
+            print(f"{chat=}")
 
-                return session.rowcount > 0
+            if not chat:
+                return False
 
-        except sqlite3.Error as e:
-            print(f"Ошибка при обновлении заголовка чата: {e}")
-            return False
+            chat.title = new_title
+            chat.updated_at = datetime.utcnow()
+            db.commit()
 
-    def delete_chat(self, chat_id: str, user_id: str) -> bool:
+            return True
+
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise Exception(f"Database error when updating chat title: {str(e)}")
+
+    def delete_chat(self, db: Session, chat_id: str, user_id: str) -> bool:
         """Удаление чата и всех связанных сообщений."""
         try:
-            with self.SessionLocal() as session:
-                chat = session.get(Chats, chat_id,user_id)
-                session.delete(chat)
-                session.commit()
+            # Сначала проверим, что чат принадлежит пользователю
+            chat = db.query(Chats).filter(Chats.chat_id == chat_id, Chats.user_id == user_id).first()
 
-                return session.rowcount > 0
+            if not chat:
+                return False
 
-        except sqlite3.Error as e:
-            print(f"Ошибка при удалении чата: {e}")
-            return False
+            db.delete(chat)
+            db.commit()
 
-    def add_new_message(self, chat_id: str, role: str, content: str) -> bool:
+            return True
+
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise Exception(f"Database error when deleting chat: {str(e)}")
+
+    # --- Функции для работы с сообщениями ---
+
+    def add_new_message(self, db: Session, chat_id: str, role: str, content: str) -> bool:
         """Добавление нового сообщения в бд."""
         try:
-            with self.SessionLocal() as session:
-                message = Messages(chat_id=chat_id, role=role, content=content)
-                session.add(message)
-                session.commit()
-
-                return True
-        except sqlalchemy.exc.PendingRollbackError as e:#Транзакция завершилась неудачно и должна быть откатана перед продолжением.
-            print(f"Ошибка при получении сообщений: {e}")
-            return []
-
-
+            message = Messages(chat_id=chat_id, role=role, content=content)
+            db.add(message)
+            db.commit()
+            return True
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise Exception(f"Database error when adding message: {str(e)}")
 
     def get_chat_messages(
-            self, chat_id: str, limit: Optional[int] = None
+            self, db: Session, chat_id: str, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Получение истории сообщений чата."""
         try:
-            with self.SessionLocal() as session:
+            stmt = (
+                select(Messages)
+                .filter_by(chat_id=chat_id)
+                .order_by(Messages.created_at)
+                .limit(limit or None)
+            )
 
-                stmt = (
-                    select(Messages)
-                    .filter_by(chat_id=chat_id)
-                    .order_by(Messages.created_at.desc())
-                    .limit(limit or None)
+            messages = db.scalars(stmt).all()
+
+            result = []
+            for message in messages:
+                result.append(
+                    {
+                        "id": message.id,
+                        "role": message.role,
+                        "content": message.content,
+                        "created_at": message.created_at,
+                    }
                 )
+            return result
+        except SQLAlchemyError as e:
+            raise Exception(f"Database error when getting messages: {str(e)}")
 
-                messages = session.scalars(stmt).all()
-
-                result = []
-                for message in messages:
-                    result.append(
-                        {
-                            "id": message[0],
-                            "role": message[1],
-                            "content": message[2],
-                            "created_at": message[3],
-                        }
-                    )
-                return result
-        except sqlalchemy.exc.NoResultFound as e: #Требовалось получить результат из базы данных, но он не был найден.
-            print(f"Ошибка при получении сообщений: {e}")
-            return []
-        except sqlalchemy.exc.NoSuchTableError as e: #Таблица не существует или не видна для соединения.
-            print(f"Ошибка при получении сообщений: {e}")
-            return []
-
-    def delete_message(self, message_id: int, chat_id: str) -> bool:
+    def delete_message(self, db: Session, message_id: int, chat_id: str) -> bool:
         """Удаление конкретного сообщения."""
         try:
-            with self.SessionLocal() as session:
+            message = db.get(Messages, message_id)
 
-                message = session.get(Chats, chat_id, message_id)
-                session.delete(message)
-                session.commit()
+            if not message:
+                return False
 
-                return session.rowcount > 0
-        except sqlite3.Error as e:
-            print(f"Ошибка при удалении сообщения: {e}")
-            return False
+            db.delete(message)
+            db.commit()
 
-    def add_new_user(self):
-        with self.SessionLocal() as session:
-            new_user = Users(chat_id=123, login="john", password="")
-            session.add_all([new_user])
-            session.commit()
+            return True
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise Exception(f"Database error when deleting message: {str(e)}")
 
-    def get_new_user(self):
-        with self.SessionLocal() as session:
-            user = session.get(Users, 1)
-            print(user.login)
+    # --- Функции для работы с пользователями ---
 
+    def add_new_user(self, db: Session, login: str, password: str):
+        """Добавление нового пользователя в базу данных."""
+        try:
+            new_user = Users(login=login, password=password)
+            db.add(new_user)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise Exception("User with this login already exists")
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise Exception(f"Database error when adding user: {str(e)}")
 
+    def get_user(self, db: Session, user_id: str) -> Optional[Users]:
+        """Получение пользователя по ID."""
+        try:
+            user = db.get(Users, user_id)
+            return user
+        except SQLAlchemyError as e:
+            raise Exception(f"Database error when getting user: {str(e)}")
 
-
-
-
-# Запуск
-if __name__ == "__main__":
-    Db = Data_Base_Alchemy("sqlite:///../../storage/db_chat/alchemy.db")
-    Db.add_new_chat(chat_id=134543543,user_id=123,title='testnew')
-    # Db.add_new_user()
-    #create_table()
-    #add_new_user()
-    # get_new_user()
-    # add_new_chat(chat_id='123',user_id="43254",title="test")
-
-
-
+    def get_user_by_login(self, db: Session, user_name: str):
+        """Получение пользователя по логину."""
+        try:
+            stmt = select(Users).where(Users.login == user_name)
+            user = db.scalars(stmt).first()
+            return user
+        except SQLAlchemyError as e:
+            raise Exception(f"Database error when getting user by login: {str(e)}")
