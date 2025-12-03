@@ -1,81 +1,273 @@
-# RAG Чат Приложение
+# RAG Chat Application
 
-Продвинутое приложение для чата с технологией Retrieval-Augmented Generation (RAG), которое сочетает мощность больших языковых моделей с извлечением информации из документов для предоставления точных, контекстно-зависимых ответов.
+Advanced chat application with Retrieval-Augmented Generation (RAG) technology that combines the power of large language models with document information retrieval to provide accurate, context-aware responses.
 
-## Обзор
+## Overview
 
-Это приложение реализует полнофункциональный интерфейс чата с постоянной историей разговоров, ответами на вопросы на основе документов и современным веб-интерфейсом. Оно использует модель Google Gemini для обработки естественного языка и Qdrant для векторного извлечения документов.
+This application implements a full-featured chat interface with persistent conversation history, document-based question answering, and a modern web interface. It uses the Google Gemini model for natural language processing and Qdrant for vector document retrieval.
 
-## Особенности
+## Architecture
 
-- **Ответы на вопросы по документам**: Задавайте вопросы о ваших документах с использованием технологии RAG
-- **Постоянные разговоры**: Сохраняйте и возобновляйте сессии чата с помощью базы данных SQLite
-- **Современный веб-интерфейс**: Чистый, отзывчивый интерфейс чата с боковой панелью истории разговоров
-- **Атрибуция источников**: Смотрите, какие документы легли в основу каждого ответа
-- **Поддержка нескольких документов**: Обрабатывайте и задавайте вопросы по нескольким PDF-документам
+```mermaid
+graph TD
+    A[Frontend - React/Vite] -->|API Calls| B[Backend - FastAPI]
+    B --> C[Authentication - JWT]
+    B --> D[SQLite Database]
+    B --> E[RAG Pipeline]
+    E --> F[Document Processing]
+    E --> G[Qdrant Vector Store]
+    E --> H[Google Gemini LLM]
+    F --> I[PDF Documents]
+    G --> J[Vector Embeddings]
+    
+    subgraph Frontend
+        A
+    end
+    
+    subgraph Backend
+        B
+        C
+        D
+        E
+    end
+    
+    subgraph Core_Components
+        F
+        G
+        H
+    end
+    
+    subgraph Data_Sources
+        I
+        J
+    end
+```
 
-## Архитектура
+## Planned Future Architecture
 
-Приложение состоит из нескольких ключевых компонентов:
+The application is planned to evolve to the following more scalable architecture:
 
-1. **Фронтенд** ([frontend/index.html](file:///c%3A/Users/RGG/Desktop/RagProgramm/frontend/index.html)): Респонсивный веб-интерфейс, созданный на чистом JavaScript
-2. **Бэкенд** ([main.py](file:///c%3A/Users/RGG/Desktop/RagProgramm/main.py)): Сервер FastAPI, обрабатывающий API-эндпоинты и маршрутизацию
-3. **Основная логика** ([app/core/](file:///c%3A/Users/RGG/Desktop/RagProgramm/app/core/)): 
-   - Обработка документов и разделение на части
-   - Настройка RAG-цепочки и ответы на вопросы
-4. **База данных** ([app/db/](file:///c%3A/Users/RGG/Desktop/RagProgramm/app/db/)): Постоянство разговоров и сообщений с помощью SQLite
-5. **Векторное хранилище** ([app/db/Qdrant.py](file:///c%3A/Users/RGG/Desktop/RagProgramm/app/db/Qdrant.py)): Интеграция Qdrant для извлечения документов
+```mermaid
+flowchart TD
+    %% ---------- FRONTEND ----------
+    subgraph UI["1. Интерфейс пользователя"]
+        FE[Frontend / UI<br/>Web / Mobile]
+    end
 
-## Как это работает
+    %% ---------- BACKEND ----------
+    subgraph BE_SVC["2. Backend (Сервис 1)"]
+        BE[Backend API<br/>Пользователи, Auth, Сессии, Загрузки, История]
+    end
 
-1. **Загрузка документов**: PDF-документы в директории [docs/](file:///c%3A/Users/RGG/Desktop/RagProgramm/docs/) обрабатываются и преобразуются в векторные представления
-2. **Хранение векторов**: Части документов сохраняются в векторной базе данных Qdrant с метаданными
-3. **Обработка вопросов**: Вопросы пользователей встраиваются и сопоставляются с сохраненными векторами документов
-4. **Извлечение контекста**: Наиболее релевантные части документов извлекаются на основе коэффициентов схожести
-5. **Генерация ответов**: Модель Google Gemini генерирует ответы, используя извлеченный контекст
-6. **Сохранение разговора**: Все взаимодействия сохраняются в SQLite для последующего просмотра
+    FE --> BE
 
-## Инструкции по установке
+    %% ---------- RAG ----------
+    subgraph RAG_SVC["3. RAG Pipeline (Сервис 2)"]
+        RAG[RAG Engine<br/>Retrieval, ReRank, LLM Agent, Сжатие]
 
-1. Установите зависимости:
+        HistLoad[Загрузка истории пользователя]
+        Retrieval[Retriever API<br/>Поиск по вектору + фильтры]
+        ReRank[Переранжирование / Оценка]
+        LLM[LLM Agent / Композитор ответа]
+        RespBuild[Сборка ответа<br/>Provenance + Confidence]
+
+        RAG --> HistLoad
+        RAG --> Retrieval
+        Retrieval --> ReRank
+        ReRank --> LLM
+        LLM --> RespBuild
+    end
+
+    %% ---------- DATABASE SERVICE ----------
+    subgraph DB_SVC["4. Сервис баз данных"]
+        PG[(PostgreSQL<br/>Пользователи, Сессии, История,<br/>Файлы, Метаданные чанков)]
+        VDB[(Vector DB<br/>Эмбеддинги + Метаданные)]
+    end
+
+    %% ---------- CACHE ----------
+    subgraph CACHE["5. Кэш"]
+        REDIS[Redis / Memcached]
+    end
+
+    %% ---------- Связи с промежуточными блоками ----------
+    BE --> BE_to_RAG[Отправка запроса на обработку] --> RAG
+    BE --> BE_to_PG[Сохранение/загрузка данных] --> PG
+    BE --> BE_to_REDIS[Проверка кэша] --> REDIS
+
+    HistLoad --> HistLoad_to_REDIS[Проверка истории в кэше] --> REDIS
+    HistLoad --> HistLoad_to_PG[Если нет в кэше, получить из БД] --> PG
+
+    Retrieval --> Retrieval_to_REDIS[Проверка эмбеддингов в кэше] --> REDIS
+    Retrieval --> Retrieval_to_VDB[Если нет в кэше, получить из VectorDB] --> VDB
+
+    RespBuild --> RespBuild_to_PG[Сохранение результатов] --> PG
+
+    %% ---------- ASYNC INGEST ----------
+    subgraph INGEST["6. Асинхронная обработка загрузок"]
+        MQ(((Message Broker)))
+        BE --> BE_to_MQ[Отправка задачи на обработку] --> MQ
+
+        WORKER[Ingestion Worker<br/>Чанкинг + Эмбеддинги + Upsert]
+        MQ --> WORKER
+        WORKER --> WORKER_to_PG[Сохранение метаданных] --> PG
+        WORKER --> WORKER_to_VDB[Сохранение эмбеддингов] --> VDB
+        WORKER --> WORKER_to_REDIS[Обновление кэша] --> REDIS
+        WORKER --> LocalFS[Локальное файловое хранилище]
+    end
+
+    %% ---------- OBSERVABILITY ----------
+    subgraph OBS["7. Мониторинг и наблюдаемость"]
+        OTEL[OpenTelemetry / Trейсинг / Метрики]
+        LOGS[Централизованные логи]
+        METRICS[Prometheus Метрики]
+    end
+
+    BE --> OTEL
+    RAG --> OTEL
+    WORKER --> OTEL
+    PG --> OTEL
+    VDB --> OTEL
+    REDIS --> OTEL
+    MQ --> METRICS
+
+    %% ---------- FLOW SUMMARY ----------
+    FE -. Пользовательский запрос .-> BE
+    RAG -. Ответ .-> BE
+    BE -. Ответ пользователю .-> FE
+```
+
+The application consists of several key components:
+
+1. **Frontend** (`frontend/src/`): React application with Vite build tool
+2. **Backend** (`main.py`): FastAPI server handling API endpoints and routing
+3. **Core Logic** (`app/core/`): 
+   - Document processing and chunking
+   - RAG pipeline setup and question answering
+4. **Database Layer** (`app/db/`): Conversation persistence with SQLite and vector storage with Qdrant
+5. **Models** (`app/models/`): Data models for database entities
+
+## Features
+
+- **Document Question Answering**: Ask questions about your documents using RAG technology
+- **Persistent Conversations**: Save and resume chat sessions using SQLite database
+- **Modern Web Interface**: Clean, responsive chat interface with conversation history sidebar
+- **Source Attribution**: See which documents formed the basis of each answer
+- **Multi-Document Support**: Process and ask questions about multiple PDF documents
+- **User Authentication**: Secure login and registration with JWT tokens
+- **Chat Management**: Create, rename, and delete conversations
+- **Real-time Messaging**: Instant message sending and receiving
+
+## How It Works
+
+1. **Document Loading**: PDF documents in the `docs/` directory are processed and converted to vector representations
+2. **Vector Storage**: Document chunks are stored in the Qdrant vector database with metadata
+3. **Question Processing**: User questions are embedded and matched against stored document vectors
+4. **Context Retrieval**: Most relevant document chunks are retrieved based on similarity scores
+5. **Response Generation**: Google Gemini model generates answers using the retrieved context
+6. **Conversation Persistence**: All interactions are saved to SQLite for later review
+
+## Installation Instructions
+
+### Prerequisites
+- Python 3.12+
+- Node.js 16+
+- Poetry (for Python dependency management)
+
+### Backend Setup
+
+1. Install Poetry if not already installed:
+   ```bash
+   pip install poetry
    ```
-   pip install -r requirements.txt
+
+2. Install Python dependencies using Poetry:
+   ```bash
+   poetry install
    ```
 
-2. Настройте переменные окружения в файле [.env](file:///c%3A/Users/RGG/Desktop/RagProgramm/.env):
+3. Activate the Poetry virtual environment:
+   ```bash
+   poetry shell
    ```
-   GOOGLE_API_KEY=your_api_key_here
+   or
+   ```bash
+   poetry env activate
    ```
 
-3. Поместите ваши PDF-документы в папку [docs/](file:///c%3A/Users/RGG/Desktop/RagProgramm/docs/)
-
-4. Запустите приложение:
+4. Set up environment variables in `.env` file:
+   ```env
+   SECRET_KEY=your_secret_key_here
+   ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=30
+   SQLITE=sqlite:///./storage/db_chat/alchemy.db
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
+
+5. Place your PDF documents in the `docs/` folder
+
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+
+2. Install frontend dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the frontend:
+   ```bash
+   npm run build
+   ```
+
+### Running the Application
+
+1. Make sure you're in the Poetry virtual environment (from backend setup)
+2. Run the application:
+   ```bash
    python main.py
    ```
 
-5. Откройте веб-интерфейс по адресу `http://localhost:8000`
+3. In a separate terminal, start the frontend development server:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
 
-## API Эндпоинты
+4. Open the web interface at `http://localhost:5173`
 
-- `POST /api/conversations` - Создать новый разговор
-- `GET /api/conversations` - Список всех разговоров
-- `GET /api/conversations/{id}` - Получить историю разговора
-- `POST /api/conversations/{id}/messages` - Отправить сообщение в разговоре
+## API Endpoints
 
-## Технические детали
+- `POST /auth/login` - User authentication
+- `POST /api/conversations` - Create a new conversation
+- `GET /api/conversations` - List all conversations
+- `GET /api/conversations/{id}` - Get conversation history
+- `POST /api/conversations/{id}/messages` - Send a message in a conversation
+- `PATCH /api/chats/{id}/rename` - Rename a chat
+- `DELETE /api/chats/{id}` - Delete a chat
 
-- **LLM**: Google Gemini (через `langchain-google-genai`)
-- **Встраивания**: BAAI/bge-m3 (через `langchain-huggingface`)
-- **Векторное хранилище**: Qdrant
-- **База данных**: SQLite
-- **Веб-фреймворк**: FastAPI
-- **Фронтенд**: Чистый HTML/CSS/JavaScript
+## Technical Details
 
-## Последние улучшения
+- **Web Framework**: FastAPI
+- **LLM**: Google Gemini (via `langchain-google-genai`)
+- **Embeddings**: BAAI/bge-m3 (via `langchain-huggingface`)
+- **Vector Store**: Qdrant
+- **Database**: SQLite with SQLAlchemy ORM
+- **Frontend**: React with Vite
+- **Dependency Management**: Poetry (Python), npm (Frontend)
+- **Migration Tool**: Alembic
 
-- Расширены модули базы данных с улучшенной обработкой ошибок
-- Исправлены проблемы подключения и запросов SQLite
-- Улучшена интеграция Qdrant и управление коллекциями
-- Оптимизированы рабочие процессы обработки документов
-- Улучшено постоянство и извлечение разговоров
+## Recent Improvements
+
+- Fixed API path inconsistencies between frontend and backend
+- Enhanced error handling and user feedback in frontend
+- Improved database initialization and table creation
+- Fixed authentication flow and token management
+- Enhanced chat management functionality (rename/delete)
+- Improved message handling and conversation history
+- Better CORS configuration for cross-origin requests
+- Added comprehensive environment variable configuration
+- Fixed database model inconsistencies with UUID support
+- Enhanced security with proper password hashing

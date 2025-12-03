@@ -4,11 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="ADD  alembic for versioned database">
-      <change afterPath="$PROJECT_DIR$/app/models/database_models.py" afterDir="false" />
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: Fixed hashing during authorization">
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/123.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/1234.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/123_removed.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/test2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/test3.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/env.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/SQLITEAlchemy.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/db/implementations/SQLITEAlchemy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/document_processing.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/document_processing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/sevices/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/sevices/security.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/poetry.lock" beforeDir="false" afterPath="$PROJECT_DIR$/poetry.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -68,12 +78,17 @@
     &quot;Python.TestEmbendings.executor&quot;: &quot;Run&quot;,
     &quot;Python.TestGoogle.executor&quot;: &quot;Run&quot;,
     &quot;Python.TestWorkChromadb.executor&quot;: &quot;Run&quot;,
+    &quot;Python.document_processing.executor&quot;: &quot;Run&quot;,
     &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test3.executor&quot;: &quot;Run&quot;,
+    &quot;Python.testUUID.executor&quot;: &quot;Run&quot;,
     &quot;Python.testmodel.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;qdrant&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feature/react-migration-jwt-auth&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;C:/Users/RGG/Desktop/RagProgramm&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
@@ -81,17 +96,21 @@
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;terminal&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\PDF_Processing" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\frontend" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\implementations" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\OldFile" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\interfaces" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\docs" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\PDF_Processing" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\implementations" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\OldFile" />
     </key>
   </component>
   <component name="SharedIndexes">
@@ -285,7 +304,87 @@
       <option name="project" value="LOCAL" />
       <updated>1761912656386</updated>
     </task>
-    <option name="localTasksCounter" value="20" />
+    <task id="LOCAL-00020" summary="ADD  alembic for versioned database&#10;new file database_models.py for model table database">
+      <option name="closed" value="true" />
+      <created>1762433928362</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1762433928363</updated>
+    </task>
+    <task id="LOCAL-00021" summary="feat: Migrate frontend to React with JWT authentication&#10;&#10;- Migrated frontend from vanilla HTML/JS to React with Vite&#10;- Implemented JWT-based authentication system&#10;- Extracted API routes to separate module for better organization&#10;- Added login page with token-based authentication&#10;- Created React components for chat interface&#10;- Setup CORS for frontend-backend communication&#10;&#10;TODO:&#10;- Implement user registration in database&#10;- Add password hashing for security&#10;- Complete JWT token validation middleware">
+      <option name="closed" value="true" />
+      <created>1763727061456</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1763727061456</updated>
+    </task>
+    <task id="LOCAL-00022" summary="feat: Implement JWT authentication with database integration&#10;&#10;- Fixed circular import issues by reorganizing database session management&#10;- Implemented proper JWT token generation and validation&#10;- Update users table:colomn id type int-&gt;uuid&#10;- Integrated password hashing for security&#10;- Fixed SQLAlchemy URL parsing issues&#10;- Resolved timedelta configuration errors&#10;&#10;TODO:&#10;- Implement user registration endpoint&#10;- Add login validation with database lookup&#10;- Complete full authentication flow&quot;">
+      <option name="closed" value="true" />
+      <created>1763811656978</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1763811656978</updated>
+    </task>
+    <task id="LOCAL-00023" summary="git commit -m &quot;Migration to Poetry:&#10;- Deleted file requirements.txt&#10;- - Added the pyproject.toml configuration file&#10;   - Added the poetry.lock dependency lock file&#10;   - Updated IDE configuration files (.idea/)&#10;- Configured dependency management via Poetry&quot;">
+      <option name="closed" value="true" />
+      <created>1763967438349</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1763967438349</updated>
+    </task>
+    <task id="LOCAL-00024" summary="git commit -m &quot;Update README.md:">
+      <option name="closed" value="true" />
+      <created>1763967767774</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1763967767774</updated>
+    </task>
+    <task id="LOCAL-00025" summary="- Fixed undefined accessToken variable in App.jsx&#10;- Corrected API endpoint paths in config/api.jsx&#10;- Passed accessToken prop to Sidebar component&#10;- Fixed conversation endpoint URL to include /api prefix&#10;- Ensure proper token propagation from AuthPage to ChatPage">
+      <option name="closed" value="true" />
+      <created>1763987072857</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1763987072857</updated>
+    </task>
+    <task id="LOCAL-00026" summary="feat: Implementation of the full functionality of chat and message management&#10;&#10;- Added endpoints for managing chats:&#10;* PATCH /api/chats/{chat_id}/rename to change the chat name&#10;  * DELETE /api/chats/{chat_id} to delete a chat&#10;&#10;- Implemented work with messages:&#10;  * POST /api/conversations/{conversation_id}/messages for sending messages&#10;* GET /api/conversations/{conversation_id} for restoring message history&#10;&#10;- Fixed the implementation of functions in SQLITEAlchemy:&#10;  * update_chat_title: correct chat search by chat_id&#10;  * delete_chat: check whether the chat belongs to the user&#10;  * add_new_message: saving messages to the database&#10;* get_chat_messages: getting the message history from the database&#10;&#10;- Database models updated:&#10;* The chat_id field type in the Messages model has been fixed from BigInteger to String(36)&#10;* Consistency of data types for foreign keys has been ensured&#10;  * The existing one-to-many relationship between users and chats&#10;&#10;has been maintained - Migrations have been applied to transfer IDs to UUID7:&#10;* bc73427871e2 - updating the chat_id column in the users table&#10;  * 148a39e82c80 - updating the chat_id and user_id columns in the chats table">
+      <option name="closed" value="true" />
+      <created>1764075796068</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1764075796068</updated>
+    </task>
+    <task id="LOCAL-00027" summary="&#10;feat: Complete web service implementation with enhanced functionality&#10;&#10;Frontend enhancements:&#10;- Fixed API path inconsistencies between frontend and backend&#10;- Improved loading states for API calls&#10;- Enhanced chat management UI with proper error display&#10;&#10;Backend improvements:&#10;- Corrected authentication flow with proper password hashing&#10;- Implemented proper JWT token management&#10;&#10;API endpoints:&#10;- Added complete chat management (rename/delete)&#10;&#10;&#10;Documentation:&#10;- Updated README with comprehensive setup instructions&#10;- Added detailed environment variable configuration&#10;- Documented all API endpoints">
+      <option name="closed" value="true" />
+      <created>1764151976874</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1764151976874</updated>
+    </task>
+    <task id="LOCAL-00028" summary="feat: Update README.md">
+      <option name="closed" value="true" />
+      <created>1764152254177</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1764152254177</updated>
+    </task>
+    <task id="LOCAL-00029" summary="feat: Fixed hashing during authorization">
+      <option name="closed" value="true" />
+      <created>1764158521101</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1764158521101</updated>
+    </task>
+    <option name="localTasksCounter" value="30" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -317,6 +416,17 @@
                   <entry key="Show.Git.Branches" value="true" />
                 </map>
               </option>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="feature/react-migration-jwt-auth" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
               <option name="TEXT_FILTER_SETTINGS">
                 <TextFilterSettings>
                   <option name="MATCH_CASE" value="true" />
@@ -329,9 +439,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Update:New requirements.txt" />
-    <MESSAGE value="Update:New requirements.txt&#10;ADD: Added functionality for working with chromadb" />
-    <MESSAGE value="ADD:Add functione creating and connecting to a database" />
     <MESSAGE value="UPDATE:add new embedding_model" />
     <MESSAGE value="UPDATE:update method get_relevant_context" />
     <MESSAGE value="ADD: New Files - config.py , Chanking.py , .env &#10;Update: chunking method is stored in a separate file for independent operation" />
@@ -347,7 +454,17 @@
     <MESSAGE value="Updated : dependencies&#10;Added :  table creation via SQLAlchemy" />
     <MESSAGE value="Updated : requirements.txt" />
     <MESSAGE value="ADD  alembic for versioned database" />
-    <option name="LAST_COMMIT_MESSAGE" value="ADD  alembic for versioned database" />
+    <MESSAGE value="ADD  alembic for versioned database&#10;new file database_models.py for model table database" />
+    <MESSAGE value="feat: Migrate frontend to React with JWT authentication&#10;&#10;- Migrated frontend from vanilla HTML/JS to React with Vite&#10;- Implemented JWT-based authentication system&#10;- Extracted API routes to separate module for better organization&#10;- Added login page with token-based authentication&#10;- Created React components for chat interface&#10;- Setup CORS for frontend-backend communication&#10;&#10;TODO:&#10;- Implement user registration in database&#10;- Add password hashing for security&#10;- Complete JWT token validation middleware" />
+    <MESSAGE value="feat: Implement JWT authentication with database integration&#10;&#10;- Fixed circular import issues by reorganizing database session management&#10;- Implemented proper JWT token generation and validation&#10;- Update users table:colomn id type int-&gt;uuid&#10;- Integrated password hashing for security&#10;- Fixed SQLAlchemy URL parsing issues&#10;- Resolved timedelta configuration errors&#10;&#10;TODO:&#10;- Implement user registration endpoint&#10;- Add login validation with database lookup&#10;- Complete full authentication flow&quot;" />
+    <MESSAGE value="git commit -m &quot;Migration to Poetry:&#10;- Deleted file requirements.txt&#10;- - Added the pyproject.toml configuration file&#10;   - Added the poetry.lock dependency lock file&#10;   - Updated IDE configuration files (.idea/)&#10;- Configured dependency management via Poetry&quot;" />
+    <MESSAGE value="git commit -m &quot;Update README.md:" />
+    <MESSAGE value="- Fixed undefined accessToken variable in App.jsx&#10;- Corrected API endpoint paths in config/api.jsx&#10;- Passed accessToken prop to Sidebar component&#10;- Fixed conversation endpoint URL to include /api prefix&#10;- Ensure proper token propagation from AuthPage to ChatPage" />
+    <MESSAGE value="feat: Implementation of the full functionality of chat and message management&#10;&#10;- Added endpoints for managing chats:&#10;* PATCH /api/chats/{chat_id}/rename to change the chat name&#10;  * DELETE /api/chats/{chat_id} to delete a chat&#10;&#10;- Implemented work with messages:&#10;  * POST /api/conversations/{conversation_id}/messages for sending messages&#10;* GET /api/conversations/{conversation_id} for restoring message history&#10;&#10;- Fixed the implementation of functions in SQLITEAlchemy:&#10;  * update_chat_title: correct chat search by chat_id&#10;  * delete_chat: check whether the chat belongs to the user&#10;  * add_new_message: saving messages to the database&#10;* get_chat_messages: getting the message history from the database&#10;&#10;- Database models updated:&#10;* The chat_id field type in the Messages model has been fixed from BigInteger to String(36)&#10;* Consistency of data types for foreign keys has been ensured&#10;  * The existing one-to-many relationship between users and chats&#10;&#10;has been maintained - Migrations have been applied to transfer IDs to UUID7:&#10;* bc73427871e2 - updating the chat_id column in the users table&#10;  * 148a39e82c80 - updating the chat_id and user_id columns in the chats table" />
+    <MESSAGE value="&#10;feat: Complete web service implementation with enhanced functionality&#10;&#10;Frontend enhancements:&#10;- Fixed API path inconsistencies between frontend and backend&#10;- Improved loading states for API calls&#10;- Enhanced chat management UI with proper error display&#10;&#10;Backend improvements:&#10;- Corrected authentication flow with proper password hashing&#10;- Implemented proper JWT token management&#10;&#10;API endpoints:&#10;- Added complete chat management (rename/delete)&#10;&#10;&#10;Documentation:&#10;- Updated README with comprehensive setup instructions&#10;- Added detailed environment variable configuration&#10;- Documented all API endpoints" />
+    <MESSAGE value="feat: Update README.md" />
+    <MESSAGE value="feat: Fixed hashing during authorization" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Fixed hashing during authorization" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />

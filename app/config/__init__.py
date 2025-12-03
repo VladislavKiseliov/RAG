@@ -21,6 +21,9 @@ __all__ = [
     
     # Объекты
     'text_splitter',
+    'parent_splitter',
+    'child_splitter',
+
     
     # Промпты
     'CUSTOM_PROMPT_TEMPLATE'

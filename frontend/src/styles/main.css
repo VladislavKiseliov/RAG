@@ -1,0 +1,388 @@
+/* src/styles/main.css - Темная тема */
+
+:root {
+    /* Основные цвета для Темной темы */
+    --primary-color: #0096FF; /* Яркий акцентный синий */
+    --hover-color: #007ACC;
+    --bg-color: #121212; /* Глубокий темный фон приложения */
+    --sidebar-bg: #1E1E1E; /* Чуть светлее для сайдбара */
+    --chat-bg: #121212; /* Фон основного чата */
+    --input-bg: #1E1E1E; /* Фон области ввода */
+
+    /* Цвета сообщений */
+    --user-msg-bg: #005699; /* Темно-синий для сообщений пользователя */
+    --assistant-msg-bg: #2C2C2C; /* Серый для сообщений ассистента */
+
+    /* Цвета текста и границ */
+    --text-light: #E0E0E0; /* Светлый текст */
+    --text-dark: #FFFFFF; /* Белый текст */
+    --border-color: #3A3A3A;
+    --shadow-dark: 0 4px 12px rgba(0, 0, 0, 0.4); /* Темная тень */
+    
+    /* Цвета для меню действий над чатом */
+    --menu-bg: #2D2D2D;
+    --menu-hover: #3D3D3D;
+    --delete-hover: #FF4444;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    height: 100vh;
+    background-color: var(--bg-color);
+    color: var(--text-light);
+}
+
+/* --- Общий Layout (2 колонки) --- */
+.app-layout {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* --- 1. Левая колонка (Sidebar) --- */
+.sidebar {
+    width: 260px;
+    background-color: var(--sidebar-bg);
+    color: var(--text-light);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 15px;
+    border-right: 1px solid var(--border-color);
+    box-shadow: var(--shadow-dark);
+    flex-shrink: 0;
+}
+
+.sidebar-header {
+    padding-bottom: 20px;
+}
+
+.new-chat-btn {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--primary-color);
+    color: var(--text-dark);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+.new-chat-btn:hover {
+    background-color: var(--hover-color);
+}
+
+.chat-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-top: 10px;
+}
+
+.chat-list-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+}
+
+.chat-list-item:hover {
+    background-color: var(--assistant-msg-bg);
+}
+
+.chat-list-item.active {
+    background-color: var(--primary-color);
+    color: var(--text-dark);
+    font-weight: 600;
+}
+
+.chat-title {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-menu-button {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 5px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.chat-menu-button:hover {
+    background-color: var(--menu-hover);
+}
+
+.chat-menu {
+    background-color: var(--menu-bg);
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    min-width: 150px;
+    max-width: 200px;
+    /* Позиционирование теперь задается в JSX */
+}
+
+.menu-item {
+    display: block;
+    width: 100%;
+    padding: 10px 15px;
+    background: none;
+    border: none;
+    color: var(--text-light);
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.menu-item:hover {
+    background-color: var(--menu-hover);
+}
+
+.menu-item.delete:hover {
+    background-color: var(--delete-hover);
+}
+
+.chat-title-edit {
+    display: flex;
+    flex-grow: 1;
+    gap: 5px;
+}
+
+.chat-title-edit input {
+    flex-grow: 1;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-light);
+    padding: 5px;
+    font-size: 14px;
+}
+
+.chat-title-edit button {
+    background-color: var(--primary-color);
+    color: var(--text-dark);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-title-edit button:last-child {
+    background-color: #666;
+}
+
+.chat-list-item.empty {
+    text-align: center;
+    font-style: italic;
+}
+
+/* --- 2. Центральная колонка (Чат) --- */
+.main-chat {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--chat-bg);
+}
+
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.chat-history {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+/* --- Сообщения --- */
+.message {
+    display: flex;
+    margin-bottom: 15px;
+    max-width: 80%;
+}
+
+.user-message {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.assistant-message {
+    justify-content: flex-start;
+    margin-right: auto;
+}
+
+.message span {
+    padding: 12px 18px;
+    border-radius: 18px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.user-message span {
+    background-color: var(--user-msg-bg);
+    color: var(--text-dark); /* Белый текст на синем фоне */
+    border-bottom-right-radius: 5px;
+}
+
+.assistant-message span {
+    background-color: var(--assistant-msg-bg);
+    color: var(--text-light);
+    border-bottom-left-radius: 5px;
+}
+
+/* --- Поле ввода (Исправлено) --- */
+.chat-input-container {
+    display: flex;
+    align-items: flex-end;
+    padding: 15px 20px;
+    background-color: var(--chat-bg); /* Используем цвет фона чата, а не transparent */
+    border-top: none; /* Убираем верхнюю границу */
+    box-shadow: none; /* Убираем любую тень, если она была */
+    position: relative;
+    z-index: 5; /* Гарантируем, что он находится поверх других элементов */
+}
+
+#messageInput {
+    flex-grow: 1;
+    max-height: 150px;
+    padding: 12px 18px; /* Немного больше padding */
+    margin-right: 10px;
+
+    /* Стилизация для Темной темы */
+    border: 1px solid var(--border-color);
+    background-color: var(--sidebar-bg); /* Более светлый темный фон */
+    color: var(--text-light);
+
+    border-radius: 25px;
+    resize: none;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#messageInput::placeholder {
+    color: #999;
+}
+
+#messageInput:focus {
+    border-color: var(--primary-color);
+}
+
+#sendButton {
+    background-color: var(--primary-color);
+    color: var(--text-dark);
+    border: none;
+    border-radius: 50%;
+    width: 48px; /* Увеличен размер */
+    height: 48px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+}
+
+#sendButton:hover {
+    background-color: var(--hover-color);
+}
+
+/* --- Стилизация Авторизации --- */
+
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100%;
+    background-color: var(--bg-color);
+}
+
+.auth-box {
+    background: var(--sidebar-bg);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-dark);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.auth-box h2 {
+    color: var(--text-light);
+    margin-bottom: 25px;
+    font-weight: 500;
+}
+
+.auth-box input {
+    width: 90%;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    background-color: var(--chat-bg);
+    color: var(--text-light);
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.auth-box input:focus {
+    border-color: var(--primary-color);
+}
+
+.auth-box button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--primary-color);
+    color: var(--text-dark);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 600;
+    transition: background-color 0.2s;
+    margin-top: 10px;
+}
+
+.auth-box button[type="submit"]:hover {
+    background-color: var(--hover-color);
+}
+
+.toggle-auth {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    margin-top: 20px;
+    font-size: 14px;
+}
