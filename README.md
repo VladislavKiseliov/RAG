@@ -8,7 +8,7 @@ This application implements a full-featured chat interface with persistent conve
 
 ## Architecture
 
-```
+```mermaid
 graph TD
     A[Frontend - React/Vite] -->|API Calls| B[Backend - FastAPI]
     B --> C[Authentication - JWT]
@@ -47,7 +47,7 @@ graph TD
 
 The application is planned to evolve to the following more scalable architecture:
 
-```
+```mermaid
 flowchart TD
     %% ---------- FRONTEND ----------
     subgraph UI["1. Интерфейс пользователя"]
