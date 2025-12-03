@@ -4,11 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: Update README.md">
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: Fixed hashing during authorization">
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/123.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/1234.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/123_removed.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/test2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/PDF_Processing/test3.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/config/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/document_processing.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/document_processing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/sevices/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/sevices/security.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/poetry.lock" beforeDir="false" afterPath="$PROJECT_DIR$/poetry.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -68,7 +78,11 @@
     &quot;Python.TestEmbendings.executor&quot;: &quot;Run&quot;,
     &quot;Python.TestGoogle.executor&quot;: &quot;Run&quot;,
     &quot;Python.TestWorkChromadb.executor&quot;: &quot;Run&quot;,
+    &quot;Python.document_processing.executor&quot;: &quot;Run&quot;,
     &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test3.executor&quot;: &quot;Run&quot;,
     &quot;Python.testUUID.executor&quot;: &quot;Run&quot;,
     &quot;Python.testmodel.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
@@ -76,7 +90,7 @@
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;feature/react-migration-jwt-auth&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/RGG/Desktop/RagProgramm/frontend&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/RGG/Desktop/RagProgramm&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -88,14 +102,15 @@
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\PDF_Processing" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\frontend" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\docs" />
+      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\PDF_Processing" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\tests" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\implementations" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\OldFile" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\app\db\interfaces" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\docs" />
     </key>
   </component>
   <component name="SharedIndexes">
@@ -361,7 +376,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764152254177</updated>
     </task>
-    <option name="localTasksCounter" value="29" />
+    <task id="LOCAL-00029" summary="feat: Fixed hashing during authorization">
+      <option name="closed" value="true" />
+      <created>1764158521101</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1764158521101</updated>
+    </task>
+    <option name="localTasksCounter" value="30" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -416,7 +439,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="ADD:Add functione creating and connecting to a database" />
     <MESSAGE value="UPDATE:add new embedding_model" />
     <MESSAGE value="UPDATE:update method get_relevant_context" />
     <MESSAGE value="ADD: New Files - config.py , Chanking.py , .env &#10;Update: chunking method is stored in a separate file for independent operation" />
@@ -441,7 +463,8 @@
     <MESSAGE value="feat: Implementation of the full functionality of chat and message management&#10;&#10;- Added endpoints for managing chats:&#10;* PATCH /api/chats/{chat_id}/rename to change the chat name&#10;  * DELETE /api/chats/{chat_id} to delete a chat&#10;&#10;- Implemented work with messages:&#10;  * POST /api/conversations/{conversation_id}/messages for sending messages&#10;* GET /api/conversations/{conversation_id} for restoring message history&#10;&#10;- Fixed the implementation of functions in SQLITEAlchemy:&#10;  * update_chat_title: correct chat search by chat_id&#10;  * delete_chat: check whether the chat belongs to the user&#10;  * add_new_message: saving messages to the database&#10;* get_chat_messages: getting the message history from the database&#10;&#10;- Database models updated:&#10;* The chat_id field type in the Messages model has been fixed from BigInteger to String(36)&#10;* Consistency of data types for foreign keys has been ensured&#10;  * The existing one-to-many relationship between users and chats&#10;&#10;has been maintained - Migrations have been applied to transfer IDs to UUID7:&#10;* bc73427871e2 - updating the chat_id column in the users table&#10;  * 148a39e82c80 - updating the chat_id and user_id columns in the chats table" />
     <MESSAGE value="&#10;feat: Complete web service implementation with enhanced functionality&#10;&#10;Frontend enhancements:&#10;- Fixed API path inconsistencies between frontend and backend&#10;- Improved loading states for API calls&#10;- Enhanced chat management UI with proper error display&#10;&#10;Backend improvements:&#10;- Corrected authentication flow with proper password hashing&#10;- Implemented proper JWT token management&#10;&#10;API endpoints:&#10;- Added complete chat management (rename/delete)&#10;&#10;&#10;Documentation:&#10;- Updated README with comprehensive setup instructions&#10;- Added detailed environment variable configuration&#10;- Documented all API endpoints" />
     <MESSAGE value="feat: Update README.md" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: Update README.md" />
+    <MESSAGE value="feat: Fixed hashing during authorization" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Fixed hashing during authorization" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />

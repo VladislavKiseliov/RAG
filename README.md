@@ -8,7 +8,7 @@ This application implements a full-featured chat interface with persistent conve
 
 ## Architecture
 
-```mermaid
+```
 graph TD
     A[Frontend - React/Vite] -->|API Calls| B[Backend - FastAPI]
     B --> C[Authentication - JWT]
@@ -41,6 +41,99 @@ graph TD
         I
         J
     end
+```
+
+## Planned Future Architecture
+
+The application is planned to evolve to the following more scalable architecture:
+
+```
+flowchart TD
+    %% ---------- FRONTEND ----------
+    subgraph UI["1. Интерфейс пользователя"]
+        FE[Frontend / UI<br/>Web / Mobile]
+    end
+
+    %% ---------- BACKEND ----------
+    subgraph BE_SVC["2. Backend (Сервис 1)"]
+        BE[Backend API<br/>Пользователи, Auth, Сессии, Загрузки, История]
+    end
+
+    FE --> BE
+
+    %% ---------- RAG ----------
+    subgraph RAG_SVC["3. RAG Pipeline (Сервис 2)"]
+        RAG[RAG Engine<br/>Retrieval, ReRank, LLM Agent, Сжатие]
+
+        HistLoad[Загрузка истории пользователя]
+        Retrieval[Retriever API<br/>Поиск по вектору + фильтры]
+        ReRank[Переранжирование / Оценка]
+        LLM[LLM Agent / Композитор ответа]
+        RespBuild[Сборка ответа<br/>Provenance + Confidence]
+
+        RAG --> HistLoad
+        RAG --> Retrieval
+        Retrieval --> ReRank
+        ReRank --> LLM
+        LLM --> RespBuild
+    end
+
+    %% ---------- DATABASE SERVICE ----------
+    subgraph DB_SVC["4. Сервис баз данных"]
+        PG[(PostgreSQL<br/>Пользователи, Сессии, История,<br/>Файлы, Метаданные чанков)]
+        VDB[(Vector DB<br/>Эмбеддинги + Метаданные)]
+    end
+
+    %% ---------- CACHE ----------
+    subgraph CACHE["5. Кэш"]
+        REDIS[Redis / Memcached]
+    end
+
+    %% ---------- Связи с промежуточными блоками ----------
+    BE --> BE_to_RAG[Отправка запроса на обработку] --> RAG
+    BE --> BE_to_PG[Сохранение/загрузка данных] --> PG
+    BE --> BE_to_REDIS[Проверка кэша] --> REDIS
+
+    HistLoad --> HistLoad_to_REDIS[Проверка истории в кэше] --> REDIS
+    HistLoad --> HistLoad_to_PG[Если нет в кэше, получить из БД] --> PG
+
+    Retrieval --> Retrieval_to_REDIS[Проверка эмбеддингов в кэше] --> REDIS
+    Retrieval --> Retrieval_to_VDB[Если нет в кэше, получить из VectorDB] --> VDB
+
+    RespBuild --> RespBuild_to_PG[Сохранение результатов] --> PG
+
+    %% ---------- ASYNC INGEST ----------
+    subgraph INGEST["6. Асинхронная обработка загрузок"]
+        MQ(((Message Broker)))
+        BE --> BE_to_MQ[Отправка задачи на обработку] --> MQ
+
+        WORKER[Ingestion Worker<br/>Чанкинг + Эмбеддинги + Upsert]
+        MQ --> WORKER
+        WORKER --> WORKER_to_PG[Сохранение метаданных] --> PG
+        WORKER --> WORKER_to_VDB[Сохранение эмбеддингов] --> VDB
+        WORKER --> WORKER_to_REDIS[Обновление кэша] --> REDIS
+        WORKER --> LocalFS[Локальное файловое хранилище]
+    end
+
+    %% ---------- OBSERVABILITY ----------
+    subgraph OBS["7. Мониторинг и наблюдаемость"]
+        OTEL[OpenTelemetry / Trейсинг / Метрики]
+        LOGS[Централизованные логи]
+        METRICS[Prometheus Метрики]
+    end
+
+    BE --> OTEL
+    RAG --> OTEL
+    WORKER --> OTEL
+    PG --> OTEL
+    VDB --> OTEL
+    REDIS --> OTEL
+    MQ --> METRICS
+
+    %% ---------- FLOW SUMMARY ----------
+    FE -. Пользовательский запрос .-> BE
+    RAG -. Ответ .-> BE
+    BE -. Ответ пользователю .-> FE
 ```
 
 The application consists of several key components:

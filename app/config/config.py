@@ -25,18 +25,32 @@ EMBEDDING_MODEL_NAME = "BAAI/bge-m3"
 LLM_MODEL_NAME = 'models/gemini-2.5-flash'
 
 # # Настройки текстового разделителя
-# text_splitter = RecursiveCharacterTextSplitter(
-#     chunk_size=CHUNK_SIZE,
-#     chunk_overlap=CHUNK_OVERLAP,
-#     separators=[r"\n\n\n", r"\n\n", r"\n", r".\s", r"!\s", r"?\s", r"\s", ""],
-#     length_function=len
-# )
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=CHUNK_SIZE,
+    chunk_overlap=CHUNK_OVERLAP,
+    separators=[r"\n\n\n", r"\n\n", r"\n", r".\s", r"!\s", r"?\s", r"\s", ""],
+    length_function=len
+)
+# P-Chunk: Разбиение по целым параграфам
+parent_splitter = RecursiveCharacterTextSplitter(
+    # В приоритете – двойной перенос (новый параграф), затем одиночный
+    separators=["\n\n", "\n"],
+    chunk_size=3000,
+    chunk_overlap=250
+)
+# C-Chunk: Разбиение по пунктам и подпунктам
+child_splitter = RecursiveCharacterTextSplitter(
+    # Приоритет: Маркеры списков, чтобы сохранить пункт целиком
+    separators=["\n- ", "\n• ", "\n1. ", "\n"],
+    chunk_size=500,
+    chunk_overlap=100
+)
 
 
 from langchain_huggingface import HuggingFaceEmbeddings # Используйте модель из вашего файла
 
-# 1. Инициализация модели эмбеддингов
-embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2") # Пример
+# # 1. Инициализация модели эмбеддингов
+# embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2") # Пример
 
 # 2. Инициализация SemanticChunker
 # В качестве разделителя используется 'sentence'
