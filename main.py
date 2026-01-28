@@ -1,13 +1,5 @@
-import os
-from typing import Dict, List
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.db.implementations.SQLITEAlchemy import Data_Base_Alchemy
-from app.sevices.security import Auth
 
 # Импорты для RAG и баз данных (закомментированы для отключения функциональности)
 # from app.core import answer_question,setup_rag_chain

@@ -9,7 +9,7 @@ from langchain_experimental.text_splitter import SemanticChunker
 from langchain_huggingface import HuggingFaceEmbeddings
 import os
 
-file_path = r"/docs/123.pdf"
+file_path = r"/docs/12.pdf"
 
 # --- ИСПОЛЬЗУЕМ ЛОКАЛЬНУЮ МОДЕЛЬ ЭМБЕДДИНГОВ Hugging Face ---
 # Эта модель будет скачана и запущена на вашем компьютере,
