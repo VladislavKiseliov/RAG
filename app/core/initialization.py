@@ -1,17 +1,12 @@
 import os
-from pathlib import Path
-from typing import List
 
 # --- Импорт наших файлов ---
 from app.config import *
-from .document_processing import *
 
 # --- Загрузка переменных окружения ---
 from dotenv import load_dotenv
 load_dotenv()  # загружает переменные из .env
 
-
-from langchain_community.vectorstores import Qdrant
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 

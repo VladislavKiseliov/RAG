@@ -1,20 +1,17 @@
 # --- ЭНДПОИНТЫ ---
 import os
-import uuid
 import uuid6
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import sessionmaker
-
 
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-from app.db.implementations.SQLITEAlchemy import Data_Base_Alchemy
+from ServiceDataBase.app.implementations.SQLITEAlchemy import Data_Base_Alchemy
 from app.sevices.security import Auth
 
 

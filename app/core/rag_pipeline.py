@@ -1,42 +1,25 @@
-import os
-from pathlib import Path
-from typing import List, Optional
-import numpy as np
 # --- Импорт наших файлов ---
-from app.config import *
-from .document_processing import *
+from worker.app.document_processing import *
 
 # --- Загрузка переменных окружения ---
 from dotenv import load_dotenv
 load_dotenv()  # загружает переменные из .env
 
-
-
-import os
-
 # --- Основные схемы и компоненты (Core) ---
 # Document, PromptTemplate и др. переехали в langchain-core
-from langchain_core.documents import Document
-from langchain_core.prompts import PromptTemplate
 
 # --- Разделители текста (Text Splitters) ---
 # Разделители текста теперь в отдельном пакете
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # --- Комьюнити-пакеты (Community) ---
 # Загрузчики, векторные хранилища и т.д.
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Qdrant
 from langchain_community.chains import RetrievalQA # Используйте этот, если верхний не сработает
 # Если RetrievalQA остается в главном пакете (что маловероятно после 1.0):
 # from langchain.chains import RetrievalQA
 
 # --- Партнерские интеграции (Partners) ---
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 # --- Внешние библиотеки ---
-from sentence_transformers import SentenceTransformer
 # Пакет google.generativeai устарел, его можно удалить или заменить на google.genai,
 # если он используется в другом месте. Для LangChain он не нужен.
 # import google.generativeai as genai

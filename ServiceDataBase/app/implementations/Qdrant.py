@@ -6,8 +6,8 @@ from langchain.schema import Document
 from langchain_community.vectorstores import Qdrant as LangChainQdrant
 
 from app.config import SIMILARITY_THRESHOLD, MAX_RESULTS
-from app.core.document_processing import list_pdf_files, load_and_split_pdf
-from app.db.interfaces.base_vector_db import VectorDBInterface
+from worker.app.document_processing import list_pdf_files, load_and_split_pdf
+from ServiceDataBase.app.interfaces.base_vector_db import VectorDBInterface
 
 
 class QdrantManager(VectorDBInterface):
