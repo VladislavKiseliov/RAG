@@ -11,6 +11,8 @@ load_dotenv()
 # Пути и директории (с возможностью переопределить через .env)
 DIRECTORY_DOCS = os.getenv("DOCS_DIRECTORY", "./docs")
 QDRANT_PATH = os.getenv("QDRANT_PATH", "./qdrant_storage")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "rag_documents_collection")
 SQLITE = os.getenv("SQLITE", ".storage/db_chat/tables.db")
 

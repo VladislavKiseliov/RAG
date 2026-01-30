@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7
+    container_name: ingestion_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  celery-worker:
+    build: .
+    container_name: ingestion_worker
+    command: celery -A app.tasks.celery_app worker --loglevel=info --pool=threads --concurrency=4
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://host.docker.internal:6333
+      DOCS_DIRECTORY: /data/docs
+    volumes:
+      - ../docs:/data/docs:ro
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower:2.0
+    container_name: ingestion_flower
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    restart: unless-stopped

@@ -1,21 +1,21 @@
-# Virtual Environment
+﻿# Virtual Environment
 venv/
 .venv/
 env/
 ENV/
 
-# Секреты
+# РЎРµРєСЂРµС‚С‹
 .env
 *.env.local
 *.env.prod
 .qoder
 
-# База данных
+# Р‘Р°Р·Р° РґР°РЅРЅС‹С…
 *.db
 *.sqlite
 conversations.db
 
-# Логи
+# Р›РѕРіРё
 logs/
 *.log
 
@@ -35,17 +35,55 @@ venv/
 *.swp
 *.swo
 
-# Векторная база
+# Р’РµРєС‚РѕСЂРЅР°СЏ Р±Р°Р·Р°
 qdrant_storage/
 chroma_db/
 
-# Выходные файлы
+# Р’С‹С…РѕРґРЅС‹Рµ С„Р°Р№Р»С‹
 output.txt
 output1.txt
 
-# Документы (если содержат конфиденциальную информацию)
+# Р”РѕРєСѓРјРµРЅС‚С‹ (РµСЃР»Рё СЃРѕРґРµСЂР¶Р°С‚ РєРѕРЅС„РёРґРµРЅС†РёР°Р»СЊРЅСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ)
 # docs/
 
-# Временные файлы
+# Р’СЂРµРјРµРЅРЅС‹Рµ С„Р°Р№Р»С‹
 *.tmp
 *.temp
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+.pyright/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Cache
+.cache/
+
+# Outputs
+output*.txt

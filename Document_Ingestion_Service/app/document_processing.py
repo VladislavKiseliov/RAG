@@ -11,7 +11,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # --- Импорт нашего файла конфигурации (Placeholders) ---
 # Для работы в вашей среде убедитесь, что app.config импортирует text_splitter
 # и необходимые алиасы типов.
-from config import text_splitter
+from .config import text_splitter
 import os
 from dotenv import load_dotenv
 
@@ -26,6 +26,36 @@ if not TOKEN_HF:
 # --- Тип для возврата табличных данных ---
 # Таблица: {"page": str, "table": str (JSON-строка)}
 TableData = List[Dict[str, str]]
+
+_EMBEDDINGS_CACHE: HuggingFaceEmbeddings | None = None
+
+
+def ingest_document(file_path: str | Path, embeddings: HuggingFaceEmbeddings, collection_name: str) -> Dict[str, Any] | None:
+    """Обрабатывает один PDF-файл и возвращает payload и векторы."""
+    try:
+        row_data_chunks = extract_text_from_pdf(file_path)
+
+        chunk_texts = [chunk.page_content for chunk in row_data_chunks["chunks"]]
+        vectors: List[List[float]] = generate_embeddings(embeddings, chunk_texts)
+        if not vectors:
+            return None
+
+        payloads = []
+        for chunk in row_data_chunks["chunks"]:
+            payloads.append({
+                "row_text": chunk.page_content,
+                "metadata": chunk.metadata,
+            })
+
+        return {
+            "collection_name": collection_name,
+            "payload": payloads,
+            "vector": vectors
+        }
+
+    except Exception as e:
+        print(f"❌ Ошибка при загрузке PDF: {e}")
+        return None
 
 
 def ingest_documents(directory: str, embeddings: HuggingFaceEmbeddings, collection_name: str)->Dict[str, Any] | None:
@@ -98,13 +128,18 @@ def initialization_embeddings_model():
                 при ошибке инициализации.
     """
 
+    global _EMBEDDINGS_CACHE
+    if _EMBEDDINGS_CACHE is not None:
+        return _EMBEDDINGS_CACHE
+
     try:
         embeddings = HuggingFaceEmbeddings(
             model_name="BAAI/bge-m3",
             encode_kwargs={'normalize_embeddings': True},
         )
         print("✅ Локальная модель эмбеддингов настроена.")
-        return embeddings
+        _EMBEDDINGS_CACHE = embeddings
+        return _EMBEDDINGS_CACHE
     except Exception as e:
         print(f"❌ Ошибка настройки HuggingFaceEmbeddings: {e}")
         return None
@@ -175,7 +210,7 @@ def extract_text_from_pdf(file_path: Path) -> Dict[str, List[Document]]:
         file_path = Path(file_path)
 
     try:
-        loader = PyPDFLoader("app/123.pdf")
+        loader = PyPDFLoader(str(file_path))
         pages: List[Document] = loader.load()
         split_docs: List[Document] = text_splitter.split_documents(pages)
 
