@@ -58,65 +58,6 @@ def ingest_document(file_path: str | Path, embeddings: HuggingFaceEmbeddings, co
         return None
 
 
-def ingest_documents(directory: str, embeddings: HuggingFaceEmbeddings, collection_name: str)->Dict[str, Any] | None:
-    """Основной конвейер инжеста документов в векторную БД.
-
-        1. Находит все PDF в директории.
-        2. Извлекает и разбивает текст.
-        3. Генерирует эмбеддинги.
-        4. Формирует payload для загрузки.
-
-        Args:
-            directory: Путь к папке с PDF‑файлами.
-            embeddings_model: Настроенная модель для эмбеддингов.
-            collection_name: Имя коллекции в векторной БД.
-
-        Returns:
-            Словарь с ключами:
-            - "collection_name": имя коллекции;
-            - "payload": список словарей с "row_text" и "metadata";
-            - "vector": список векторных представлений.
-            При ошибке — None.
-    """
-    try:
-        paths_documents = find_pdf_files(directory)
-        payloads = []
-        all_vectors = []
-
-        for file_path in paths_documents:
-            print(f"Обработка файла: {file_path}")
-            row_data_chunks = extract_text_from_pdf(file_path)
-
-            # 1. Собираем тексты всех чанков
-            chunk_texts = [chunk.page_content for chunk in row_data_chunks["chunks"]]
-
-            # 2. ПАКЕТНАЯ ВЕКТОРИЗАЦИЯ (для всех собранных чанков сразу)
-            vectors:List[List[float]] = generate_embeddings(embeddings, chunk_texts)
-            if not vectors:  # если векторизация провалилась
-                continue
-
-            # 3. Накапливаем векторы
-            all_vectors.extend(vectors)
-
-            # 4. Формируем payload (синхронно с векторами)
-            for i, chunk in enumerate(row_data_chunks["chunks"]):
-                payloads.append({
-                    "row_text": chunk.page_content,
-                    "metadata": chunk.metadata,
-                })
-
-        return {
-            "collection_name": collection_name,
-            "payload": payloads,
-            "vector": all_vectors
-        }
-
-    except Exception as e:
-        print(f"❌ Ошибка при загрузке PDF: {e}")
-        return None
-
-
-
 def initialization_embeddings_model():
     """Инициализирует модель для генерации эмбеддингов текста.
 
@@ -214,15 +155,6 @@ def extract_text_from_pdf(file_path: Path) -> Dict[str, List[Document]]:
         pages: List[Document] = loader.load()
         split_docs: List[Document] = text_splitter.split_documents(pages)
 
-        # --- Блок отладки (сохранение содержимого) ---
-        with open('output1234.txt', 'w', encoding='utf-8') as f:
-            for i, doc in enumerate(split_docs, 1):
-                f.write(f"Исходная страница {i}:\n")
-                f.write(f"{doc.page_content.strip()}\n")
-                f.write(f"Метаданные {doc.metadata=}")
-                # В PyPDFLoader 'page' уже является номером страницы (0-based)
-                # print(f"📄 Страница (1-based): {doc.metadata.get('page', 0) + 1}\n")
-                f.write("-" * 50 + "\n\n")
 
         print(f"📄 Обработано и разбито {len(split_docs)} чанков из {file_path}")
         print(f"🎉 Всего чанков готово к индексации: {len(split_docs)}")
@@ -299,39 +231,3 @@ def extract_tables_from_pdf(file_path: str) -> TableData:
 
 
 
-if __name__ == "__main__":
-    # Исправляем путь для работы с Path (желательно) или str
-    pdf_path_str = "../test/12.pdf"
-    # pdf_path_obj = Path(pdf_path_str)
-    #
-    # # Загрузка и разбиение текста
-    list_file = extract_text_from_pdf(pdf_path_str)
-
-    # Извлечение таблиц
-    # tables_data = get_table_pdf(pdf_path_str)
-    # string = ["Положения настоящего стандарта обязательны для применения структурными подразделениями, дочерними обществами и организациями ОАО «Газпром».","СТО Газпром 1.2-2009 Система стандартизации ОАО «Газпром». Планы разработки документов по техническому регулированию в ОАО «Газпром». Порядок формирования, утверждения и реализации"]
-    # embend = initialization_embenddings_model()
-    # res = create_embeddings_vector(embend,string)
-    # with open ('output123.txt', 'w', encoding='utf-8') as f:
-    #     f.write(str(res))
-    # # print(res)
-    # your_single_vector = res[0]
-    # print(len(your_single_vector),len(res[1]))
-    # print(len(res))
-    res = main(r"C:\Users\RGG\Desktop\RagProgramm\Document_Ingestion_Service\app","test")
-    with open('outputTets.txt', 'w', encoding='utf-8') as f:
-
-        for i in range(len(res["payload"])):
-            f.write(str(res["payload"][i]) + "\n")
-            f.write(str(res["vector"][i]) + "\n")
-            print(len(res["vector"][i]))
-            f.write("\n")
-
-    # print("\n--- Результат извлечения таблиц ---")
-    # if tables_data:
-    #     for item in tables_data:
-    #         print(f"Найдена таблица со страницы: {item['page']}")
-    #         # Для краткости выводим только первые 100 символов JSON
-    #         print(f"JSON (фрагмент): {item['table_json'][:100]}...")
-    #
-    # # print(sys.path)
