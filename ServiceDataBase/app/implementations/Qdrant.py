@@ -1,16 +1,20 @@
 import os
 from pathlib import Path
-from typing import Any, List
+from uuid import uuid4
+from typing import Any, Dict, List
 
 from langchain.schema import Document
 from langchain_community.vectorstores import Qdrant as LangChainQdrant
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
 
 from app.config import SIMILARITY_THRESHOLD, MAX_RESULTS
 from worker.app.document_processing import list_pdf_files, load_and_split_pdf
 from ServiceDataBase.app.interfaces.base_vector_db import VectorDBInterface
+from Document_Ingestion_Service.app.interfaces.qdrant_interface import QdrantInterface
 
 
-class QdrantManager(VectorDBInterface):
+class QdrantManager(VectorDBInterface, QdrantInterface):
     """Управление векторной базой данных Qdrant"""
 
     def __init__(
@@ -141,3 +145,33 @@ class QdrantManager(VectorDBInterface):
             return qdrant_db.similarity_search(query, k=k, **kwargs)
         except Exception as e:
             raise Exception(f"Ошибка при выполнении поиска: {str(e)}")
+
+    def upsert(self, vectors: List[List[float]], payloads: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Minimal upsert into the Qdrant collection."""
+        if not vectors:
+            raise ValueError("Vectors list is empty")
+        if len(vectors) != len(payloads):
+            raise ValueError("Vectors and payloads length mismatch")
+
+        client = QdrantClient(path=self.qdrant_path)
+        collections = client.get_collections().collections
+        exists = any(c.name == self.collection_name for c in collections)
+        if not exists:
+            client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=models.VectorParams(
+                    size=len(vectors[0]),
+                    distance=models.Distance.COSINE,
+                ),
+            )
+
+        points = [
+            models.PointStruct(
+                id=uuid4().hex,
+                vector=vector,
+                payload=payload,
+            )
+            for vector, payload in zip(vectors, payloads)
+        ]
+        result = client.upsert(collection_name=self.collection_name, points=points)
+        return {"status": result.status, "count": len(points)}
