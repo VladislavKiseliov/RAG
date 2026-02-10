@@ -4,13 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: почти завершён сервис загрузки документов (API, Celery, Docker, описания)&#10;&#10;- добавлены Dockerfile и несколько compose-конфигураций (полный стек, celery-only, dev)&#10;- реализован список задач и хранение job_id в Redis&#10;- улучшены схемы ответов и валидация эндпоинтов&#10;- добавлены docstring для эндпоинтов&#10;- добавлена инструкция RUN_SERVICE.txt (Docker + локальный запуск)&#10;- обновлён .gitignore&#10;&#10;TODO:&#10;- покрыть тестами и прогнать полный e2e&#10;- собрать сервис в единый контейнер и добавить проверки при сборке&#10;- разобраться с корректной передачей пути к документам">
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: добавлен новый интерфейс для работы с Qdrant">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/app/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/app/document_processing.py" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/app/document_processing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/app/services/qdrant_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/app/services/qdrant_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/Qdrant.py" beforeDir="false" afterPath="$PROJECT_DIR$/ServiceDataBase/app/implementations/Qdrant.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/SQLite.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -18,7 +14,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="125" />
+    <option name="cachedIndexableFilesCount" value="126" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -32,7 +28,7 @@
     <branch-grouping />
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="feature/react-migration-jwt-auth" />
+        <entry key="$PROJECT_DIR$" value="qdrant" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -61,50 +57,50 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.123.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Chanking.executor&quot;: &quot;Run&quot;,
-    &quot;Python.CheckModelGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.LongChain.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Qdrant.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGogNew.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.SQLITEAlchemy.executor&quot;: &quot;Run&quot;,
-    &quot;Python.SQLite.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestEmbendings.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestWorkChromadb.executor&quot;: &quot;Run&quot;,
-    &quot;Python.celery.executor&quot;: &quot;Run&quot;,
-    &quot;Python.celery_test.executor&quot;: &quot;Run&quot;,
-    &quot;Python.document_processing.executor&quot;: &quot;Run&quot;,
-    &quot;Python.enqueue_one.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.test.executor&quot;: &quot;Run&quot;,
-    &quot;Python.test2.executor&quot;: &quot;Run&quot;,
-    &quot;Python.test3.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testUUID.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testmodel.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;qdrant&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Laboratoria/Rag OVER/RagProgramm&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;vcs.Git&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultHtmlFileTemplate": "HTML File",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.123.executor": "Run",
+    "Python.Chanking.executor": "Run",
+    "Python.CheckModelGoogle.executor": "Run",
+    "Python.LongChain.executor": "Run",
+    "Python.Qdrant.executor": "Run",
+    "Python.RagGogNew.executor": "Run",
+    "Python.RagGoogle.executor": "Run",
+    "Python.SQLITEAlchemy.executor": "Run",
+    "Python.SQLite.executor": "Run",
+    "Python.TestEmbendings.executor": "Run",
+    "Python.TestGoogle.executor": "Run",
+    "Python.TestWorkChromadb.executor": "Run",
+    "Python.celery.executor": "Run",
+    "Python.celery_test.executor": "Run",
+    "Python.document_processing.executor": "Run",
+    "Python.enqueue_one.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.test.executor": "Run",
+    "Python.test2.executor": "Run",
+    "Python.test3.executor": "Run",
+    "Python.testUUID.executor": "Run",
+    "Python.testmodel.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "ai.playground.ignore.import.keys.banner.in.settings": "true",
+    "git-widget-placeholder": "migration__to__PostgeSQL",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "D:/Laboratoria/Rag OVER/RagProgramm",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "vcs.Git",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\RGG\Desktop\RagProgramm\Document_Ingestion_Service\app" />
@@ -165,6 +161,8 @@
       <workItem from="1769744974466" duration="21950000" />
       <workItem from="1770198077744" duration="1097000" />
       <workItem from="1770371627084" duration="5664000" />
+      <workItem from="1770380158293" duration="774000" />
+      <workItem from="1770718727408" duration="4657000" />
     </task>
     <task id="LOCAL-00001" summary="Update:New requirements.txt">
       <option name="closed" value="true" />
@@ -422,7 +420,15 @@
       <option name="project" value="LOCAL" />
       <updated>1769764116140</updated>
     </task>
-    <option name="localTasksCounter" value="33" />
+    <task id="LOCAL-00033" summary="feat: добавлен новый интерфейс для работы с Qdrant">
+      <option name="closed" value="true" />
+      <created>1770380459026</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1770380459026</updated>
+    </task>
+    <option name="localTasksCounter" value="34" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -459,7 +465,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="origin/qdrant" />
+                        <option value="migration_to_PostgeSQL" />
                       </list>
                     </value>
                   </entry>
@@ -477,7 +483,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="### Project Structure&#10;- Reorganize into app/, frontend/, tests/ directories&#10;- Add __init__.py files for clean module imports&#10;- Move configuration to app/config/, templates to frontend/&#10;### Security &amp; Configuration  &#10;- Secure .env file and add to .gitignore" />
     <MESSAGE value="ADD: New class work with SQLite,So far, only the creation of the database&#10;UPDATE:Updated dependencies and a new Google model LLM" />
     <MESSAGE value="ADD: save chats and mesenge in SQLite" />
     <MESSAGE value="feat: Improve database modules and application architecture&#10;&#10;- Fixed SQLite module:&#10;  * Resolved connection variable overwrite issue&#10;  * Fixed table existence verification&#10;  * Corrected SQL queries with typos&#10;  * Added exception handling&#10;&#10;- Enhanced Qdrant module:&#10;  * Renamed class to avoid naming conflicts&#10;  * Simplified collection initialization logic&#10;  * Integrated document processing&#10;  * Created clear methods for collection operations" />
@@ -502,7 +507,8 @@
     <MESSAGE value="docs: Add planned future architecture diagram to README&#10;&#10;- Added mermaid flowchart diagram showing the planned system architecture&#10;- Included components: Frontend, Backend, RAG Pipeline, Databases, Cache, Async Ingest, and Observability&#10;- Updated both current and planned architecture diagrams with proper mermaid specifiers for rendering&#10;- Organized diagram sections with clear labels and connections between services" />
     <MESSAGE value="fix README.md" />
     <MESSAGE value="feat: почти завершён сервис загрузки документов (API, Celery, Docker, описания)&#10;&#10;- добавлены Dockerfile и несколько compose-конфигураций (полный стек, celery-only, dev)&#10;- реализован список задач и хранение job_id в Redis&#10;- улучшены схемы ответов и валидация эндпоинтов&#10;- добавлены docstring для эндпоинтов&#10;- добавлена инструкция RUN_SERVICE.txt (Docker + локальный запуск)&#10;- обновлён .gitignore&#10;&#10;TODO:&#10;- покрыть тестами и прогнать полный e2e&#10;- собрать сервис в единый контейнер и добавить проверки при сборке&#10;- разобраться с корректной передачей пути к документам" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: почти завершён сервис загрузки документов (API, Celery, Docker, описания)&#10;&#10;- добавлены Dockerfile и несколько compose-конфигураций (полный стек, celery-only, dev)&#10;- реализован список задач и хранение job_id в Redis&#10;- улучшены схемы ответов и валидация эндпоинтов&#10;- добавлены docstring для эндпоинтов&#10;- добавлена инструкция RUN_SERVICE.txt (Docker + локальный запуск)&#10;- обновлён .gitignore&#10;&#10;TODO:&#10;- покрыть тестами и прогнать полный e2e&#10;- собрать сервис в единый контейнер и добавить проверки при сборке&#10;- разобраться с корректной передачей пути к документам" />
+    <MESSAGE value="feat: добавлен новый интерфейс для работы с Qdrant" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: добавлен новый интерфейс для работы с Qdrant" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/RagProgramm$CheckModelGoogle.coverage" NAME="CheckModelGoogle Coverage Results" MODIFIED="1759148057968" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
