@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  ingestion-api:
+    build: ./Document_Ingestion_Service
+    container_name: ingestion_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      DOCS_DIRECTORY: ${DOCS_DIRECTORY:-/data/docs}
+    volumes:
+      - ./docs:/data/docs:ro
+    ports:
+      - "${INGESTION_PORT:-8001}:8001"
+    restart: unless-stopped
+    networks:
+      - rag_network
+
+  celery-worker:
+    build: ./Document_Ingestion_Service
+    container_name: ingestion_worker
+    command: celery -A app.tasks.celery_app worker --loglevel=info --pool=threads --concurrency=${CELERY_CONCURRENCY:-4}
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      DOCS_DIRECTORY: ${DOCS_DIRECTORY:-/data/docs}
+    volumes:
+      - ./docs:/data/docs:ro
+    restart: unless-stopped
+    networks:
+      - rag_network
+
+  flower:
+    image: mher/flower:2.0
+    container_name: ingestion_flower
+    command: celery --broker=${REDIS_URL:-redis://redis:6379/0} flower --port=${FLOWER_PORT:-5555}
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    restart: unless-stopped
+    networks:
+      - rag_network
+
+networks:
+  rag_network:
+    external: true
+    name: rag_network

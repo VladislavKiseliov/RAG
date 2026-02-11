@@ -5,7 +5,7 @@
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/Document_Ingestion_Service/.venv" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.13 (RagProgramm)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.13 (rag-programm-SLfHHxNV-py3.13)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

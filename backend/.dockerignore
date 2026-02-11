@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+.pyright/
+*.log
+tests/
+docs/
+.env
+.env.*
+qdrant_storage/
+storage/
