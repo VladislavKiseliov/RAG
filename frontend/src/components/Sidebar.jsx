@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BASE_API_URL, ENDPOINTS } from '../config/api';
 
-function Sidebar({ currentConversationId, setCurrentConversationId, conversations, accessToken, loadUserConversations }) {
+function Sidebar({ currentConversationId, setCurrentConversationId, conversations, loadUserConversations, getAccessToken, onLogout }) {
     // Состояния для управления меню действий над чатом
     const [showMenu, setShowMenu] = useState(null); // null или ID чата, для которого открыто меню
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 }); // Позиция меню
@@ -39,10 +39,16 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
         setLoading(true);
         setError(null);
         try {
+            const token = await getAccessToken();
+            if (!token) {
+                showError('Сессия истекла. Войдите снова.');
+                setLoading(false);
+                return;
+            }
             const response = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -109,10 +115,16 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
 
         setLoading(true);
         try {
+            const token = await getAccessToken();
+            if (!token) {
+                showError('Сессия истекла. Войдите снова.');
+                setLoading(false);
+                return;
+            }
             const response = await fetch(`${BASE_API_URL}/api/chats/${chatId}/rename`, {
                 method: 'PATCH',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ title: newTitle })
@@ -156,10 +168,16 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
 
         setLoading(true);
         try {
+            const token = await getAccessToken();
+            if (!token) {
+                showError('Сессия истекла. Войдите снова.');
+                setLoading(false);
+                return;
+            }
             const response = await fetch(`${BASE_API_URL}/api/chats/${chatId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 }
             });
@@ -195,6 +213,9 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
             <div className="sidebar-header">
                 <button className="new-chat-btn" id="newChatBtn" onClick={handleNewChat} disabled={loading}>
                     {loading ? 'Создание...' : '+ Новый чат'}
+                </button>
+                <button className="new-chat-btn" onClick={() => onLogout?.(true)} disabled={loading}>
+                    Выйти
                 </button>
             </div>
             

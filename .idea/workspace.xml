@@ -4,9 +4,53 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: добавлен новый интерфейс для работы с Qdrant">
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: Старт миграции с SQLite на PostrgeSQL">
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/RagProgramm.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/RagProgramm.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/SQLite.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/Qdrant.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/SQLITEAlchemy.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/interfaces/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/interfaces/base_db.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/interfaces/base_vector_db.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/models/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/models/database_models.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/test/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ServiceDataBase/test/test_interface.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic.ini" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/README" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/env.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/script.py.mako" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/148a39e82c80_update_chats_table_colomn_chat_id_and_.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/b09e28fc65b1_update_ids_to_uuid_and_fix_relationships.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/bc73427871e2_update_users_table_colomn_chat_id_type_.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/d895c0131fcb_change_chat_id_and_user_id_to_biginteger.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/de11312f6b7f_update_users_table_colomn_id_new_.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/e7c5124a610b_initial.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/ed7e75e75c6f_update_users_table_colomy_id_type_int_.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/routes.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config/config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/config/promts.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/initialization.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/rag_pipeline.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/sevices/security.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/config/api.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/config/api.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/AuthPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/AuthPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/poetry.lock" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -14,13 +58,14 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="126" />
+    <option name="cachedIndexableFilesCount" value="121" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="HTML File" />
         <option value="Python Script" />
+        <option value="Dockerfile" />
       </list>
     </option>
   </component>
@@ -60,7 +105,11 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "DefaultHtmlFileTemplate": "HTML File",
+    "Docker.ServiceDataBase: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.app.yml: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python tests.pytest in test_postgres_script.py.executor": "Run",
     "Python.123.executor": "Run",
     "Python.Chanking.executor": "Run",
     "Python.CheckModelGoogle.executor": "Run",
@@ -78,6 +127,7 @@
     "Python.document_processing.executor": "Run",
     "Python.enqueue_one.executor": "Run",
     "Python.main.executor": "Run",
+    "Python.t_postgres_script.executor": "Run",
     "Python.test.executor": "Run",
     "Python.test2.executor": "Run",
     "Python.test3.executor": "Run",
@@ -91,18 +141,19 @@
     "ai.playground.ignore.import.keys.banner.in.settings": "true",
     "git-widget-placeholder": "migration__to__PostgeSQL",
     "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "D:/Laboratoria/Rag OVER/RagProgramm",
+    "last_opened_file_path": "D:/Laboratoria/Rag OVER/RagProgramm/ServiceDataBase",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "vcs.Git",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Laboratoria\Rag OVER\RagProgramm\ServiceDataBase" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\Document_Ingestion_Service\app" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\worker\app" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\PDF_Processing" />
@@ -115,6 +166,45 @@
       <recent name="C:\Users\RGG\Desktop\RagProgramm\Document_Ingestion_Service\test" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\ServiceDataBase\app" />
     </key>
+  </component>
+  <component name="RunManager" selected="Docker.docker-compose.app.yml: Compose Deployment">
+    <configuration name="ServiceDataBase: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="ServiceDataBase/docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
+      <deployment type="docker-compose.yml">
+        <settings />
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="docker-compose.app.yml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="docker-compose.app.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <configuration name="docker-compose.yml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Docker.docker-compose.app.yml: Compose Deployment" />
+        <item itemvalue="Docker.docker-compose.yml: Compose Deployment" />
+        <item itemvalue="Docker.ServiceDataBase: Compose Deployment" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -162,7 +252,10 @@
       <workItem from="1770198077744" duration="1097000" />
       <workItem from="1770371627084" duration="5664000" />
       <workItem from="1770380158293" duration="774000" />
-      <workItem from="1770718727408" duration="4657000" />
+      <workItem from="1770718727408" duration="6202000" />
+      <workItem from="1770782727507" duration="511000" />
+      <workItem from="1770785285380" duration="8969000" />
+      <workItem from="1770795651294" duration="15553000" />
     </task>
     <task id="LOCAL-00001" summary="Update:New requirements.txt">
       <option name="closed" value="true" />
@@ -428,7 +521,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770380459026</updated>
     </task>
-    <option name="localTasksCounter" value="34" />
+    <task id="LOCAL-00034" summary="feat: Старт миграции с SQLite на PostrgeSQL">
+      <option name="closed" value="true" />
+      <created>1770725120212</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1770725120213</updated>
+    </task>
+    <option name="localTasksCounter" value="35" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -483,7 +584,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="ADD: New class work with SQLite,So far, only the creation of the database&#10;UPDATE:Updated dependencies and a new Google model LLM" />
     <MESSAGE value="ADD: save chats and mesenge in SQLite" />
     <MESSAGE value="feat: Improve database modules and application architecture&#10;&#10;- Fixed SQLite module:&#10;  * Resolved connection variable overwrite issue&#10;  * Fixed table existence verification&#10;  * Corrected SQL queries with typos&#10;  * Added exception handling&#10;&#10;- Enhanced Qdrant module:&#10;  * Renamed class to avoid naming conflicts&#10;  * Simplified collection initialization logic&#10;  * Integrated document processing&#10;  * Created clear methods for collection operations" />
     <MESSAGE value="Added :Interface and documentation for sqlite &#10;&#10;UPDATE: README file" />
@@ -508,12 +608,15 @@
     <MESSAGE value="fix README.md" />
     <MESSAGE value="feat: почти завершён сервис загрузки документов (API, Celery, Docker, описания)&#10;&#10;- добавлены Dockerfile и несколько compose-конфигураций (полный стек, celery-only, dev)&#10;- реализован список задач и хранение job_id в Redis&#10;- улучшены схемы ответов и валидация эндпоинтов&#10;- добавлены docstring для эндпоинтов&#10;- добавлена инструкция RUN_SERVICE.txt (Docker + локальный запуск)&#10;- обновлён .gitignore&#10;&#10;TODO:&#10;- покрыть тестами и прогнать полный e2e&#10;- собрать сервис в единый контейнер и добавить проверки при сборке&#10;- разобраться с корректной передачей пути к документам" />
     <MESSAGE value="feat: добавлен новый интерфейс для работы с Qdrant" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: добавлен новый интерфейс для работы с Qdrant" />
+    <MESSAGE value="feat: Старт миграции с SQLite на PostrgeSQL" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Старт миграции с SQLite на PostrgeSQL" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/RagProgramm$t_postgres_script.coverage" NAME="t_postgres_script Coverage Results" MODIFIED="1770805501845" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
     <SUITE FILE_PATH="coverage/RagProgramm$CheckModelGoogle.coverage" NAME="CheckModelGoogle Coverage Results" MODIFIED="1759148057968" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
     <SUITE FILE_PATH="coverage/RagProgramm$123.coverage" NAME="123 Coverage Results" MODIFIED="1769683122610" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/Document_Ingestion_Service" />
     <SUITE FILE_PATH="coverage/RagProgramm$TestWorkChromadb.coverage" NAME="TestWorkChromadb Coverage Results" MODIFIED="1757313046238" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/Test" />
+    <SUITE FILE_PATH="coverage/RagProgramm$pytest_in_test_postgres_script_py.coverage" NAME="pytest in test_postgres_script.py Coverage Results" MODIFIED="1770800275251" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/rag2$testmodel.coverage" NAME="testmodel Coverage Results" MODIFIED="1756792014296" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/rag2$TestGoogle.coverage" NAME="TestGoogle Coverage Results" MODIFIED="1756792288455" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/RagProgramm$main.coverage" NAME="main Coverage Results" MODIFIED="1758780425909" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />

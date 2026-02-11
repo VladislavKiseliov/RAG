@@ -41,10 +41,14 @@ function AuthPage({ onLoginSuccess }) {
 
             const data = await response.json();
 
-            if (response.ok && data.access_token) {
+            if (response.ok && data.access_token && data.refresh_token) {
                 // 3. Успех: сохраняем токен и переключаем страницу
                 localStorage.setItem('accessToken', data.access_token);
-                onLoginSuccess(data.access_token);
+                localStorage.setItem('refreshToken', data.refresh_token);
+                onLoginSuccess({
+                    accessToken: data.access_token,
+                    refreshToken: data.refresh_token,
+                });
             } else {
                 // 4. Ошибка (например, 401 Unauthorized от FastAPI)
                 // data.detail содержит сообщение об ошибке, отправленное FastAPI

@@ -6,7 +6,7 @@ import Sidebar from '../components/Sidebar.jsx';
 import Message from '../components/Message.jsx';
 import { BASE_API_URL, ENDPOINTS } from '../config/api'; // <-- Добавлено: импорт конфигурации API
 
-function ChatPage({ accessToken }) { // <-- Принимаем токен как пропс
+function ChatPage({ accessToken, getAccessToken, onLogout }) { // <-- Принимаем токен как пропс
     const [messages, setMessages] = useState([
         { id: 1, content: 'Привет! Я RAG Chat Pro. Задайте мне вопрос.', role: 'assistant' },
     ]);
@@ -26,10 +26,16 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
     const loadUserConversations = async () => {
         setLoading(true);
         try {
+            const token = await getAccessToken();
+            if (!token) {
+                showError('Сессия истекла. Войдите снова.');
+                setLoading(false);
+                return;
+            }
             const response = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`, // <-- Передаем токен в заголовке
+                    'Authorization': `Bearer ${token}`, // <-- Передаем токен в заголовке
                     'Content-Type': 'application/json',
                 },
             });
@@ -55,10 +61,16 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
     const loadConversationHistory = async (conversationId) => {
         setLoading(true);
         try {
+            const token = await getAccessToken();
+            if (!token) {
+                showError('Сессия истекла. Войдите снова.');
+                setLoading(false);
+                return;
+            }
             const response = await fetch(`${BASE_API_URL}/api/conversations/${conversationId}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -128,10 +140,16 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
 
         try {
             // Отправляем сообщение на бэкенд
+            const token = await getAccessToken();
+            if (!token) {
+                showError('Сессия истекла. Войдите снова.');
+                return;
+            }
+
             const response = await fetch(`${BASE_API_URL}/api/conversations/${currentConversationId}/messages`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ user_message: text }),
@@ -192,8 +210,9 @@ function ChatPage({ accessToken }) { // <-- Принимаем токен как
                 currentConversationId={currentConversationId}
                 setCurrentConversationId={setCurrentConversationId}
                 conversations={conversations}
-                accessToken={accessToken}
+                getAccessToken={getAccessToken}
                 loadUserConversations={loadUserConversations} // <-- Передаем функцию загрузки чатов в сайдбар
+                onLogout={onLogout}
             />
             <main className="main-chat">
                 <div className="chat-container">
