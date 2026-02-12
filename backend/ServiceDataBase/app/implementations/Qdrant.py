@@ -3,13 +3,17 @@ from pathlib import Path
 from uuid import uuid4
 from typing import Any, Dict, List
 
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_community.vectorstores import Qdrant as LangChainQdrant
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
 from app.config import SIMILARITY_THRESHOLD, MAX_RESULTS
-from worker.app.document_processing import list_pdf_files, load_and_split_pdf
+try:
+    from worker.app.document_processing import list_pdf_files, load_and_split_pdf
+except ModuleNotFoundError:
+    list_pdf_files = None
+    load_and_split_pdf = None
 from ServiceDataBase.app.interfaces.base_vector_db import VectorDBInterface
 
 
@@ -73,6 +77,11 @@ class QdrantManager(VectorDBInterface):
 
 
     def _split_documents(self,docs_directory):
+        if list_pdf_files is None or load_and_split_pdf is None:
+            raise ModuleNotFoundError(
+                "worker.app.document_processing is not available. "
+                "Use the ingestion service to build the collection or ensure the worker package is on PYTHONPATH."
+            )
         """Создание новой коллекции из документов в указанной директории (для обратной совместимости)"""
         # Получаем список PDF файлов
         list_files = list_pdf_files(docs_directory)

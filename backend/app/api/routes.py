@@ -18,16 +18,37 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-from ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
-from ServiceDataBase.app.implementations.Qdrant import QdrantManager
-from app.config import INGESTION_SERVICE_URL, QDRANT_URL, COLLECTION_NAME
-from app.core.initialization import (
-    initialization_llm,
-    initialization_embenddings_model,
-    initialization_prompt_template,
-)
-from app.core.rag_pipeline import setup_rag_chain, answer_question
-from app.sevices.security import Auth, oauth2_scheme
+try:
+    from ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
+    from ServiceDataBase.app.implementations.Qdrant import QdrantManager
+    from ServiceDataBase.app.models.database_models import Chats
+except ModuleNotFoundError as exc:
+    if exc.name != "ServiceDataBase":
+        raise
+    from backend.ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
+    from backend.ServiceDataBase.app.implementations.Qdrant import QdrantManager
+    from backend.ServiceDataBase.app.models.database_models import Chats
+
+try:
+    from app.config import INGESTION_SERVICE_URL, QDRANT_URL, COLLECTION_NAME
+    from app.core.initialization import (
+        initialization_llm,
+        initialization_embenddings_model,
+        initialization_prompt_template,
+    )
+    from app.core.rag_pipeline import setup_rag_chain, answer_question
+    from app.sevices.security import Auth, oauth2_scheme
+except ModuleNotFoundError as exc:
+    if exc.name != "app":
+        raise
+    from backend.app.config import INGESTION_SERVICE_URL, QDRANT_URL, COLLECTION_NAME
+    from backend.app.core.initialization import (
+        initialization_llm,
+        initialization_embenddings_model,
+        initialization_prompt_template,
+    )
+    from backend.app.core.rag_pipeline import setup_rag_chain, answer_question
+    from backend.app.sevices.security import Auth, oauth2_scheme
 
 
 # Создаем роутер для всех эндпоинтов
@@ -38,8 +59,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")  # Секретный ключ для по�
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))  # Время жизни токена.
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
-print(type(ACCESS_TOKEN_EXPIRE_MINUTES))
-print(ACCESS_TOKEN_EXPIRE_MINUTES)
+
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 postgres = PostgresAlchemy()
@@ -300,12 +320,13 @@ def get_all_conversations(current_user: str = Depends(auth.get_user_from_token),
 
     # Используем константный user_id для получения чатов
     chats = postgres.get_all_chats(db, parse_uuid(current_user, 'user_id'))
-
     for chat in chats:
         first_message = chat.get("title", "Новый чат")
         previews.append({"id": chat["chat_id"], "title": first_message})
 
     return {"conversations": sorted(previews, key=lambda x: x['id'], reverse=True)}
+
+
 # --- ИСТОРИЯ СООБЩЕНИЙ ---
 # Вернуть историю сообщений для выбранного чата.
 @router.get("/api/conversations/{conversation_id}")
@@ -315,13 +336,23 @@ def get_conversation_history(conversation_id: str, current_user: str = Depends(a
     # Если вы хотите убедиться, что этот чат принадлежит user_id,
     # вам нужно изменить postgres.get_chat_messages так, чтобы он также принимал user_id.
 
-    # Пытаемся загрузить историю из БД, если ее нет в локальном кеше
+    # Пытаемся загрузить историю из БД. Для пустых чатов возвращаем пустой список, а не 404.
     try:
-        result = postgres.get_chat_messages(db, parse_uuid(conversation_id, 'conversation_id'))
-        if not result:
+        chat_uuid = parse_uuid(conversation_id, 'conversation_id')
+        user_uuid = parse_uuid(current_user, 'user_id')
+
+        chat = (
+            db.query(Chats)
+            .filter(Chats.chat_id == chat_uuid, Chats.user_id == user_uuid)
+            .first()
+        )
+        if not chat:
             raise HTTPException(status_code=404, detail=f"Диалог {conversation_id} не найден")
-        # Если нашли в БД, возвращаем результат
+
+        result = postgres.get_chat_messages(db, chat_uuid)
         return {"history": result}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Ошибка БД или диалог {conversation_id} не найден: {str(e)}")
 # ---

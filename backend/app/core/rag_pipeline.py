@@ -1,52 +1,37 @@
 from pathlib import Path
-# --- Импорт наших файлов ---
-# --- Загрузка переменных окружения ---
 from dotenv import load_dotenv
-load_dotenv()  # загружает переменные из .env
 
-# --- Основные схемы и компоненты (Core) ---
-# Document, PromptTemplate и др. переехали в langchain-core
-
-# --- Разделители текста (Text Splitters) ---
-# Разделители текста теперь в отдельном пакете
-
-# --- Комьюнити-пакеты (Community) ---
-# Загрузчики, векторные хранилища и т.д.
-from langchain_community.chains import RetrievalQA # Используйте этот, если верхний не сработает
-# Если RetrievalQA остается в главном пакете (что маловероятно после 1.0):
-# from langchain.chains import RetrievalQA
-
-# --- Партнерские интеграции (Partners) ---
-
-# --- Внешние библиотеки ---
-# Пакет google.generativeai устарел, его можно удалить или заменить на google.genai,
-# если он используется в другом месте. Для LangChain он не нужен.
-# import google.generativeai as genai
+from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
 
 
 def setup_rag_chain(llm=None, retriever=None, prompt_template=None):
-    """Настраивает всю цепочку RAG (RetrievalQA)."""
-    # Если параметры не переданы, пытаемся получить их из конфигурации
+    """
+    Настраивает современную цепочку RAG вместо RetrievalQA.
+    """
     if llm is None or retriever is None or prompt_template is None:
-        print("⚠️  setup_rag_chain вызван без необходимых параметров")
+        print("⚠️ setup_rag_chain вызван без необходимых параметров")
         return None
-        
-    if llm is None:
-        return None
-    if retriever is None:
-        return None
-        
-    qa_chain = RetrievalQA.from_chain_type(
+
+    # 1. Создаем цепочку для обработки документов (Combine Documents Chain)
+    # Она отвечает за то, как чанки текста вставляются в промпт.
+    combine_docs_chain = create_stuff_documents_chain(
         llm=llm,
-        chain_type="stuff",
-        retriever=retriever,
-        chain_type_kwargs={"prompt": prompt_template},  # Используем prompt_template, а не CUSTOM_PROMPT
-        return_source_documents=True
+        prompt=prompt_template
     )
-    return qa_chain
+
+    # 2. Создаем финальную цепочку поиска (Retrieval Chain)
+    # Она соединяет retriever и цепочку обработки документов.
+    rag_chain = create_retrieval_chain(
+        retriever=retriever,
+        combine_docs_chain=combine_docs_chain
+    )
+
+    return rag_chain
 
 
-def answer_question(question: str, qa_chain: RetrievalQA) -> str:
+def answer_question(question: str, qa_chain) -> str:
     """Отвечает на вопрос, используя настроенную цепочку RAG."""
 
 

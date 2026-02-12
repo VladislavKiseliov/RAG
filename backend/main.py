@@ -25,7 +25,12 @@ app.add_middleware(
 )
 
 # Импортируем и подключаем маршруты
-from app.api.routes import router
+try:
+    from app.api.routes import router
+except ModuleNotFoundError as exc:
+    if exc.name != "app":
+        raise
+    from backend.app.api.routes import router
 
 app.include_router(router)
 

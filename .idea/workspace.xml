@@ -4,53 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat: Старт миграции с SQLite на PostrgeSQL">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat(mvp): wire RAG, classic refresh tokens, split backend, and fix docker builds&#10;•&#10;подключен RAG в chat_endpoint (инициализация цепочки, Qdrant retriever)&#10;•&#10;добавлен /auth/refresh с классической схемой access+refresh&#10;•&#10;создана таблица refresh_tokens + миграция и методы в PostgresAlchemy&#10;•&#10;реализован logout с отзывом refresh-токенов (один/все)&#10;•&#10;фронт обновлён: хранение refresh_token, авто‑refresh, кнопка “Выйти”&#10;•&#10;бэкенд вынесен в backend/, обновлён docker-compose.app.yml, Dockerfile и .dockerignore&#10;•&#10;убрана зависимость бэка от ingestion‑сервиса и тяжелых pdf/unstructured пакетов&#10;•&#10;очищены .env/.env.example, .gitignore, добавлены новые переменные и сетап&#10;•&#10;добавлены отдельные compose-файлы для app/bases/ingest и скрипт запуска">
       <change beforePath="$PROJECT_DIR$/.idea/RagProgramm.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/RagProgramm.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/Qdrant.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/SQLITEAlchemy.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/implementations/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/interfaces/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/interfaces/base_db.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/interfaces/base_vector_db.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/models/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/app/models/database_models.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/test/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ServiceDataBase/test/test_interface.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic.ini" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/README" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/env.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/script.py.mako" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/148a39e82c80_update_chats_table_colomn_chat_id_and_.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/b09e28fc65b1_update_ids_to_uuid_and_fix_relationships.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/bc73427871e2_update_users_table_colomn_chat_id_type_.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/d895c0131fcb_change_chat_id_and_user_id_to_biginteger.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/de11312f6b7f_update_users_table_colomn_id_new_.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/e7c5124a610b_initial.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/ed7e75e75c6f_update_users_table_colomy_id_type_int_.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/routes.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/config/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/config/config.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/config/promts.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/initialization.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/rag_pipeline.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/sevices/security.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/config/api.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/config/api.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/AuthPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/AuthPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/poetry.lock" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/backend/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/ServiceDataBase/app/implementations/Qdrant.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/ServiceDataBase/app/implementations/Qdrant.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/ServiceDataBase/app/interfaces/base_vector_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/ServiceDataBase/app/interfaces/base_vector_db.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/api/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/api/routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/core/rag_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/core/rag_pipeline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.app.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.app.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -58,7 +24,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="121" />
+    <option name="cachedIndexableFilesCount" value="134" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -90,6 +56,12 @@
     &quot;accountId&quot;: &quot;53cf7352-8f5a-42e1-9219-6abedc6481a0&quot;
   }
 }</component>
+  <component name="HttpClientEndpointsTabState">
+    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;68ded920d715699167fd93eff8a911b4cd208976&quot; value=&quot;###&amp;#10;GET http://localhost:8000/api/conversations&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
+  </component>
+  <component name="HttpClientOnboardingState">{
+  &quot;isOnboardingCommentShown&quot;: true
+}</component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -102,55 +74,62 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultHtmlFileTemplate": "HTML File",
-    "Docker.ServiceDataBase: Compose Deployment.executor": "Run",
-    "Docker.docker-compose.app.yml: Compose Deployment.executor": "Run",
-    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python tests.pytest in test_postgres_script.py.executor": "Run",
-    "Python.123.executor": "Run",
-    "Python.Chanking.executor": "Run",
-    "Python.CheckModelGoogle.executor": "Run",
-    "Python.LongChain.executor": "Run",
-    "Python.Qdrant.executor": "Run",
-    "Python.RagGogNew.executor": "Run",
-    "Python.RagGoogle.executor": "Run",
-    "Python.SQLITEAlchemy.executor": "Run",
-    "Python.SQLite.executor": "Run",
-    "Python.TestEmbendings.executor": "Run",
-    "Python.TestGoogle.executor": "Run",
-    "Python.TestWorkChromadb.executor": "Run",
-    "Python.celery.executor": "Run",
-    "Python.celery_test.executor": "Run",
-    "Python.document_processing.executor": "Run",
-    "Python.enqueue_one.executor": "Run",
-    "Python.main.executor": "Run",
-    "Python.t_postgres_script.executor": "Run",
-    "Python.test.executor": "Run",
-    "Python.test2.executor": "Run",
-    "Python.test3.executor": "Run",
-    "Python.testUUID.executor": "Run",
-    "Python.testmodel.executor": "Run",
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "ai.playground.ignore.import.keys.banner.in.settings": "true",
-    "git-widget-placeholder": "migration__to__PostgeSQL",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "D:/Laboratoria/Rag OVER/RagProgramm/ServiceDataBase",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;Docker.ServiceDataBase: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.docker-compose.app.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python tests.pytest in test_postgres_script.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python.123.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Chanking.executor&quot;: &quot;Run&quot;,
+    &quot;Python.CheckModelGoogle.executor&quot;: &quot;Run&quot;,
+    &quot;Python.LongChain.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Qdrant.executor&quot;: &quot;Run&quot;,
+    &quot;Python.RagGogNew.executor&quot;: &quot;Run&quot;,
+    &quot;Python.RagGoogle.executor&quot;: &quot;Run&quot;,
+    &quot;Python.SQLITEAlchemy.executor&quot;: &quot;Run&quot;,
+    &quot;Python.SQLite.executor&quot;: &quot;Run&quot;,
+    &quot;Python.TestEmbendings.executor&quot;: &quot;Run&quot;,
+    &quot;Python.TestGoogle.executor&quot;: &quot;Run&quot;,
+    &quot;Python.TestWorkChromadb.executor&quot;: &quot;Run&quot;,
+    &quot;Python.celery.executor&quot;: &quot;Run&quot;,
+    &quot;Python.celery_test.executor&quot;: &quot;Run&quot;,
+    &quot;Python.document_processing.executor&quot;: &quot;Run&quot;,
+    &quot;Python.enqueue_one.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.t_postgres_script.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test3.executor&quot;: &quot;Run&quot;,
+    &quot;Python.testUUID.executor&quot;: &quot;Run&quot;,
+    &quot;Python.testmodel.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
+    &quot;database.data.extractors.current.export.id&quot;: &quot;SQL Inserts&quot;,
+    &quot;database.data.extractors.current.id&quot;: &quot;SQL Inserts&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;migration__to__PostgeSQL&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Laboratoria/Rag OVER/RagProgramm/ServiceDataBase&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  },
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;postgresql&quot;
+    ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\ServiceDataBase" />
@@ -160,11 +139,11 @@
       <recent name="C:\Users\RGG\Desktop\RagProgramm\frontend" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\Laboratoria\Rag OVER\RagProgramm" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\Document_Ingestion_Service" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\Document_Ingestion_Service\app" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\Document_Ingestion_Service\test" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\Document_Ingestion_Service\test" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\ServiceDataBase\app" />
     </key>
   </component>
   <component name="RunManager" selected="Docker.docker-compose.app.yml: Compose Deployment">
@@ -255,7 +234,11 @@
       <workItem from="1770718727408" duration="6202000" />
       <workItem from="1770782727507" duration="511000" />
       <workItem from="1770785285380" duration="8969000" />
-      <workItem from="1770795651294" duration="15553000" />
+      <workItem from="1770795651294" duration="16859000" />
+      <workItem from="1770868818630" duration="5593000" />
+      <workItem from="1770880721317" duration="1103000" />
+      <workItem from="1770882050513" duration="494000" />
+      <workItem from="1770882812478" duration="13151000" />
     </task>
     <task id="LOCAL-00001" summary="Update:New requirements.txt">
       <option name="closed" value="true" />
@@ -529,7 +512,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770725120213</updated>
     </task>
-    <option name="localTasksCounter" value="35" />
+    <task id="LOCAL-00035" summary="feat(mvp): wire RAG, classic refresh tokens, split backend, and fix docker builds&#10;•&#10;подключен RAG в chat_endpoint (инициализация цепочки, Qdrant retriever)&#10;•&#10;добавлен /auth/refresh с классической схемой access+refresh&#10;•&#10;создана таблица refresh_tokens + миграция и методы в PostgresAlchemy&#10;•&#10;реализован logout с отзывом refresh-токенов (один/все)&#10;•&#10;фронт обновлён: хранение refresh_token, авто‑refresh, кнопка “Выйти”&#10;•&#10;бэкенд вынесен в backend/, обновлён docker-compose.app.yml, Dockerfile и .dockerignore&#10;•&#10;убрана зависимость бэка от ingestion‑сервиса и тяжелых pdf/unstructured пакетов&#10;•&#10;очищены .env/.env.example, .gitignore, добавлены новые переменные и сетап&#10;•&#10;добавлены отдельные compose-файлы для app/bases/ingest и скрипт запуска">
+      <option name="closed" value="true" />
+      <created>1770811940781</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1770811940781</updated>
+    </task>
+    <option name="localTasksCounter" value="36" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -584,7 +575,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="ADD: save chats and mesenge in SQLite" />
     <MESSAGE value="feat: Improve database modules and application architecture&#10;&#10;- Fixed SQLite module:&#10;  * Resolved connection variable overwrite issue&#10;  * Fixed table existence verification&#10;  * Corrected SQL queries with typos&#10;  * Added exception handling&#10;&#10;- Enhanced Qdrant module:&#10;  * Renamed class to avoid naming conflicts&#10;  * Simplified collection initialization logic&#10;  * Integrated document processing&#10;  * Created clear methods for collection operations" />
     <MESSAGE value="Added :Interface and documentation for sqlite &#10;&#10;UPDATE: README file" />
     <MESSAGE value="Added : New text_splitter" />
@@ -609,7 +599,8 @@
     <MESSAGE value="feat: почти завершён сервис загрузки документов (API, Celery, Docker, описания)&#10;&#10;- добавлены Dockerfile и несколько compose-конфигураций (полный стек, celery-only, dev)&#10;- реализован список задач и хранение job_id в Redis&#10;- улучшены схемы ответов и валидация эндпоинтов&#10;- добавлены docstring для эндпоинтов&#10;- добавлена инструкция RUN_SERVICE.txt (Docker + локальный запуск)&#10;- обновлён .gitignore&#10;&#10;TODO:&#10;- покрыть тестами и прогнать полный e2e&#10;- собрать сервис в единый контейнер и добавить проверки при сборке&#10;- разобраться с корректной передачей пути к документам" />
     <MESSAGE value="feat: добавлен новый интерфейс для работы с Qdrant" />
     <MESSAGE value="feat: Старт миграции с SQLite на PostrgeSQL" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: Старт миграции с SQLite на PostrgeSQL" />
+    <MESSAGE value="feat(mvp): wire RAG, classic refresh tokens, split backend, and fix docker builds&#10;•&#10;подключен RAG в chat_endpoint (инициализация цепочки, Qdrant retriever)&#10;•&#10;добавлен /auth/refresh с классической схемой access+refresh&#10;•&#10;создана таблица refresh_tokens + миграция и методы в PostgresAlchemy&#10;•&#10;реализован logout с отзывом refresh-токенов (один/все)&#10;•&#10;фронт обновлён: хранение refresh_token, авто‑refresh, кнопка “Выйти”&#10;•&#10;бэкенд вынесен в backend/, обновлён docker-compose.app.yml, Dockerfile и .dockerignore&#10;•&#10;убрана зависимость бэка от ingestion‑сервиса и тяжелых pdf/unstructured пакетов&#10;•&#10;очищены .env/.env.example, .gitignore, добавлены новые переменные и сетап&#10;•&#10;добавлены отдельные compose-файлы для app/bases/ingest и скрипт запуска" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(mvp): wire RAG, classic refresh tokens, split backend, and fix docker builds&#10;•&#10;подключен RAG в chat_endpoint (инициализация цепочки, Qdrant retriever)&#10;•&#10;добавлен /auth/refresh с классической схемой access+refresh&#10;•&#10;создана таблица refresh_tokens + миграция и методы в PostgresAlchemy&#10;•&#10;реализован logout с отзывом refresh-токенов (один/все)&#10;•&#10;фронт обновлён: хранение refresh_token, авто‑refresh, кнопка “Выйти”&#10;•&#10;бэкенд вынесен в backend/, обновлён docker-compose.app.yml, Dockerfile и .dockerignore&#10;•&#10;убрана зависимость бэка от ingestion‑сервиса и тяжелых pdf/unstructured пакетов&#10;•&#10;очищены .env/.env.example, .gitignore, добавлены новые переменные и сетап&#10;•&#10;добавлены отдельные compose-файлы для app/bases/ingest и скрипт запуска" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/RagProgramm$t_postgres_script.coverage" NAME="t_postgres_script Coverage Results" MODIFIED="1770805501845" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />

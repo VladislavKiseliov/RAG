@@ -6,10 +6,8 @@ ENV PIP_DEFAULT_TIMEOUT=120
 
 WORKDIR /app
 
-COPY pyproject.toml poetry.lock ./
-RUN pip install --no-cache-dir poetry \
-    && poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --only main
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
