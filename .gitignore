@@ -87,3 +87,15 @@ celerybeat.pid
 
 # Outputs
 output*.txt
+
+# Extra Python
+__pypackages__/
+*.sqlite3
+
+# Frontend build/cache
+frontend/dist/
+frontend/.vite/
+
+# Celery extras
+celerybeat-schedule*
+*.pid

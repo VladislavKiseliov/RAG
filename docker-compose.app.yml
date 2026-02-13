@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag_backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg2://myuser:mypassword@postgres:5432/myapp_db}
+      INGESTION_SERVICE_URL: ${INGESTION_SERVICE_URL_DOCKER:-http://ingestion-api:8001}
+      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+    networks:
+      - rag_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag_frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - rag_network
+
+networks:
+  rag_network:
+    name: rag_network
