@@ -4,19 +4,20 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat(mvp): wire RAG, classic refresh tokens, split backend, and fix docker builds&#10;•&#10;подключен RAG в chat_endpoint (инициализация цепочки, Qdrant retriever)&#10;•&#10;добавлен /auth/refresh с классической схемой access+refresh&#10;•&#10;создана таблица refresh_tokens + миграция и методы в PostgresAlchemy&#10;•&#10;реализован logout с отзывом refresh-токенов (один/все)&#10;•&#10;фронт обновлён: хранение refresh_token, авто‑refresh, кнопка “Выйти”&#10;•&#10;бэкенд вынесен в backend/, обновлён docker-compose.app.yml, Dockerfile и .dockerignore&#10;•&#10;убрана зависимость бэка от ingestion‑сервиса и тяжелых pdf/unstructured пакетов&#10;•&#10;очищены .env/.env.example, .gitignore, добавлены новые переменные и сетап&#10;•&#10;добавлены отдельные compose-файлы для app/bases/ingest и скрипт запуска">
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="fix: приведение импортов, зависимостей и docker к рабочему виду&#10;&#10;- добавлены fallback‑импорты для backend и db модулей&#10;- исправлена выдача истории для пустых чатов&#10;- поправлены импорты rag chain под langchain_classic&#10;- обновлены зависимости langchain и помечен pywin32 только для Windows&#10;- backend Dockerfile переведен на requirements.txt&#10;- Vite dev закреплен на 127.0.0.1&#10;- убрана версия compose и лишние depends_on в app compose">
+      <change afterPath="$PROJECT_DIR$/backend/app/api/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/RagProgramm.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/RagProgramm.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/backend/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/ServiceDataBase/app/implementations/Qdrant.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/ServiceDataBase/app/implementations/Qdrant.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/ServiceDataBase/app/interfaces/base_vector_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/ServiceDataBase/app/interfaces/base_vector_db.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/ServiceDataBase/app/implementations/PostgresAlchemy.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/ServiceDataBase/app/implementations/PostgresAlchemy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/ServiceDataBase/app/models/database_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/ServiceDataBase/app/models/database_models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/api/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/api/routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/core/rag_pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/core/rag_pipeline.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.app.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.app.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/poetry.lock" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/pyproject.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/MessageInput.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MessageInput.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Sidebar.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/ChatPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/styles/main.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/styles/main.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,7 +25,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="134" />
+    <option name="cachedIndexableFilesCount" value="140" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -57,7 +58,7 @@
   }
 }</component>
   <component name="HttpClientEndpointsTabState">
-    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;68ded920d715699167fd93eff8a911b4cd208976&quot; value=&quot;###&amp;#10;GET http://localhost:8000/api/conversations&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
+    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;8d7335394117e6718c1b89fe6209d52954e7b166&quot; value=&quot;###&amp;#10;POST http://localhost:8000/auth/refresh&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
   </component>
   <component name="HttpClientOnboardingState">{
   &quot;isOnboardingCommentShown&quot;: true
@@ -115,7 +116,7 @@
     &quot;database.data.extractors.current.id&quot;: &quot;SQL Inserts&quot;,
     &quot;git-widget-placeholder&quot;: &quot;migration__to__PostgeSQL&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Laboratoria/Rag OVER/RagProgramm/ServiceDataBase&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Laboratoria/Rag OVER/RagProgramm/backend/app/api&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -132,11 +133,11 @@
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Laboratoria\Rag OVER\RagProgramm\backend\app\api" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\ServiceDataBase" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\Document_Ingestion_Service\app" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\worker\app" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\PDF_Processing" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\frontend" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm" />
@@ -238,7 +239,9 @@
       <workItem from="1770868818630" duration="5593000" />
       <workItem from="1770880721317" duration="1103000" />
       <workItem from="1770882050513" duration="494000" />
-      <workItem from="1770882812478" duration="13151000" />
+      <workItem from="1770882812478" duration="13581000" />
+      <workItem from="1770954581628" duration="7664000" />
+      <workItem from="1770962618190" duration="8653000" />
     </task>
     <task id="LOCAL-00001" summary="Update:New requirements.txt">
       <option name="closed" value="true" />
@@ -520,7 +523,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770811940781</updated>
     </task>
-    <option name="localTasksCounter" value="36" />
+    <task id="LOCAL-00036" summary="fix: приведение импортов, зависимостей и docker к рабочему виду&#10;&#10;- добавлены fallback‑импорты для backend и db модулей&#10;- исправлена выдача истории для пустых чатов&#10;- поправлены импорты rag chain под langchain_classic&#10;- обновлены зависимости langchain и помечен pywin32 только для Windows&#10;- backend Dockerfile переведен на requirements.txt&#10;- Vite dev закреплен на 127.0.0.1&#10;- убрана версия compose и лишние depends_on в app compose">
+      <option name="closed" value="true" />
+      <created>1770899608271</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1770899608271</updated>
+    </task>
+    <option name="localTasksCounter" value="37" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -575,7 +586,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="feat: Improve database modules and application architecture&#10;&#10;- Fixed SQLite module:&#10;  * Resolved connection variable overwrite issue&#10;  * Fixed table existence verification&#10;  * Corrected SQL queries with typos&#10;  * Added exception handling&#10;&#10;- Enhanced Qdrant module:&#10;  * Renamed class to avoid naming conflicts&#10;  * Simplified collection initialization logic&#10;  * Integrated document processing&#10;  * Created clear methods for collection operations" />
     <MESSAGE value="Added :Interface and documentation for sqlite &#10;&#10;UPDATE: README file" />
     <MESSAGE value="Added : New text_splitter" />
     <MESSAGE value="Update: main.py updated to work with user_id" />
@@ -600,7 +610,8 @@
     <MESSAGE value="feat: добавлен новый интерфейс для работы с Qdrant" />
     <MESSAGE value="feat: Старт миграции с SQLite на PostrgeSQL" />
     <MESSAGE value="feat(mvp): wire RAG, classic refresh tokens, split backend, and fix docker builds&#10;•&#10;подключен RAG в chat_endpoint (инициализация цепочки, Qdrant retriever)&#10;•&#10;добавлен /auth/refresh с классической схемой access+refresh&#10;•&#10;создана таблица refresh_tokens + миграция и методы в PostgresAlchemy&#10;•&#10;реализован logout с отзывом refresh-токенов (один/все)&#10;•&#10;фронт обновлён: хранение refresh_token, авто‑refresh, кнопка “Выйти”&#10;•&#10;бэкенд вынесен в backend/, обновлён docker-compose.app.yml, Dockerfile и .dockerignore&#10;•&#10;убрана зависимость бэка от ingestion‑сервиса и тяжелых pdf/unstructured пакетов&#10;•&#10;очищены .env/.env.example, .gitignore, добавлены новые переменные и сетап&#10;•&#10;добавлены отдельные compose-файлы для app/bases/ingest и скрипт запуска" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(mvp): wire RAG, classic refresh tokens, split backend, and fix docker builds&#10;•&#10;подключен RAG в chat_endpoint (инициализация цепочки, Qdrant retriever)&#10;•&#10;добавлен /auth/refresh с классической схемой access+refresh&#10;•&#10;создана таблица refresh_tokens + миграция и методы в PostgresAlchemy&#10;•&#10;реализован logout с отзывом refresh-токенов (один/все)&#10;•&#10;фронт обновлён: хранение refresh_token, авто‑refresh, кнопка “Выйти”&#10;•&#10;бэкенд вынесен в backend/, обновлён docker-compose.app.yml, Dockerfile и .dockerignore&#10;•&#10;убрана зависимость бэка от ingestion‑сервиса и тяжелых pdf/unstructured пакетов&#10;•&#10;очищены .env/.env.example, .gitignore, добавлены новые переменные и сетап&#10;•&#10;добавлены отдельные compose-файлы для app/bases/ingest и скрипт запуска" />
+    <MESSAGE value="fix: приведение импортов, зависимостей и docker к рабочему виду&#10;&#10;- добавлены fallback‑импорты для backend и db модулей&#10;- исправлена выдача истории для пустых чатов&#10;- поправлены импорты rag chain под langchain_classic&#10;- обновлены зависимости langchain и помечен pywin32 только для Windows&#10;- backend Dockerfile переведен на requirements.txt&#10;- Vite dev закреплен на 127.0.0.1&#10;- убрана версия compose и лишние depends_on в app compose" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: приведение импортов, зависимостей и docker к рабочему виду&#10;&#10;- добавлены fallback‑импорты для backend и db модулей&#10;- исправлена выдача истории для пустых чатов&#10;- поправлены импорты rag chain под langchain_classic&#10;- обновлены зависимости langchain и помечен pywin32 только для Windows&#10;- backend Dockerfile переведен на requirements.txt&#10;- Vite dev закреплен на 127.0.0.1&#10;- убрана версия compose и лишние depends_on в app compose" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/RagProgramm$t_postgres_script.coverage" NAME="t_postgres_script Coverage Results" MODIFIED="1770805501845" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
