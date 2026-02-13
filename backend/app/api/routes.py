@@ -21,6 +21,9 @@ from sqlalchemy.orm import sessionmaker
 import sys
 import os
 
+from backend.app.api.shemas import LoginRequest, RefreshRequest, LogoutRequest, IngestRequest, Message, ChatUpdate
+from backend.app.sevices.scripts import get_db, INGESTION_SERVICE_URL, parse_uuid, _call_rag_service
+
 # Получаем путь к директории backend
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, backend_dir)
@@ -29,9 +32,6 @@ from ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
 # from ServiceDataBase.app.implementations.Qdrant import QdrantManager
 from ServiceDataBase.app.models.database_models import Chats
 
-from app.config import INGESTION_SERVICE_URL, QDRANT_URL, COLLECTION_NAME
-from app.core.initialization import initialization_llm, initialization_embenddings_model, initialization_prompt_template
-from app.core.rag_pipeline import setup_rag_chain, answer_question
 from app.sevices.security import Auth, oauth2_scheme
 
 
@@ -48,92 +48,10 @@ engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 postgres = PostgresAlchemy()
 auth = Auth(SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES)
-_qa_chain = None
-
-
-# def get_qa_chain():
-#     global _qa_chain
-#     if _qa_chain is not None:
-#         return _qa_chain
-#
-#     if not QDRANT_URL:
-#         raise HTTPException(status_code=500, detail="QDRANT_URL is not set")
-#
-#     embeddings = initialization_embenddings_model()
-#     llm = initialization_llm()
-#     prompt_template = initialization_prompt_template()
-#
-#     qdrant_manager = QdrantManager(
-#         embeddings=embeddings,
-#         collection_name=COLLECTION_NAME,
-#         qdrant_url=QDRANT_URL,
-#     )
-#     retriever = qdrant_manager.get_retriever()
-#
-#     _qa_chain = setup_rag_chain(llm=llm, retriever=retriever, prompt_template=prompt_template)
-#     return _qa_chain
-
-def parse_uuid(value: str, field_name: str) -> uuid.UUID:
-    # Единая проверка UUID и возврат 400 при ошибке.
-    try:
-        return uuid.UUID(value)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name} format")
-
-def get_db():
-    # Зависимость FastAPI, возвращающая сессию БД.
-    db = SessionLocal()  # Сессия БД.
-    try:
-        yield db       # Передаем наружу.
-    finally:
-        db.close()    # Закрываем сессию.
-
-
-# --- Модели (Pydantic) ---
-
-
-# Данные для логина.
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class Message(BaseModel):
-    user_message: str
-
-class ChatUpdate(BaseModel):
-    title: str
-
-
-class IngestRequest(BaseModel):
-    path: str
-    collection: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
-class LogoutRequest(BaseModel):
-    refresh_token: str
-    revoke_all: bool = False
-
-
-# # Пример дополнительных моделей.
-
-# class WalletOperation(BaseModel):
-#     operation_type: str = Field(pattern="^(DEPOSIT|WITHDRAW)$")
-#     amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
-# Ответ по кошельку (пример).
-# class WalletResponse(BaseModel):
-#     uuid: UUID
-#     balance: Decimal
 
 
 
 # --- АВТОРИЗАЦИЯ ---
-
 
 # Аутентификация и выдача JWT; при первом логине создаем пользователя.
 @router.post("/auth/login")
@@ -256,20 +174,6 @@ def ingest_documents(
             detail=f"Ingestion service unreachable: {e.reason}",
         )
 
-# # Защищённый маршрут, который возвращает информацию о пользователе,
-# # если токен в запросе действителен.
-# @app.get("/about_me")
-# async def about_me(current_user: str = Depends(get_user_from_token)):
-#     """
-#     Этот маршрут защищен и требует токен. Если токен действителен, мы возвращаем информацию о пользователе.
-#     """
-#     user = get_user(current_user)
-#     if user:
-#         return user
-#     # Если пользователь не найден, возвращаем ошибку
-#     return {"error": "User not found"}
-
-
 # --- ЧАТЫ ---
 # Создать пустой чат для авторизованного пользователя.
 @router.post("/api/conversations")
@@ -328,46 +232,49 @@ def get_conversation_history(conversation_id: str, current_user: str = Depends(a
 # ---
 # --- ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ ---
 @router.post("/api/conversations/{conversation_id}/messages")
-# Сохраняем сообщения пользователя и ассистента вокруг генерации ответа.
-def chat_endpoint(conversation_id: str, message: Message, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
-    """Обрабатывает сообщение в рамках конкретного диалога (conversation_id)."""
+def chat_endpoint(
+        conversation_id: str,
+        message: Message,
+        current_user: str = Depends(auth.get_user_from_token),
+        db: Session = Depends(get_db)
+):
+    """
+    Обрабатывает новое сообщение пользователя в рамках диалога.
 
-    # # Проверка существования диалога
-    # chat_uuid = parse_uuid(conversation_id, 'conversation_id')
-    # user_uuid = parse_uuid(current_user, 'user_id')
-    # chat = postgres.get_chat_messages(db,chat_id= chat_uuid,user_id = user_uuid)
-    # if conversation_id not in chat:
-    #     # В реальной ситуации здесь нужно проверить БД
-    #     raise HTTPException(status_code=404, detail="Диалог не найден. Начните новый чат.")
-
+    Сохраняет сообщение пользователя → получает ответ от RAG → сохраняет ответ ассистента.
+    Возвращает сгенерированный ответ.
+    """
     user_message = message.user_message
 
-    # 1. Сохраняем сообщение пользователя в локальный словарь
-    # user_msg_entry = {"role": "user", "content": user_message}
-    # conversations[conversation_id].append(user_msg_entry)
+    try:
+        # Парсим UUID для безопасности
+        conv_uuid = parse_uuid(conversation_id, "conversation_id")
+        user_uuid = parse_uuid(current_user, "user_id")
 
-    # 2. Сохраняем сообщение пользователя в БД
-    # Используем динамический conversation_id
-    postgres.add_new_message(db, parse_uuid(conversation_id, 'conversation_id'), "user", user_message)
+        # Проверка существования диалога
+        if not postgres.does_conversation_exist(db, chat_id=conv_uuid, user_id=user_uuid):
+            raise HTTPException(status_code=404, detail="Диалог не найден. Начните новый чат.")
 
-    # # 3. Получаем ответ от RAG-системы
-    # qa_chain = get_qa_chain()
-    # if not qa_chain:
-    #     raise HTTPException(status_code=500, detail="RAG chain is not initialized")
-    # response_text = answer_question(user_message, qa_chain)
-    response_text = "привет"
+        # Сохраняем сообщение пользователя в БД
+        postgres.add_new_message(db, conv_uuid, role="user", content=user_message)
 
-    # 4. Сохраняем ответ ассистента в локальный словарь
-    # assistant_msg_entry = {"role": "assistant", "content": response_text}
-    # conversations[conversation_id].append(assistant_msg_entry)
+        # Получаем ответ от RAG-сервиса
+        assistant_response = _call_rag_service(user_message)
 
-    # 5. Сохраняем ответ ассистента в БД
-    # Используем динамический conversation_id
-    postgres.add_new_message(db, parse_uuid(conversation_id, 'conversation_id'), "assistant", response_text)
+        # Сохраняем ответ ассистента в БД
+        postgres.add_new_message(db, conv_uuid, role="assistant", content=assistant_response)
 
-    return {"response": response_text}
-# ---
-# ---
+        # Возвращаем ответ клиенту
+        return {"response": assistant_response}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Некорректный формат данных: {str(e)}")
+    except Exception as e:
+        # Логируем (если подключено)
+        # logger.error(f"Ошибка в диалоге {conversation_id}: {e}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+
 
 # Эндпоинт управлением чатом
 # Обновить заголовок чата для авторизованного пользователя.

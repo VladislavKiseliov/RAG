@@ -51,3 +51,19 @@ class JobItem(BaseModel):
 class JobsListResponse(BaseModel):
     total: int = Field(..., description="Total job ids stored")
     items: List[JobItem]
+
+
+class RagQueryRequest(BaseModel):
+    question: str = Field(..., min_length=1, description="User question")
+    collection: Optional[str] = Field(default=None, description="Qdrant collection name")
+
+
+class RagSource(BaseModel):
+    source: Optional[str] = Field(default=None, description="Source file name")
+    page: Optional[int] = Field(default=None, description="1-based page number")
+    score: Optional[float] = Field(default=None, description="Similarity score")
+
+
+class RagAnswerResponse(BaseModel):
+    answer: str = Field(..., description="Model answer")
+    sources: List[RagSource] = Field(default_factory=list, description="Retrieved sources")

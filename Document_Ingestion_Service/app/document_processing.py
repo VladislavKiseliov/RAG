@@ -11,14 +11,10 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # --- Импорт нашего файла конфигурации (Placeholders) ---
 # Для работы в вашей среде убедитесь, что app.config импортирует text_splitter
 # и необходимые алиасы типов.
-from .config import text_splitter
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from .config import EMBEDDING_MODEL_NAME, HF_TOKEN, text_splitter
 
 # Пути и директории (с возможностью переопределить через .env)
-TOKEN_HF = os.getenv("HF_TOKEN")
+TOKEN_HF = HF_TOKEN
 # Проверка, что токен существует (рекомендуется)
 if not TOKEN_HF:
     raise ValueError("HUGGINGFACEHUB_API_TOKEN не найден в переменных окружения.")
@@ -75,7 +71,7 @@ def initialization_embeddings_model():
 
     try:
         embeddings = HuggingFaceEmbeddings(
-            model_name="BAAI/bge-m3",
+            model_name=EMBEDDING_MODEL_NAME,
             encode_kwargs={'normalize_embeddings': True},
         )
         print("✅ Локальная модель эмбеддингов настроена.")
