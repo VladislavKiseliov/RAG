@@ -2,13 +2,13 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import ChatPage from './pages/ChatPage.jsx';
-import AuthPage from './pages/AuthPage.jsx'; // <-- Новый импорт!
+import AuthPage from './pages/AuthPage.jsx';
 import { BASE_API_URL, ENDPOINTS } from './config/api.jsx';
 
 function App() {
-    // Состояние, определяющее, вошел ли пользователь в систему
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [accessToken, setAccessToken] = useState(null); // <-- Добавлено: состояние для токена
+    const [accessToken, setAccessToken] = useState(null);
+    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
     const refreshPromiseRef = useRef(null);
 
     const setAuthTokens = (tokens) => {
@@ -27,7 +27,7 @@ function App() {
         }
     };
 
-    const handleLoginSuccess = (tokens) => { // <-- Обновлено: принимаем токены
+    const handleLoginSuccess = (tokens) => {
         setAuthTokens(tokens);
     };
 
@@ -39,6 +39,11 @@ function App() {
             setAccessToken(storedAccess);
         }
     }, []);
+
+    useEffect(() => {
+        document.documentElement.dataset.theme = theme;
+        localStorage.setItem('theme', theme);
+    }, [theme]);
 
     const parseJwt = (token) => {
         try {
@@ -123,10 +128,13 @@ function App() {
         setAuthTokens(null);
     };
 
-    // Условный рендеринг: показываем либо чат, либо страницу авторизации
+    const toggleTheme = () => {
+        setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    };
+
     return (
         isLoggedIn
-            ? <ChatPage accessToken={accessToken} getAccessToken={getAccessToken} onLogout={logout} />
+            ? <ChatPage accessToken={accessToken} getAccessToken={getAccessToken} onLogout={logout} theme={theme} onToggleTheme={toggleTheme} />
             : <AuthPage onLoginSuccess={handleLoginSuccess} />
     );
 }

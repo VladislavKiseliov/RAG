@@ -103,13 +103,14 @@ class PostgresAlchemy(DataBase):
             raise Exception(f"Database error when adding message: {str(e)}")
 
     def get_chat_messages(
-            self, db: Session, chat_id: uuid.UUID, limit: Optional[int] = None
+            self, db: Session, chat_id: uuid.UUID,user_id:uuid.UUID, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Get chat message history."""
         try:
             stmt = (
                 select(Messages)
-                .filter_by(chat_id=chat_id)
+                .join(Chats, Messages.chat_id == Chats.chat_id)
+                .filter(Messages.chat_id == chat_id, Chats.user_id == user_id)
                 .order_by(Messages.created_at)
                 .limit(limit or None)
             )

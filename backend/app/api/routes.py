@@ -18,37 +18,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-try:
-    from ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
-    from ServiceDataBase.app.implementations.Qdrant import QdrantManager
-    from ServiceDataBase.app.models.database_models import Chats
-except ModuleNotFoundError as exc:
-    if exc.name != "ServiceDataBase":
-        raise
-    from backend.ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
-    from backend.ServiceDataBase.app.implementations.Qdrant import QdrantManager
-    from backend.ServiceDataBase.app.models.database_models import Chats
+import sys
+import os
 
-try:
-    from app.config import INGESTION_SERVICE_URL, QDRANT_URL, COLLECTION_NAME
-    from app.core.initialization import (
-        initialization_llm,
-        initialization_embenddings_model,
-        initialization_prompt_template,
-    )
-    from app.core.rag_pipeline import setup_rag_chain, answer_question
-    from app.sevices.security import Auth, oauth2_scheme
-except ModuleNotFoundError as exc:
-    if exc.name != "app":
-        raise
-    from backend.app.config import INGESTION_SERVICE_URL, QDRANT_URL, COLLECTION_NAME
-    from backend.app.core.initialization import (
-        initialization_llm,
-        initialization_embenddings_model,
-        initialization_prompt_template,
-    )
-    from backend.app.core.rag_pipeline import setup_rag_chain, answer_question
-    from backend.app.sevices.security import Auth, oauth2_scheme
+# Получаем путь к директории backend
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, backend_dir)
+
+from ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
+# from ServiceDataBase.app.implementations.Qdrant import QdrantManager
+from ServiceDataBase.app.models.database_models import Chats
+
+from app.config import INGESTION_SERVICE_URL, QDRANT_URL, COLLECTION_NAME
+from app.core.initialization import initialization_llm, initialization_embenddings_model, initialization_prompt_template
+from app.core.rag_pipeline import setup_rag_chain, answer_question
+from app.sevices.security import Auth, oauth2_scheme
 
 
 # Создаем роутер для всех эндпоинтов
@@ -67,27 +51,27 @@ auth = Auth(SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES)
 _qa_chain = None
 
 
-def get_qa_chain():
-    global _qa_chain
-    if _qa_chain is not None:
-        return _qa_chain
-
-    if not QDRANT_URL:
-        raise HTTPException(status_code=500, detail="QDRANT_URL is not set")
-
-    embeddings = initialization_embenddings_model()
-    llm = initialization_llm()
-    prompt_template = initialization_prompt_template()
-
-    qdrant_manager = QdrantManager(
-        embeddings=embeddings,
-        collection_name=COLLECTION_NAME,
-        qdrant_url=QDRANT_URL,
-    )
-    retriever = qdrant_manager.get_retriever()
-
-    _qa_chain = setup_rag_chain(llm=llm, retriever=retriever, prompt_template=prompt_template)
-    return _qa_chain
+# def get_qa_chain():
+#     global _qa_chain
+#     if _qa_chain is not None:
+#         return _qa_chain
+#
+#     if not QDRANT_URL:
+#         raise HTTPException(status_code=500, detail="QDRANT_URL is not set")
+#
+#     embeddings = initialization_embenddings_model()
+#     llm = initialization_llm()
+#     prompt_template = initialization_prompt_template()
+#
+#     qdrant_manager = QdrantManager(
+#         embeddings=embeddings,
+#         collection_name=COLLECTION_NAME,
+#         qdrant_url=QDRANT_URL,
+#     )
+#     retriever = qdrant_manager.get_retriever()
+#
+#     _qa_chain = setup_rag_chain(llm=llm, retriever=retriever, prompt_template=prompt_template)
+#     return _qa_chain
 
 def parse_uuid(value: str, field_name: str) -> uuid.UUID:
     # Единая проверка UUID и возврат 400 при ошибке.
@@ -157,12 +141,9 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)) -> Dict[str, A
     """
      Этот маршрут проверяет учетные данные пользователя и возвращает JWT токен, если данные правильные.
     """
-
-    print(f"Пользователь {user_data.username} и пароль {user_data.password}")
     try:
         # Получить пользователя из БД.
         user = postgres.get_user_by_login(db, user_data.username)
-        print(f"Пользователь {user_data.username} и пароль {user_data.password}")
 
         # Пытаемся получить токен
         if not user:
@@ -173,16 +154,13 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)) -> Dict[str, A
 
         # Аутентифицируем пользователя
         jwt_token = auth.authenticate_user(str(user.id), user.password, user_data.password)
-        print(jwt_token)
         if not jwt_token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
-        print(jwt_token)
-        print(f"ID из токена = {auth.get_user_from_token(jwt_token)}")
+
         refresh_token = secrets.token_urlsafe(48)
         refresh_expires = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         postgres.add_refresh_token(db, user.id, refresh_token, refresh_expires)
@@ -194,8 +172,6 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)) -> Dict[str, A
             "token_type": "bearer",
         }
     except Exception as e:
-        print(f"Login error: {e}")
-        # Возвращаем HTTP-код 401 Unauthorized
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
@@ -299,7 +275,6 @@ def ingest_documents(
 @router.post("/api/conversations")
 def create_conversation(current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
     """Создает новый пустой диалог и возвращает его ID, используя константный user_id."""
-    # user_id = current_user
 
     if not current_user:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -340,16 +315,11 @@ def get_conversation_history(conversation_id: str, current_user: str = Depends(a
     try:
         chat_uuid = parse_uuid(conversation_id, 'conversation_id')
         user_uuid = parse_uuid(current_user, 'user_id')
+        # chat = postgres.get_chat_messages(db, chat_uuid, user_uuid)
+        # if not chat:
+        #     raise HTTPException(status_code=404, detail=f"Диалог {conversation_id} не найден")
 
-        chat = (
-            db.query(Chats)
-            .filter(Chats.chat_id == chat_uuid, Chats.user_id == user_uuid)
-            .first()
-        )
-        if not chat:
-            raise HTTPException(status_code=404, detail=f"Диалог {conversation_id} не найден")
-
-        result = postgres.get_chat_messages(db, chat_uuid)
+        result = postgres.get_chat_messages(db, chat_uuid,user_uuid)
         return {"history": result}
     except HTTPException:
         raise
@@ -363,7 +333,10 @@ def chat_endpoint(conversation_id: str, message: Message, current_user: str = De
     """Обрабатывает сообщение в рамках конкретного диалога (conversation_id)."""
 
     # # Проверка существования диалога
-    # if conversation_id not in conversations:
+    # chat_uuid = parse_uuid(conversation_id, 'conversation_id')
+    # user_uuid = parse_uuid(current_user, 'user_id')
+    # chat = postgres.get_chat_messages(db,chat_id= chat_uuid,user_id = user_uuid)
+    # if conversation_id not in chat:
     #     # В реальной ситуации здесь нужно проверить БД
     #     raise HTTPException(status_code=404, detail="Диалог не найден. Начните новый чат.")
 
@@ -377,11 +350,12 @@ def chat_endpoint(conversation_id: str, message: Message, current_user: str = De
     # Используем динамический conversation_id
     postgres.add_new_message(db, parse_uuid(conversation_id, 'conversation_id'), "user", user_message)
 
-    # 3. Получаем ответ от RAG-системы
-    qa_chain = get_qa_chain()
-    if not qa_chain:
-        raise HTTPException(status_code=500, detail="RAG chain is not initialized")
-    response_text = answer_question(user_message, qa_chain)
+    # # 3. Получаем ответ от RAG-системы
+    # qa_chain = get_qa_chain()
+    # if not qa_chain:
+    #     raise HTTPException(status_code=500, detail="RAG chain is not initialized")
+    # response_text = answer_question(user_message, qa_chain)
+    response_text = "привет"
 
     # 4. Сохраняем ответ ассистента в локальный словарь
     # assistant_msg_entry = {"role": "assistant", "content": response_text}
@@ -399,8 +373,6 @@ def chat_endpoint(conversation_id: str, message: Message, current_user: str = De
 # Обновить заголовок чата для авторизованного пользователя.
 @router.patch("/api/chats/{chat_id}/rename")
 def update_title_chat(chat_id: str, title_data: ChatUpdate, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
-    print(f"Updating title for chat_id: {chat_id}")
-    print(f"New title: {title_data.title}")
     result = postgres.update_chat_title(
         db,
         parse_uuid(chat_id, 'chat_id'),
@@ -419,16 +391,17 @@ def update_title_chat(chat_id: str, title_data: ChatUpdate, current_user: str = 
 # Удалить чат и его сообщения для авторизованного пользователя.
 @router.delete("/api/chats/{chat_id}")
 def delete_chat(chat_id: str, current_user: str = Depends(auth.get_user_from_token), db: Session = Depends(get_db)):
-    result = postgres.delete_chat(
-        db,
-        parse_uuid(chat_id, 'chat_id'),
-        parse_uuid(current_user, 'user_id'),
-    )
-    if not result:
-        raise HTTPException(status_code=404, detail="Chat not found or unauthorized")
-        
-    return {
-        "status": "success",
-        "message": "Chat deleted successfully"
-    }
+    chat_uuid = parse_uuid(chat_id, 'chat_id')
+    user_uuid = parse_uuid(current_user, 'user_id')
+
+    # Пытаемся удалить. Метод в postgres должен возвращать True/False
+    deleted = postgres.delete_chat(db, chat_id=chat_uuid, user_id=user_uuid)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Не удалось удалить чат. Возможно, он уже удален или доступ запрещен"
+        )
+
+    return {"status": "success", "message": "Чат успешно удален"}
 
