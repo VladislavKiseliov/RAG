@@ -1,17 +1,66 @@
 services:
+  postgres:
+    image: postgres:16
+    container_name: myapp_db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-myapp_db}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypassword}
+      PGDATA: ${PGDATA:-/var/lib/postgresql/data/pgdata}
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS:---encoding=UTF8}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./ServiceDataBase/init-scripts:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-myapp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_network
+
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: rag_backend
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg2://myuser:mypassword@postgres:5432/myapp_db}
-      INGESTION_SERVICE_URL: ${INGESTION_SERVICE_URL_DOCKER:-http://ingestion-api:8001}
+      RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
       QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rag-service:
+        condition: service_started
+    networks:
+      - rag_network
+
+  rag-service:
+    build:
+      context: .
+      dockerfile: rag_service/Dockerfile
+    container_name: rag_service
+    env_file:
+      - .env
+    environment:
+      RAG_DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+asyncpg://myuser:mypassword@postgres:5432/myapp_db}
+      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-BAAI/bge-m3}
+      HF_TOKEN: ${HF_TOKEN}
+    command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "${RAG_SERVICE_PORT:-8001}:8001"
     restart: unless-stopped
     networks:
       - rag_network
@@ -33,3 +82,6 @@ services:
 networks:
   rag_network:
     name: rag_network
+
+volumes:
+  postgres_data:

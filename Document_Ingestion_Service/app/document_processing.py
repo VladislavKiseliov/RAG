@@ -194,7 +194,7 @@ def extract_tables_from_pdf(file_path: str) -> TableData:
             pages="1-end",
             flavor="lattice",
             flag_size=True,
-            # Дополнительный параметр для лучшей обработки пустых ячеек (полезно для RAG)
+            # Дополнительный параметр для лучшей обработки пустых ячеек (полезно для rag_service)
             strip_text='\n'
         )
 

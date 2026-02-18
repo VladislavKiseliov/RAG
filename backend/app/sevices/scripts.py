@@ -5,17 +5,20 @@ import uuid
 from fastapi import HTTPException
 from urllib import request as urllib_request
 from urllib import error as urllib_error
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from backend.app.api.routes import SessionLocal
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://myuser:mypassword@localhost:5432/myapp_db")
+engine = create_engine(DATABASE_URL, echo=True)
+SessionLocal = sessionmaker(bind=engine)
+RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL") or os.getenv("INGESTION_SERVICE_URL") or "http://localhost:8001"
 
-INGESTION_SERVICE_URL = os.getenv("INGESTION_SERVICE_URL", "http://localhost:8001")
-
-def _call_rag_service(question: str, urllib_request=None) -> str:
-    if not INGESTION_SERVICE_URL:
-        raise HTTPException(status_code=500, detail="INGESTION_SERVICE_URL is not set")
+def _call_rag_service(question: str, urllib_request: object = None) -> str:
+    if not RAG_SERVICE_URL:
+        raise HTTPException(status_code=500, detail="RAG_SERVICE_URL is not set")
 
     payload = {"question": question}
-    url = f"{INGESTION_SERVICE_URL.rstrip('/')}/rag/answer"
+    url = f"{RAG_SERVICE_URL.rstrip('/')}/rag/answer"
     data = json.dumps(payload).encode("utf-8")
     req = urllib_request.Request(url, data=data, headers={"Content-Type": "application/json"})
 
@@ -28,12 +31,12 @@ def _call_rag_service(question: str, urllib_request=None) -> str:
         error_body = e.read().decode("utf-8") if e.fp else ""
         raise HTTPException(
             status_code=e.code,
-            detail=error_body or "RAG request failed",
+            detail=error_body or "rag_service request failed",
         )
     except urllib_error.URLError as e:
         raise HTTPException(
             status_code=502,
-            detail=f"RAG service unreachable: {e.reason}",
+            detail=f"rag_service service unreachable: {e.reason}",
         )
 
 def parse_uuid(value: str, field_name: str) -> uuid.UUID:

@@ -1,0 +1,71 @@
+from __future__ import annotations
+
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class DocumentStatus(str, enum.Enum):
+    processing = "processing"
+    completed = "completed"
+    error = "error"
+
+
+class Documents(Base):
+    __tablename__ = "documents"
+    __table_args__ = (
+        Index("ix_documents_file_hash", "file_hash"),
+        UniqueConstraint("file_hash", name="uq_documents_file_hash"),
+        {"schema": "rag_kernel"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Произвольные метаданные документа (JSONB)
+    meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[DocumentStatus] = mapped_column(
+        Enum(DocumentStatus, name="document_status_enum", schema="rag_kernel"),
+        nullable=False,
+        default=DocumentStatus.processing,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    parent_chunks: Mapped[list["ParentChunks"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class ParentChunks(Base):
+    __tablename__ = "parent_chunks"
+    __table_args__ = (
+        UniqueConstraint("doc_id", "chunk_index", name="uq_parent_chunks_doc_chunk_index"),
+        Index("ix_parent_chunks_doc_id", "doc_id"),
+        Index("ix_parent_chunks_chunk_index", "chunk_index"),
+        {"schema": "rag_kernel"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    doc_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("rag_kernel.documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    document: Mapped[Documents] = relationship(back_populates="parent_chunks")

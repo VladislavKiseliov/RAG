@@ -2,7 +2,7 @@
 # from sentence_transformers import SentenceTransformer
 #
 # token = "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"
-# model = SentenceTransformer("google/embeddinggemma-300m",token = token)
+# models = SentenceTransformer("google/embeddinggemma-300m",token = token)
 #
 # # Run inference with queries and documents
 # query = "Which planet is known as the Red Planet?"
@@ -12,13 +12,13 @@
 #     "Jupiter, the largest planet in our solar system, has a prominent red spot.",
 #     "Saturn, famous for its rings, is sometimes mistaken for the Red Planet."
 # ]
-# query_embeddings = model.encode_query(query)
-# document_embeddings = model.encode_document(documents)
+# query_embeddings = models.encode_query(query)
+# document_embeddings = models.encode_document(documents)
 # print(query_embeddings.shape, document_embeddings.shape)
 # # (768,) (4, 768)
 #
 # # Compute similarities to determine a ranking
-# similarities = model.similarity(query_embeddings, document_embeddings)
+# similarities = models.similarity(query_embeddings, document_embeddings)
 # print(similarities)
 # # tensor([[0.3011, 0.6359, 0.4930, 0.4889]])
 

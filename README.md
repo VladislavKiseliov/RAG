@@ -6,6 +6,10 @@ Advanced chat application with Retrieval-Augmented Generation (RAG) technology t
 
 This application implements a full-featured chat interface with persistent conversation history, document-based question answering, and a modern web interface. It uses the Google Gemini model for natural language processing and Qdrant for vector document retrieval.
 
+## Service Transition
+
+`Document_Ingestion_Service` is deprecated and being removed. The ingestion and RAG API surface is being moved to `rag_service`. Update your configs to use `RAG_SERVICE_URL` and the new `rag_service` container.
+
 ## Architecture
 
 ```mermaid

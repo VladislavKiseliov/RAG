@@ -21,8 +21,12 @@ from sqlalchemy.orm import sessionmaker
 import sys
 import os
 
-from backend.app.api.shemas import LoginRequest, RefreshRequest, LogoutRequest, IngestRequest, Message, ChatUpdate
-from backend.app.sevices.scripts import get_db, INGESTION_SERVICE_URL, parse_uuid, _call_rag_service
+try:
+    from backend.app.api.shemas import LoginRequest, RefreshRequest, LogoutRequest, IngestRequest, Message, ChatUpdate
+    from backend.app.sevices.scripts import get_db, RAG_SERVICE_URL, parse_uuid, _call_rag_service
+except ModuleNotFoundError:
+    from app.api.shemas import LoginRequest, RefreshRequest, LogoutRequest, IngestRequest, Message, ChatUpdate
+    from app.sevices.scripts import get_db, RAG_SERVICE_URL, parse_uuid, _call_rag_service
 
 # Получаем путь к директории backend
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -39,9 +43,9 @@ from app.sevices.security import Auth, oauth2_scheme
 router = APIRouter()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-SECRET_KEY = os.getenv("SECRET_KEY")  # Секретный ключ для подписи токена.
-ALGORITHM = os.getenv("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))  # Время жизни токена.
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")  # Секретный ключ для подписи токена.
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))  # Время жизни токена.
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 engine = create_engine(DATABASE_URL, echo=True)
@@ -139,40 +143,40 @@ def logout(request: LogoutRequest, db: Session = Depends(get_db)) -> Dict[str, A
 
 
 # Прокси в Document_Ingestion_Service для постановки задач на индексацию.
-@router.post("/api/ingest")
-def ingest_documents(
-    request: IngestRequest,
-    current_user: str = Depends(auth.get_user_from_token),
-) -> Dict[str, Any]:
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    if not INGESTION_SERVICE_URL:
-        raise HTTPException(status_code=500, detail="INGESTION_SERVICE_URL is not set")
-
-    payload = {
-        "path": request.path,
-        "collection": request.collection,
-        "metadata": request.metadata,
-    }
-    url = f"{INGESTION_SERVICE_URL.rstrip('/')}/ingest"
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib_request.Request(url, data=data, headers={"Content-Type": "application/json"})
-
-    try:
-        with urllib_request.urlopen(req, timeout=30) as response:
-            body = response.read().decode("utf-8")
-        return json.loads(body)
-    except urllib_error.HTTPError as e:
-        error_body = e.read().decode("utf-8") if e.fp else ""
-        raise HTTPException(
-            status_code=e.code,
-            detail=error_body or "Ingestion request failed",
-        )
-    except urllib_error.URLError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Ingestion service unreachable: {e.reason}",
-        )
+# @router.post("/api/ingest")
+# def ingest_documents(
+#     request: IngestRequest,
+#     current_user: str = Depends(auth.get_user_from_token),
+# ) -> Dict[str, Any]:
+#     if not current_user:
+#         raise HTTPException(status_code=401, detail="Unauthorized")
+#     if not RAG_SERVICE_URL:
+#         raise HTTPException(status_code=500, detail="RAG_SERVICE_URL is not set")
+#
+#     payload = {
+#         "path": request.path,
+#         "collection": request.collection,
+#         "metadata": request.metadata,
+#     }
+#     url = f"{RAG_SERVICE_URL.rstrip('/')}/ingest"
+#     data = json.dumps(payload).encode("utf-8")
+#     req = urllib_request.Request(url, data=data, headers={"Content-Type": "application/json"})
+#
+#     try:
+#         with urllib_request.urlopen(req, timeout=30) as response:
+#             body = response.read().decode("utf-8")
+#         return json.loads(body)
+#     except urllib_error.HTTPError as e:
+#         error_body = e.read().decode("utf-8") if e.fp else ""
+#         raise HTTPException(
+#             status_code=e.code,
+#             detail=error_body or "Ingestion request failed",
+#         )
+#     except urllib_error.URLError as e:
+#         raise HTTPException(
+#             status_code=502,
+#             detail=f"Ingestion service unreachable: {e.reason}",
+#         )
 
 # --- ЧАТЫ ---
 # Создать пустой чат для авторизованного пользователя.
@@ -241,7 +245,7 @@ def chat_endpoint(
     """
     Обрабатывает новое сообщение пользователя в рамках диалога.
 
-    Сохраняет сообщение пользователя → получает ответ от RAG → сохраняет ответ ассистента.
+    Сохраняет сообщение пользователя → получает ответ от rag_service → сохраняет ответ ассистента.
     Возвращает сгенерированный ответ.
     """
     user_message = message.user_message
@@ -250,27 +254,28 @@ def chat_endpoint(
         # Парсим UUID для безопасности
         conv_uuid = parse_uuid(conversation_id, "conversation_id")
         user_uuid = parse_uuid(current_user, "user_id")
-
-        # Проверка существования диалога
-        if not postgres.does_conversation_exist(db, chat_id=conv_uuid, user_id=user_uuid):
-            raise HTTPException(status_code=404, detail="Диалог не найден. Начните новый чат.")
+        print(1)
+        # # Проверка существования диалога
+        # if not postgres.does_conversation_exist(db, chat_id=conv_uuid, user_id=user_uuid):
+        #     raise HTTPException(status_code=404, detail="Диалог не найден. Начните новый чат.")
 
         # Сохраняем сообщение пользователя в БД
         postgres.add_new_message(db, conv_uuid, role="user", content=user_message)
-
-        # Получаем ответ от RAG-сервиса
+        print(2)
+        # Получаем ответ от rag_service-сервиса
         assistant_response = _call_rag_service(user_message)
-
+        # assistant_response = "Hi,can i help you?"
+        print(3)
         # Сохраняем ответ ассистента в БД
         postgres.add_new_message(db, conv_uuid, role="assistant", content=assistant_response)
-
+        print(4)
         # Возвращаем ответ клиенту
         return {"response": assistant_response}
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Некорректный формат данных: {str(e)}")
     except Exception as e:
-        # Логируем (если подключено)
+        print(e)
         # logger.error(f"Ошибка в диалоге {conversation_id}: {e}")
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
@@ -311,4 +316,5 @@ def delete_chat(chat_id: str, current_user: str = Depends(auth.get_user_from_tok
         )
 
     return {"status": "success", "message": "Чат успешно удален"}
+
 

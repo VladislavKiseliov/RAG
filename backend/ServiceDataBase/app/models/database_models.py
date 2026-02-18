@@ -10,6 +10,7 @@ class Base(DeclarativeBase):
 
 class Users(Base):
     __tablename__ = "users"
+    __table_args__ = ({"schema": "users_shema"},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -37,6 +38,7 @@ class Users(Base):
 
 class Chats(Base):
     __tablename__ = "chats"
+    __table_args__ = ({"schema": "users_shema"},)
 
     chat_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -45,7 +47,7 @@ class Chats(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('users.id', ondelete="CASCADE")  # БД удалит чат, если удален юзер
+        ForeignKey('users_shema.users.id', ondelete="CASCADE")  # БД удалит чат, если удален юзер
     )
     title: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
@@ -72,12 +74,13 @@ class Chats(Base):
 
 class Messages(Base):
     __tablename__ = "messages"
+    __table_args__ = ({"schema": "users_shema"},)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     chat_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         # ГЛАВНОЕ ИЗМЕНЕНИЕ: ondelete="CASCADE"
-        ForeignKey('chats.chat_id', ondelete="CASCADE"),
+        ForeignKey('users_shema.chats.chat_id', ondelete="CASCADE"),
         nullable=False
     )
     role: Mapped[str] = mapped_column(String(100))
@@ -93,11 +96,12 @@ class Messages(Base):
 
 class RefreshTokens(Base):
     __tablename__ = "refresh_tokens"
+    __table_args__ = ({"schema": "users_shema"},)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('users.id', ondelete="CASCADE")  # Токен удалится, если удален юзер
+        ForeignKey('users_shema.users.id', ondelete="CASCADE")  # Токен удалится, если удален юзер
     )
     token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

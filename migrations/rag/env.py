@@ -1,11 +1,11 @@
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-import sys
-from pathlib import Path
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -16,14 +16,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
+# add your models's MetaData object here
 # for 'autogenerate' support
-ROOT_DIR = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT_DIR))
+# from myapp import mymodel
+root_path = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(root_path))
+from rag_service.models import Base
+target_metadata = Base.metadata
 
-from ServiceDataBase.app.models.database_models import Base
-
-target_metadata = Base.metadata  # Alembic autogenerate uses this metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -54,7 +54,6 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
-
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
@@ -70,7 +69,15 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata,
+            # ВАЖНО: Уникальное имя таблицы версий для rag_service
+            version_table="alembic_version_rag",
+            # Включаем поддержку схем
+            include_schemas=True,
+            # Фильтр: Алембик видит ТОЛЬКО таблицы в схеме rag_kernel
+            include_object=lambda obj, name, type_, reflected, compare_to: \
+                not (type_ == "table" and obj.schema != "rag_kernel")
+
         )
 
         with context.begin_transaction():
