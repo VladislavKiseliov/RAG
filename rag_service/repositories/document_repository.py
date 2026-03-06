@@ -1,3 +1,5 @@
+﻿"""Repository layer for rag document and parent chunk persistence."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,37 +8,29 @@ from typing import Iterable
 
 import asyncpg
 from sqlalchemy import delete, func, insert, select, update
-from sqlalchemy.sql import Select
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import Select
 
 from rag_service.core.exceptions import DocumentAlreadyExists, DocumentNotFound
 from rag_service.models import DocumentStatus, Documents, ParentChunks
 
 
 class DocumentRepository:
-    """Инкапсулирует SQL-операции для схемы rag_kernel.
+    """Data access for `rag_kernel.documents` and `rag_kernel.parent_chunks`."""
 
-    ВАЖНО:
-    - Все операции выполняются через AsyncSession.
-    - Коммит/роллбек остаются на уровне оркестрации (сервис/внешний слой).
-    - Репозиторий не обращается к другим схемам.
-    """
     def __init__(self, session: AsyncSession) -> None:
+        """Bind repository to an existing async SQLAlchemy session."""
         self._session = session
 
     async def get_document_by_hash(self, file_hash: str) -> Documents | None:
-        """Возвращает документ по SHA-256 хэшу или None."""
-        result = await self._session.execute(
-            select(Documents).where(Documents.file_hash == file_hash)
-        )
+        """Return a document by SHA-256 hash, or `None` if absent."""
+        result = await self._session.execute(select(Documents).where(Documents.file_hash == file_hash))
         return result.scalar_one_or_none()
 
     async def get_document_by_id(self, doc_id: uuid.UUID) -> Documents | None:
-        """Возвращает документ по UUID или None."""
-        result = await self._session.execute(
-            select(Documents).where(Documents.id == doc_id)
-        )
+        """Return a document by UUID, or `None` if absent."""
+        result = await self._session.execute(select(Documents).where(Documents.id == doc_id))
         return result.scalar_one_or_none()
 
     async def list_documents(
@@ -49,7 +43,7 @@ class DocumentRepository:
         created_from: str | None = None,
         created_to: str | None = None,
     ) -> list[Documents]:
-        """Возвращает список документов с пагинацией и фильтрами."""
+        """List documents with pagination and optional filters."""
         query: Select = select(Documents)
 
         if status:
@@ -73,9 +67,10 @@ class DocumentRepository:
         *,
         doc_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
-        """Создает документ со статусом processing и делает flush для получения UUID.
+        """Create a document in `processing` status and return its id.
 
-        При гонке по уникальности file_hash переводит IntegrityError в DocumentAlreadyExists.
+        Raises:
+            DocumentAlreadyExists: When unique hash constraint is violated.
         """
         doc = Documents(
             id=doc_id or uuid.uuid4(),
@@ -96,27 +91,25 @@ class DocumentRepository:
             raise
         return doc.id
 
-    async def set_status(self, doc_id: uuid.UUID, status: DocumentStatus) -> None:
-        """Обновляет статус документа (completed/error)."""
-        await self._session.execute(
-            update(Documents)
-            .where(Documents.id == doc_id)
-            .values(status=status)
-        )
+    async def set_status(self, doc_id: uuid.UUID, status: DocumentStatus, *, chunk_count: int | None = None) -> None:
+        """Update document status and optionally its processed child chunk count."""
+        values: dict = {"status": status}
+        if chunk_count is not None:
+            values["chunk_count"] = chunk_count
+        await self._session.execute(update(Documents).where(Documents.id == doc_id).values(**values))
 
     async def delete_document(self, doc_id: uuid.UUID) -> None:
-        """Удаляет документ. Чанки удаляются через ON DELETE CASCADE."""
+        """Delete document row; linked parent chunks are removed by cascade."""
         await self._session.execute(delete(Documents).where(Documents.id == doc_id))
 
     async def get_full_text(self, doc_id: uuid.UUID) -> str:
-        """Собирает полный текст документа по chunk_index.
+        """Return concatenated parent texts ordered by chunk index.
 
-        Если чанков нет и документа не существует — поднимает DocumentNotFound.
+        Raises:
+            DocumentNotFound: If the document does not exist and no chunks are found.
         """
         result = await self._session.execute(
-            select(ParentChunks.content)
-            .where(ParentChunks.doc_id == doc_id)
-            .order_by(ParentChunks.chunk_index.asc())
+            select(ParentChunks.text).where(ParentChunks.doc_id == doc_id).order_by(ParentChunks.chunk_index.asc())
         )
         parts = [row[0] for row in result.all()]
         if not parts:
@@ -126,27 +119,30 @@ class DocumentRepository:
         return "\n".join(parts)
 
     async def get_max_chunk_index(self, doc_id: uuid.UUID) -> int | None:
-        """Возвращает максимальный chunk_index для документа (или None)."""
-        result = await self._session.execute(
-            select(func.max(ParentChunks.chunk_index)).where(ParentChunks.doc_id == doc_id)
-        )
+        """Return maximum parent chunk index for a document, or `None`."""
+        result = await self._session.execute(select(func.max(ParentChunks.chunk_index)).where(ParentChunks.doc_id == doc_id))
         return result.scalar_one()
+
+    async def get_parents_by_ids(self, parent_ids: list[str], *, doc_id: uuid.UUID | None = None) -> list[ParentChunks]:
+        """Return parent chunks by parent_id list, optionally filtered by document."""
+        if not parent_ids:
+            return []
+        query = select(ParentChunks).where(ParentChunks.parent_id.in_(parent_ids))
+        if doc_id is not None:
+            query = query.where(ParentChunks.doc_id == doc_id)
+        query = query.order_by(ParentChunks.chunk_index.asc())
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
 
     async def bulk_insert_chunks(
         self,
         doc_id: uuid.UUID,
         chunks: Iterable[dict],
-        *, 
+        *,
         batch_size: int | None = None,
         max_retries: int = 3,
     ) -> None:
-        """Массовая вставка чанков с ретраями по deadlock.
-
-        Требования:
-        - Мультистрочный INSERT (без одиночных инсёртов).
-        - Если чанков > 1000, вставка батчами 500–1000 записей.
-        - При DeadlockDetectedError повторяем через 0.5 сек.
-        """
+        """Bulk insert parent chunks in batches with retry on deadlocks."""
         chunk_list = list(chunks)
         if not chunk_list:
             return
@@ -156,13 +152,18 @@ class DocumentRepository:
         batch_size = max(500, min(1000, batch_size)) if len(chunk_list) > 1000 else batch_size
 
         def _prepare_rows(rows: list[dict]) -> list[dict]:
+            """Normalize incoming rows to DB column mapping."""
             prepared: list[dict] = []
             for row in rows:
                 prepared.append(
                     {
                         "id": row.get("id", uuid.uuid4()),
                         "doc_id": doc_id,
-                        "content": row["content"],
+                        "content": row["text"],
+                        "parent_id": row["parent_id"],
+                        "text": row["text"],
+                        "page_num": row.get("page_num"),
+                        "headers": row.get("headers"),
                         "chunk_index": row["chunk_index"],
                     }
                 )

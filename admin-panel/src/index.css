@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, sans-serif;
+  color: #1a1a2e;
+  background: #f8f9fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100vh;
+}
+
+body {
+  min-width: 1280px;
+  background: #f8f9fa;
+  color: #1a1a2e;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}

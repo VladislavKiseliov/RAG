@@ -5,6 +5,7 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 
+
 def create_engine(db_url: str, *, echo: bool = False) -> AsyncEngine:
     """Создает AsyncEngine для asyncpg.
 
@@ -18,7 +19,3 @@ def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessi
     return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
-async def session_scope(session_factory: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession, None]:
-    """Асинхронный контекстный генератор сессии."""
-    async with session_factory() as session:
-        yield session

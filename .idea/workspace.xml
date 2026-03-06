@@ -4,28 +4,35 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat(Document_Ingestion_Service): вынести прокси и модели в env, убрать хардкод из RAG-роутов&quot; \&#10;  -m &quot;Что сделано:&#10;  - добавлен отдельный шаблон окружения сервиса: Document_Ingestion_Service/.env.document;&#10;  - в app/config.py централизовано чтение переменных окружения:&#10;    GEMINI_API_KEY, HF_TOKEN, HTTP_PROXY, HTTPS_PROXY, NO_PROXY,&#10;    LLM_MODEL_NAME, EMBEDDING_MODEL_NAME;&#10;  - прокси-переменные теперь применяются через конфиг, без хардкода в роутере;&#10;  - в app/api/routes.py удален хардкод API-ключа и LLM-модели,&#10;    переход на значения из config/env;&#10;  - в app/services/rag_service.py удален хардкод LLM-модели,&#10;    использование LLM_MODEL_NAME и GEMINI_API_KEY из env;&#10;  - в app/document_processing.py модель эмбеддингов и HF token&#10;    переведены на конфиг (env-driven);">
-      <change afterPath="$PROJECT_DIR$/rag_service/rag_core_test/ChinkingEngine.py" afterDir="false" />
+    <list default="true" id="1bb6800b-f40b-4586-b094-dbd5c6453646" name="Changes" comment="feat(rag/db/infra): добавили rag_service, разнесли миграции, обновили ingest и infra&#10;&#10;- добавили новый пакет `rag_service` (api/core/db/models/providers/repositories/services) и `main.py`&#10;- добавили `.env.example` для `rag_service`&#10;- добавили движок чанкинга `rag_service/rag_core_test/ChinkingEngine.py`&#10;- добавили новые миграции Alembic: `migrations/users` и `migrations/rag`&#10;- перенастроили `alembic.ini` на мульти-секционную схему (`users`, `rag`) и локальный DB URL&#10;- удалили старые миграции `backend/alembic/*` (перенесли в `migrations/*`)&#10;- включили схему `users_shema` в ORM-моделях и поправили FK на schema-qualified таблицы&#10;- обновили `docker-compose.app.yml`: добавили `postgres`, `ingestion-api`, healthcheck, volume&#10;- обновили `backend/Dockerfile` на сборку из корня и запуск `backend.main:app`&#10;- обновили `backend/app/sevices/scripts.py`: добавили локальную DB-сессию и уточнили тексты ошибок rag_service&#10;- обновили `backend/app/api/routes.py`:&#10;  - добавили fallback-импорты для запуска из разных root&#10;  - задали дефолты для SECRET/ALGO/TTL&#10;  - отключили ingest endpoint (закомментирован)&#10;  - добавили отладочные print в чат-роут&#10;- расширили `Document_Ingestion_Service/app/tasks.py данный сервис готовиться к удалению,&#10;на его место встанет rag_service`:&#10;  - добавили parent/child процессинг документа&#10;  - добавили формирование payloads, метаданных, батч-эмбеддингов и upsert в Qdrant&#10;  - обновили `Document_Ingestion_Service/.env.document` и зависимости в `requirements.txt`&#10;- внесли мелкие правки: комментарий в `document_processing.py`, правки в `tests/OldFile/TestEmbendings.py`&#10;- добавили `frontend/.dockerignore`">
+      <change afterPath="$PROJECT_DIR$/rag_service/api/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rag_service/api/shemas.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rag_service/infrastructure.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rag_service/providers/LLM_provider.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rag_service/rag_core_test/132.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rag_service/services/Retriver.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rag_service/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/RagProgramm.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/RagProgramm.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/.env.document" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/.env.document" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/app/document_processing.py" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/app/document_processing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/app/tasks.py" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/app/tasks.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Document_Ingestion_Service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Document_Ingestion_Service/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/backend/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/ServiceDataBase/app/models/database_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/ServiceDataBase/app/models/database_models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic.ini" beforeDir="false" afterPath="$PROJECT_DIR$/alembic.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic/README" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic/env.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic/script.py.mako" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic/versions/3b0b6f4d8f4a_add_refresh_tokens.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic/versions/8f7c2eab9d12_expand_messages_content.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic/versions/b04e507d243d_add_cascade_delete.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/alembic/versions/eb1b60eff2e4_initial.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/api/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/api/routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/sevices/scripts.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/sevices/scripts.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.app.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.app.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/OldFile/TestEmbendings.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/TestEmbendings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/123.pdf" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/rag_core_test/123.pdf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/api/agent_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/api/agent_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/api/rag_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/api/rag_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/db/session.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/db/session.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/models/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/models/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/providers/embedding_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/providers/embedding_provider.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/providers/hf_embedding_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/providers/hf_embedding_provider.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/providers/qdrant_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/providers/qdrant_provider.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/providers/vector_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/providers/vector_provider.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/rag_core_test/ChinkingEngine.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/rag_core_test/ChinkingEngine.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/repositories/document_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/repositories/document_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/services/document_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/services/document_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rag_service/services/ingestion_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/rag_service/services/ingestion_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/OldFile/RagGoogle.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/OldFile/RagGoogle.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,7 +40,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="169" />
+    <option name="cachedIndexableFilesCount" value="20370" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -66,7 +73,7 @@
   }
 }</component>
   <component name="HttpClientEndpointsTabState">
-    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;8d7335394117e6718c1b89fe6209d52954e7b166&quot; value=&quot;###&amp;#10;POST http://localhost:8000/auth/refresh&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
+    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests /&gt;" />
   </component>
   <component name="HttpClientOnboardingState">{
   &quot;isOnboardingCommentShown&quot;: true
@@ -83,83 +90,86 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;Docker.ServiceDataBase: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.app.yml.backend: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.app.yml.frontend: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.app.yml.postgres: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.app.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.yml.postgres: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python tests.pytest in test_postgres_script.py.executor&quot;: &quot;Run&quot;,
-    &quot;Python.123.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Chanking.executor&quot;: &quot;Run&quot;,
-    &quot;Python.CheckModelGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.LongChain.executor&quot;: &quot;Run&quot;,
-    &quot;Python.Qdrant.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGogNew.executor&quot;: &quot;Run&quot;,
-    &quot;Python.RagGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.SQLITEAlchemy.executor&quot;: &quot;Run&quot;,
-    &quot;Python.SQLite.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestEmbendings.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestGoogle.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TestWorkChromadb.executor&quot;: &quot;Run&quot;,
-    &quot;Python.celery.executor&quot;: &quot;Run&quot;,
-    &quot;Python.celery_test.executor&quot;: &quot;Run&quot;,
-    &quot;Python.document_processing.executor&quot;: &quot;Run&quot;,
-    &quot;Python.enqueue_one.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.t_postgres_script.executor&quot;: &quot;Run&quot;,
-    &quot;Python.test.executor&quot;: &quot;Run&quot;,
-    &quot;Python.test2.executor&quot;: &quot;Run&quot;,
-    &quot;Python.test3.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testUUID.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testmodel.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
-    &quot;database.data.extractors.current.export.id&quot;: &quot;SQL Inserts&quot;,
-    &quot;database.data.extractors.current.id&quot;: &quot;SQL Inserts&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;qdrant&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Laboratoria/Rag OVER/RagProgramm/backend/app/api&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultHtmlFileTemplate": "HTML File",
+    "Docker.ServiceDataBase: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.app.yml.backend: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.app.yml.frontend: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.app.yml.postgres: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.app.yml: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml.postgres: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml.qdrant: Compose Deployment.executor": "Run",
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python tests.pytest in test_postgres_script.py.executor": "Run",
+    "Python.123.executor": "Run",
+    "Python.Chanking.executor": "Run",
+    "Python.CheckModelGoogle.executor": "Run",
+    "Python.ChinkingEngine.executor": "Run",
+    "Python.LongChain.executor": "Run",
+    "Python.Qdrant.executor": "Run",
+    "Python.RagGogNew.executor": "Run",
+    "Python.RagGoogle.executor": "Run",
+    "Python.SQLITEAlchemy.executor": "Run",
+    "Python.SQLite.executor": "Run",
+    "Python.TestEmbendings.executor": "Run",
+    "Python.TestGoogle.executor": "Run",
+    "Python.TestWorkChromadb.executor": "Run",
+    "Python.celery.executor": "Run",
+    "Python.celery_test.executor": "Run",
+    "Python.document_processing.executor": "Run",
+    "Python.enqueue_one.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.retriever_smoke_test.executor": "Run",
+    "Python.t_postgres_script.executor": "Run",
+    "Python.test.executor": "Run",
+    "Python.test2.executor": "Run",
+    "Python.test3.executor": "Run",
+    "Python.testUUID.executor": "Run",
+    "Python.testmodel.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "ai.playground.ignore.import.keys.banner.in.settings": "true",
+    "database.data.extractors.current.export.id": "SQL Inserts",
+    "database.data.extractors.current.id": "SQL Inserts",
+    "git-widget-placeholder": "qdrant",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "D:/Laboratoria/Rag OVER/RagProgramm/rag_service/rag_core_test",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
+    "vue.rearranger.settings.migration": "true"
   },
-  &quot;keyToStringList&quot;: {
-    &quot;DatabaseDriversLRU&quot;: [
-      &quot;postgresql&quot;
+  "keyToStringList": {
+    "DatabaseDriversLRU": [
+      "postgresql"
     ]
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Laboratoria\Rag OVER\RagProgramm\rag_service\rag_core_test" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\backend\app\api" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\ServiceDataBase" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\Document_Ingestion_Service\app" />
       <recent name="C:\Users\RGG\Desktop\RagProgramm\worker\app" />
-      <recent name="C:\Users\RGG\Desktop\RagProgramm\tests\PDF_Processing" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\Laboratoria\Rag OVER\RagProgramm\rag_service\api" />
+      <recent name="D:\Laboratoria\Rag OVER\RagProgramm\rag_service\rag_core_test" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\rag_service" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm\RAG\models" />
       <recent name="D:\Laboratoria\Rag OVER\RagProgramm" />
-      <recent name="D:\Laboratoria\Rag OVER\RagProgramm\migrations\users" />
-      <recent name="D:\Laboratoria\Rag OVER\RagProgramm\Document_Ingestion_Service\test" />
     </key>
   </component>
-  <component name="RunManager" selected="Docker.docker-compose.app.yml: Compose Deployment">
+  <component name="RunManager">
     <configuration default="true" type="docker-deploy" factoryName="docker-compose.yml" temporary="true">
       <deployment type="docker-compose.yml">
         <settings />
@@ -213,12 +223,12 @@
       </deployment>
       <method v="2" />
     </configuration>
-    <configuration name="docker-compose.yml.postgres: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+    <configuration name="docker-compose.yml.qdrant: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
       <deployment type="docker-compose.yml">
         <settings>
           <option name="services">
             <list>
-              <option value="postgres" />
+              <option value="qdrant" />
             </list>
           </option>
           <option name="sourceFilePath" value="docker-compose.yml" />
@@ -228,18 +238,17 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Docker.docker-compose.yml.qdrant: Compose Deployment" />
         <item itemvalue="Docker.docker-compose.app.yml: Compose Deployment" />
         <item itemvalue="Docker.docker-compose.app.yml.postgres: Compose Deployment" />
         <item itemvalue="Docker.docker-compose.app.yml.frontend: Compose Deployment" />
         <item itemvalue="Docker.docker-compose.app.yml.backend: Compose Deployment" />
-        <item itemvalue="Docker.docker-compose.yml.postgres: Compose Deployment" />
       </list>
     </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-PY-253.30387.173" />
         <option value="bundled-python-sdk-4762d8aabb82-6d6dccd035ac-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.30387.173" />
       </set>
     </attachedChunks>
@@ -305,7 +314,9 @@
       <workItem from="1771385832589" duration="1358000" />
       <workItem from="1771396214306" duration="312000" />
       <workItem from="1771396646320" duration="4940000" />
-      <workItem from="1771415021486" duration="459000" />
+      <workItem from="1771415021486" duration="1710000" />
+      <workItem from="1771487017804" duration="186000" />
+      <workItem from="1771567626804" duration="11000" />
     </task>
     <task id="LOCAL-00001" summary="Update:New requirements.txt">
       <option name="closed" value="true" />
@@ -611,7 +622,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770985760729</updated>
     </task>
-    <option name="localTasksCounter" value="39" />
+    <task id="LOCAL-00039" summary="feat(rag/db/infra): добавили rag_service, разнесли миграции, обновили ingest и infra&#10;&#10;- добавили новый пакет `rag_service` (api/core/db/models/providers/repositories/services) и `main.py`&#10;- добавили `.env.example` для `rag_service`&#10;- добавили движок чанкинга `rag_service/rag_core_test/ChinkingEngine.py`&#10;- добавили новые миграции Alembic: `migrations/users` и `migrations/rag`&#10;- перенастроили `alembic.ini` на мульти-секционную схему (`users`, `rag`) и локальный DB URL&#10;- удалили старые миграции `backend/alembic/*` (перенесли в `migrations/*`)&#10;- включили схему `users_shema` в ORM-моделях и поправили FK на schema-qualified таблицы&#10;- обновили `docker-compose.app.yml`: добавили `postgres`, `ingestion-api`, healthcheck, volume&#10;- обновили `backend/Dockerfile` на сборку из корня и запуск `backend.main:app`&#10;- обновили `backend/app/sevices/scripts.py`: добавили локальную DB-сессию и уточнили тексты ошибок rag_service&#10;- обновили `backend/app/api/routes.py`:&#10;  - добавили fallback-импорты для запуска из разных root&#10;  - задали дефолты для SECRET/ALGO/TTL&#10;  - отключили ingest endpoint (закомментирован)&#10;  - добавили отладочные print в чат-роут&#10;- расширили `Document_Ingestion_Service/app/tasks.py данный сервис готовиться к удалению,&#10;на его место встанет rag_service`:&#10;  - добавили parent/child процессинг документа&#10;  - добавили формирование payloads, метаданных, батч-эмбеддингов и upsert в Qdrant&#10;  - обновили `Document_Ingestion_Service/.env.document` и зависимости в `requirements.txt`&#10;- внесли мелкие правки: комментарий в `document_processing.py`, правки в `tests/OldFile/TestEmbendings.py`&#10;- добавили `frontend/.dockerignore`">
+      <option name="closed" value="true" />
+      <created>1771416298343</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1771416298343</updated>
+    </task>
+    <option name="localTasksCounter" value="40" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -671,7 +690,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Update: main.py updated to work with user_id" />
     <MESSAGE value="ADD : .env.example file for user environment variables" />
     <MESSAGE value="UPDATE : filename interface for SQLite.py&#10;ADD : New interface for work with vector database&#10;refactor(qdrant): move docs path to QdrantManager.__init__ for better encapsulation" />
     <MESSAGE value="Updated : dependencies&#10;Added :  table creation via SQLAlchemy" />
@@ -696,7 +714,8 @@
     <MESSAGE value="fix: приведение импортов, зависимостей и docker к рабочему виду&#10;&#10;- добавлены fallback‑импорты для backend и db модулей&#10;- исправлена выдача истории для пустых чатов&#10;- поправлены импорты rag chain под langchain_classic&#10;- обновлены зависимости langchain и помечен pywin32 только для Windows&#10;- backend Dockerfile переведен на requirements.txt&#10;- Vite dev закреплен на 127.0.0.1&#10;- убрана версия compose и лишние depends_on в app compose" />
     <MESSAGE value="fix: Наладили работу с базой исправили ошибки создания новых  чатов и немного исправлен ддизайн" />
     <MESSAGE value="feat(Document_Ingestion_Service): вынести прокси и модели в env, убрать хардкод из RAG-роутов&quot; \&#10;  -m &quot;Что сделано:&#10;  - добавлен отдельный шаблон окружения сервиса: Document_Ingestion_Service/.env.document;&#10;  - в app/config.py централизовано чтение переменных окружения:&#10;    GEMINI_API_KEY, HF_TOKEN, HTTP_PROXY, HTTPS_PROXY, NO_PROXY,&#10;    LLM_MODEL_NAME, EMBEDDING_MODEL_NAME;&#10;  - прокси-переменные теперь применяются через конфиг, без хардкода в роутере;&#10;  - в app/api/routes.py удален хардкод API-ключа и LLM-модели,&#10;    переход на значения из config/env;&#10;  - в app/services/rag_service.py удален хардкод LLM-модели,&#10;    использование LLM_MODEL_NAME и GEMINI_API_KEY из env;&#10;  - в app/document_processing.py модель эмбеддингов и HF token&#10;    переведены на конфиг (env-driven);" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(Document_Ingestion_Service): вынести прокси и модели в env, убрать хардкод из RAG-роутов&quot; \&#10;  -m &quot;Что сделано:&#10;  - добавлен отдельный шаблон окружения сервиса: Document_Ingestion_Service/.env.document;&#10;  - в app/config.py централизовано чтение переменных окружения:&#10;    GEMINI_API_KEY, HF_TOKEN, HTTP_PROXY, HTTPS_PROXY, NO_PROXY,&#10;    LLM_MODEL_NAME, EMBEDDING_MODEL_NAME;&#10;  - прокси-переменные теперь применяются через конфиг, без хардкода в роутере;&#10;  - в app/api/routes.py удален хардкод API-ключа и LLM-модели,&#10;    переход на значения из config/env;&#10;  - в app/services/rag_service.py удален хардкод LLM-модели,&#10;    использование LLM_MODEL_NAME и GEMINI_API_KEY из env;&#10;  - в app/document_processing.py модель эмбеддингов и HF token&#10;    переведены на конфиг (env-driven);" />
+    <MESSAGE value="feat(rag/db/infra): добавили rag_service, разнесли миграции, обновили ingest и infra&#10;&#10;- добавили новый пакет `rag_service` (api/core/db/models/providers/repositories/services) и `main.py`&#10;- добавили `.env.example` для `rag_service`&#10;- добавили движок чанкинга `rag_service/rag_core_test/ChinkingEngine.py`&#10;- добавили новые миграции Alembic: `migrations/users` и `migrations/rag`&#10;- перенастроили `alembic.ini` на мульти-секционную схему (`users`, `rag`) и локальный DB URL&#10;- удалили старые миграции `backend/alembic/*` (перенесли в `migrations/*`)&#10;- включили схему `users_shema` в ORM-моделях и поправили FK на schema-qualified таблицы&#10;- обновили `docker-compose.app.yml`: добавили `postgres`, `ingestion-api`, healthcheck, volume&#10;- обновили `backend/Dockerfile` на сборку из корня и запуск `backend.main:app`&#10;- обновили `backend/app/sevices/scripts.py`: добавили локальную DB-сессию и уточнили тексты ошибок rag_service&#10;- обновили `backend/app/api/routes.py`:&#10;  - добавили fallback-импорты для запуска из разных root&#10;  - задали дефолты для SECRET/ALGO/TTL&#10;  - отключили ingest endpoint (закомментирован)&#10;  - добавили отладочные print в чат-роут&#10;- расширили `Document_Ingestion_Service/app/tasks.py данный сервис готовиться к удалению,&#10;на его место встанет rag_service`:&#10;  - добавили parent/child процессинг документа&#10;  - добавили формирование payloads, метаданных, батч-эмбеддингов и upsert в Qdrant&#10;  - обновили `Document_Ingestion_Service/.env.document` и зависимости в `requirements.txt`&#10;- внесли мелкие правки: комментарий в `document_processing.py`, правки в `tests/OldFile/TestEmbendings.py`&#10;- добавили `frontend/.dockerignore`" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(rag/db/infra): добавили rag_service, разнесли миграции, обновили ingest и infra&#10;&#10;- добавили новый пакет `rag_service` (api/core/db/models/providers/repositories/services) и `main.py`&#10;- добавили `.env.example` для `rag_service`&#10;- добавили движок чанкинга `rag_service/rag_core_test/ChinkingEngine.py`&#10;- добавили новые миграции Alembic: `migrations/users` и `migrations/rag`&#10;- перенастроили `alembic.ini` на мульти-секционную схему (`users`, `rag`) и локальный DB URL&#10;- удалили старые миграции `backend/alembic/*` (перенесли в `migrations/*`)&#10;- включили схему `users_shema` в ORM-моделях и поправили FK на schema-qualified таблицы&#10;- обновили `docker-compose.app.yml`: добавили `postgres`, `ingestion-api`, healthcheck, volume&#10;- обновили `backend/Dockerfile` на сборку из корня и запуск `backend.main:app`&#10;- обновили `backend/app/sevices/scripts.py`: добавили локальную DB-сессию и уточнили тексты ошибок rag_service&#10;- обновили `backend/app/api/routes.py`:&#10;  - добавили fallback-импорты для запуска из разных root&#10;  - задали дефолты для SECRET/ALGO/TTL&#10;  - отключили ingest endpoint (закомментирован)&#10;  - добавили отладочные print в чат-роут&#10;- расширили `Document_Ingestion_Service/app/tasks.py данный сервис готовиться к удалению,&#10;на его место встанет rag_service`:&#10;  - добавили parent/child процессинг документа&#10;  - добавили формирование payloads, метаданных, батч-эмбеддингов и upsert в Qdrant&#10;  - обновили `Document_Ingestion_Service/.env.document` и зависимости в `requirements.txt`&#10;- внесли мелкие правки: комментарий в `document_processing.py`, правки в `tests/OldFile/TestEmbendings.py`&#10;- добавили `frontend/.dockerignore`" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/RagProgramm$t_postgres_script.coverage" NAME="t_postgres_script Coverage Results" MODIFIED="1770805501845" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />

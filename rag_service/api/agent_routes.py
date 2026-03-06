@@ -3,38 +3,13 @@
 import os
 
 import httpx
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException
+
+from rag_service.api.shemas import AskResponse, AskRequest, SearchResponse, SearchRequest
 
 router = APIRouter(prefix="/rag", tags=["agent"])
 
 DEFAULT_TIMEOUT = float(os.getenv("LLM_API_TIMEOUT", "60"))
-
-
-class AskRequest(BaseModel):
-    question: str = Field(..., min_length=1)
-
-
-class AskResponse(BaseModel):
-    answer: str
-
-
-def _get_llm_config() -> tuple[str, dict, dict]:
-    url = os.getenv("LLM_API_URL")
-    if not url:
-        raise HTTPException(status_code=500, detail="LLM_API_URL is not set")
-
-    headers = {"Content-Type": "application/json"}
-    api_key = os.getenv("LLM_API_KEY")
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    payload: dict = {}
-    model = os.getenv("LLM_MODEL")
-    if model:
-        payload["model"] = model
-
-    return url, headers, payload
 
 
 @router.post("/answer", response_model=AskResponse)
@@ -45,6 +20,7 @@ async def answer_question(request: AskRequest) -> AskResponse:
     try:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
             response = await client.post(url, json=payload, headers=headers)
+
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="LLM API timeout")
     except httpx.HTTPError as exc:
@@ -60,3 +36,26 @@ async def answer_question(request: AskRequest) -> AskResponse:
 
     answer = data.get("answer") or data.get("text") or data.get("response") or ""
     return AskResponse(answer=answer)
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_endpoint(payload: SearchRequest) -> SearchResponse:
+    """Retrieve relevant chunks and return LLM answer grounded in document context."""
+    doc_uuid: uuid.UUID | None = None
+    if payload.doc_id:
+        try:
+            doc_uuid = uuid.UUID(payload.doc_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid doc_id")
+
+    try:
+        result = await _search_service.search(
+            query=payload.query,
+            top_k=payload.top_k,
+            doc_id=doc_uuid,
+            score_threshold=payload.score_threshold,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Search pipeline failed: {exc}")
+
+    return SearchResponse(**result)

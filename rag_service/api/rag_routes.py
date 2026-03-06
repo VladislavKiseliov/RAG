@@ -1,4 +1,6 @@
-﻿from __future__ import annotations
+﻿"""HTTP routes for document upload, ingestion status, listing, and deletion."""
+
+from __future__ import annotations
 
 import asyncio
 import os
@@ -7,22 +9,25 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from rag_service.services.ingestion_service import IngestionResult, IngestionService
-from rag_service.repositories.document_repository import DocumentRepository
-from rag_service.providers.vector_provider import NullVectorProvider
-from rag_service.providers.qdrant_provider import QdrantVectorProvider
-from rag_service.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
 from rag_service.db.session import create_engine, create_session_factory
 from rag_service.models import DocumentStatus
+from rag_service.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
+from rag_service.providers.local_embedding_provider import LocalEmbeddingProvider
+from rag_service.providers.qdrant_provider import QdrantVectorProvider
+from rag_service.providers.vector_provider import NullVectorProvider
+from rag_service.repositories.document_repository import DocumentRepository
+from rag_service.services.ingestion_service import IngestionResult, IngestionService
 
 
 def _to_int(value: str | None) -> int | None:
+    """Parse optional integer from environment variable value."""
     if value is None or value == "":
         return None
     try:
         return int(value)
     except ValueError:
         return None
+
 
 router = APIRouter(prefix="/documents", tags=["rag"])
 
@@ -36,6 +41,7 @@ ALLOWED_MIME = {
 
 
 def _derive_async_db_url() -> str:
+    """Derive asyncpg SQLAlchemy URL from configured DB environment variables."""
     db_url = os.getenv("RAG_DATABASE_URL") or os.getenv("DATABASE_URL")
     if not db_url:
         raise RuntimeError("DATABASE_URL or RAG_DATABASE_URL is not set")
@@ -50,11 +56,18 @@ def _derive_async_db_url() -> str:
 
 _async_engine = create_engine(_derive_async_db_url())
 _session_factory: async_sessionmaker[AsyncSession] = create_session_factory(_async_engine)
+
+
 def _build_vector_provider():
+    """Build Qdrant provider when env is configured, else return no-op provider."""
     qdrant_url = os.getenv("QDRANT_URL")
     collection = os.getenv("COLLECTION_NAME") or os.getenv("QDRANT_COLLECTION")
-    if qdrant_url and collection and os.getenv("HF_TOKEN") and os.getenv("EMBEDDING_MODEL_NAME"):
-        embedding = HuggingFaceEmbeddingProvider()
+    if qdrant_url and collection:
+        backend = (os.getenv("EMBEDDING_BACKEND") or "local").lower()
+        if backend == "hf":
+            embedding = HuggingFaceEmbeddingProvider(model=os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-m3"))
+        else:
+            embedding = LocalEmbeddingProvider(model=os.getenv("LOCAL_EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"))
         return QdrantVectorProvider(
             url=qdrant_url,
             collection=collection,
@@ -78,6 +91,7 @@ _ingestion_service = IngestionService(_session_factory, _vector_provider)
 
 
 async def _read_upload_file(file: UploadFile, max_bytes: int) -> bytes:
+    """Read uploaded file in chunks and enforce maximum size."""
     size = 0
     chunks: list[bytes] = []
     while True:
@@ -100,6 +114,8 @@ def _schedule_ingestion(
     meta: dict | None,
     doc_id: uuid.UUID,
 ) -> None:
+    """Schedule async ingestion task for large files."""
+
     async def _run() -> None:
         await _ingestion_service.ingest_bytes(
             filename=filename,
@@ -117,6 +133,7 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
 ):
+    """Upload a document and start ingestion (sync for small, async for large files)."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
     if file.content_type not in ALLOWED_MIME:
@@ -136,6 +153,7 @@ async def upload_document(
                 return {
                     "doc_id": str(existing.id),
                     "status": existing.status.value,
+                    "chunk_count": existing.chunk_count,
                 }
 
     doc_id = uuid.uuid4()
@@ -163,6 +181,7 @@ async def upload_document(
 
 @router.get("/status/{doc_id}")
 async def get_document_status(doc_id: str):
+    """Return status and metadata for a specific document id."""
     try:
         doc_uuid = uuid.UUID(doc_id)
     except ValueError:
@@ -176,6 +195,7 @@ async def get_document_status(doc_id: str):
         return {
             "doc_id": str(doc.id),
             "status": doc.status.value,
+            "chunk_count": doc.chunk_count,
             "filename": doc.filename,
             "created_at": doc.created_at,
         }
@@ -190,6 +210,7 @@ async def list_documents(
     created_from: str | None = None,
     created_to: str | None = None,
 ):
+    """List documents with pagination and optional filters."""
     if limit < 1 or limit > 1000:
         raise HTTPException(status_code=400, detail="Invalid limit")
     if offset < 0:
@@ -212,6 +233,7 @@ async def list_documents(
                 "filename": doc.filename,
                 "created_at": doc.created_at,
                 "file_hash": doc.file_hash,
+                "chunk_count": doc.chunk_count,
             }
             for doc in rows
         ]
@@ -219,6 +241,7 @@ async def list_documents(
 
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str):
+    """Delete document vectors and DB rows by document id."""
     try:
         doc_uuid = uuid.UUID(doc_id)
     except ValueError:

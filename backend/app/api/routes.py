@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 
@@ -54,6 +54,30 @@ postgres = PostgresAlchemy()
 auth = Auth(SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES)
 
 
+def _ensure_admin_flags_table(db: Session) -> None:
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS users_shema.admin_user_flags (
+              user_id uuid PRIMARY KEY REFERENCES users_shema.users(id) ON DELETE CASCADE,
+              is_blocked boolean NOT NULL DEFAULT false,
+              updated_at timestamptz NOT NULL DEFAULT now()
+            )
+            """
+        )
+    )
+    db.commit()
+
+
+def _is_user_blocked(db: Session, user_id: str) -> bool:
+    _ensure_admin_flags_table(db)
+    row = db.execute(
+        text("SELECT is_blocked FROM users_shema.admin_user_flags WHERE user_id = CAST(:user_id AS uuid)"),
+        {"user_id": user_id},
+    ).first()
+    return bool(row[0]) if row else False
+
+
 
 # --- АВТОРИЗАЦИЯ ---
 
@@ -75,6 +99,12 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)) -> Dict[str, A
             user = postgres.get_user_by_login(db, user_data.username)
 
         # Аутентифицируем пользователя
+        if _is_user_blocked(db, str(user.id)):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is blocked",
+            )
+
         jwt_token = auth.authenticate_user(str(user.id), user.password, user_data.password)
         if not jwt_token:
             raise HTTPException(
@@ -111,6 +141,9 @@ def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)) -> Dic
         raise HTTPException(status_code=401, detail="Refresh token expired")
 
     user_id = str(stored.user_id)
+    if _is_user_blocked(db, user_id):
+        raise HTTPException(status_code=401, detail="User is blocked")
+
     new_access = auth._create_jwt_token({"sub": user_id})
 
     postgres.revoke_refresh_token(db, request.refresh_token)
@@ -316,5 +349,6 @@ def delete_chat(chat_id: str, current_user: str = Depends(auth.get_user_from_tok
         )
 
     return {"status": "success", "message": "Чат успешно удален"}
+
 
 

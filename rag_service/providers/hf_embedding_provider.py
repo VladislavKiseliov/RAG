@@ -30,14 +30,19 @@ class HuggingFaceEmbeddingProvider(EmbeddingProvider):
         if not self._token:
             raise RuntimeError("HF_TOKEN is not set")
 
-        self._url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self._model}"
+        # Preferred modern endpoint for HF Inference providers.
+        self._router_url = f"https://router.huggingface.co/hf-inference/models/{self._model}"
+        # Legacy endpoint kept as fallback for backward compatibility.
+        self._legacy_url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self._model}"
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         headers = {"Authorization": f"Bearer {self._token}"}
         payload = {"inputs": texts}
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(self._url, json=payload, headers=headers)
+            resp = await client.post(self._router_url, json=payload, headers=headers)
+            if resp.status_code in {404, 410}:
+                resp = await client.post(self._legacy_url, json=payload, headers=headers)
         resp.raise_for_status()
 
         data: Any = resp.json()
