@@ -55,7 +55,6 @@ class DocumentService:
         return await self._repo.create_doc(safe_name, file_hash, meta, doc_id=doc_id)
 
     async def add_parent_chunks(self, doc_id: uuid.UUID, parents: list[dict]) -> None:
-        """Persist parent chunks for a document with auto-incremented chunk_index."""
         if not parents:
             return
 
@@ -66,8 +65,8 @@ class DocumentService:
         for idx, parent in enumerate(parents):
             rows.append(
                 {
-                    "parent_id": str(parent["parent_id"]),
-                    "text": str(parent["text"]),
+                    "id": parent["id"],
+                    "content": str(parent["text"]),
                     "page_num": str(parent.get("page_num") or ""),
                     "headers": parent.get("headers") or {},
                     "chunk_index": start_index + idx,

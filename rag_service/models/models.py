@@ -1,6 +1,4 @@
-﻿"""SQLAlchemy models for rag document ingestion state and stored parent chunks."""
-
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import enum
 import uuid
@@ -12,20 +10,16 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    """Base declarative class for RAG ORM models."""
+    pass
 
 
 class DocumentStatus(str, enum.Enum):
-    """Lifecycle states of an ingested document."""
-
     processing = "processing"
     completed = "completed"
     error = "error"
 
 
 class Documents(Base):
-    """Document metadata and ingestion status."""
-
     __tablename__ = "documents"
     __table_args__ = (
         Index("ix_documents_file_hash", "file_hash"),
@@ -47,7 +41,10 @@ class Documents(Base):
         nullable=False,
         server_default=func.now(),
     )
-    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+    # new fields
+    minio_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    chunk_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     parent_chunks: Mapped[list["ParentChunks"]] = relationship(
         back_populates="document",
@@ -57,14 +54,11 @@ class Documents(Base):
 
 
 class ParentChunks(Base):
-    """Parent chunks persisted in Postgres for provenance and reconstruction."""
-
     __tablename__ = "parent_chunks"
     __table_args__ = (
         UniqueConstraint("doc_id", "chunk_index", name="uq_parent_chunks_doc_chunk_index"),
         Index("ix_parent_chunks_doc_id", "doc_id"),
         Index("ix_parent_chunks_chunk_index", "chunk_index"),
-        Index("ix_parent_chunks_parent_id", "parent_id"),
         {"schema": "rag_kernel"},
     )
 
@@ -74,12 +68,11 @@ class ParentChunks(Base):
         ForeignKey("rag_kernel.documents.id", ondelete="CASCADE"),
         nullable=False,
     )
-    # Backward-compatible column from initial schema. Keep filled together with `text`.
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    parent_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    text: Mapped[str] = mapped_column(Text, nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # new fields
     page_num: Mapped[str | None] = mapped_column(String(32), nullable=True)
     headers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
     document: Mapped[Documents] = relationship(back_populates="parent_chunks")
