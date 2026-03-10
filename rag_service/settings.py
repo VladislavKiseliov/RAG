@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class RagSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="rag_service/.env",  # ← ищет в обоих местах
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -49,7 +49,19 @@ class RagSettings(BaseSettings):
     qdrant_path: str = "./qdrant_storage"    # QDRANT_PATH
     redis_url: str = "redis://localhost:6379/0"  # REDIS_URL
     max_context_chars: int = 12000
-    vector_timeout_seconds: float = 60.0
+    vector_timeout_seconds: float = 600.0
+
+    # MinIO
+    minio_url: str
+    minio_access_key: str
+    minio_secret_key: str
+    minio_bucket: str
+    minio_secure: bool
+
+    # Redis
+    redis_url:str
+
+
 
 
 settings = RagSettings()

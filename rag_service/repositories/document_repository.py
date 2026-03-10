@@ -159,9 +159,7 @@ class DocumentRepository:
                     {
                         "id": row.get("id", uuid.uuid4()),
                         "doc_id": doc_id,
-                        "content": row["text"],
-                        "parent_id": row["parent_id"],
-                        "text": row["text"],
+                        "content": row["content"],
                         "page_num": row.get("page_num"),
                         "headers": row.get("headers"),
                         "chunk_index": row["chunk_index"],

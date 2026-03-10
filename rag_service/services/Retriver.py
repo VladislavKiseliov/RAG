@@ -9,59 +9,9 @@ from typing import Protocol
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from rag_service.providers.LLM_provider import GeminiLLMProvider
 from rag_service.providers.vector_provider import VectorProvider
 from rag_service.repositories.document_repository import DocumentRepository
-
-
-
-
-class HttpLLMProvider:
-    """HTTP-based LLM provider using configured upstream API."""
-
-    def __init__(
-        self,
-        *,
-        url: str | None = None,
-        api_key: str | None = None,
-        model: str | None = None,
-        timeout: float | None = None,
-    ) -> None:
-        self._url = (url or os.getenv("LLM_API_URL") or "").strip()
-        self._api_key = api_key or os.getenv("LLM_API_KEY")
-        self._model = model or os.getenv("LLM_MODEL")
-        self._timeout = float(timeout or os.getenv("LLM_API_TIMEOUT") or 60)
-
-    async def generate(self, *, query: str, context: str) -> str:
-        """Generate answer via upstream LLM API; fallback to context-only response."""
-        if not context.strip():
-            return "Релевантный контекст в документах не найден."
-
-        if not self._url:
-            snippet = context[:1200]
-            return f"LLM_API_URL не настроен. Найденный контекст:\n\n{snippet}"
-
-        headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-
-        payload: dict = {
-            "question": query,
-            "context": context,
-            "system_prompt": (
-                "Отвечай только на основе переданного контекста. "
-                "Если ответа в контексте нет, прямо скажи об этом."
-            ),
-        }
-        if self._model:
-            payload["model"] = self._model
-
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(self._url, json=payload, headers=headers)
-        response.raise_for_status()
-
-        data = response.json()
-        answer = data.get("answer") or data.get("text") or data.get("response")
-        return str(answer or "")
 
 
 class SearchService:
@@ -72,7 +22,7 @@ class SearchService:
         *,
         session_factory: async_sessionmaker[AsyncSession],
         vector_provider: VectorProvider,
-        llm_provider: LLMProvider,
+        llm_provider: GeminiLLMProvider,
         max_context_chars: int = 12000,
     ) -> None:
         self._session_factory = session_factory
