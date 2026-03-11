@@ -40,7 +40,7 @@ class RagSettings(BaseSettings):
     # LLM
     # ──────────────────────────────────────────
     llm_provider: str = "groq"  # "groq" или "gemini"
-    groq_api_key: str
+    groq_api_key: str = "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"
     gemini_api_key: str = ""                 # GEMINI_API_KEY
     llm_model_name: str = "models/gemini-2.5-flash-lite"  # LLM_MODEL_NAME
 
