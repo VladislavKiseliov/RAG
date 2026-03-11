@@ -13,12 +13,12 @@ engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL") or os.getenv("INGESTION_SERVICE_URL") or "http://localhost:8001"
 
-def _call_rag_service(question: str, urllib_request: object = None) -> str:
+def _call_rag_service(question: str) -> str:
     if not RAG_SERVICE_URL:
         raise HTTPException(status_code=500, detail="RAG_SERVICE_URL is not set")
 
-    payload = {"question": question}
-    url = f"{RAG_SERVICE_URL.rstrip('/')}/rag/answer"
+    payload = {"query": question}  # ← было "question", стало "query"
+    url = f"{RAG_SERVICE_URL.rstrip('/')}/documents/ask"  # ← был /rag/answer, стал /documents/ask
     data = json.dumps(payload).encode("utf-8")
     req = urllib_request.Request(url, data=data, headers={"Content-Type": "application/json"})
 
@@ -29,15 +29,9 @@ def _call_rag_service(question: str, urllib_request: object = None) -> str:
         return response_json.get("answer", "")
     except urllib_error.HTTPError as e:
         error_body = e.read().decode("utf-8") if e.fp else ""
-        raise HTTPException(
-            status_code=e.code,
-            detail=error_body or "rag_service request failed",
-        )
+        raise HTTPException(status_code=e.code, detail=error_body or "rag_service request failed")
     except urllib_error.URLError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"rag_service service unreachable: {e.reason}",
-        )
+        raise HTTPException(status_code=502, detail=f"rag_service unreachable: {e.reason}")
 
 def parse_uuid(value: str, field_name: str) -> uuid.UUID:
     # Единая проверка UUID и возврат 400 при ошибке.

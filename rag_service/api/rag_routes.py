@@ -38,6 +38,28 @@ def _validate(filename: str, content_type: str | None) -> None:
     raise HTTPException(415, "Разрешены только PDF, TXT, DOCX")
 
 
+
+
+from pydantic import BaseModel
+from rag_service.services.Retriver import SearchService
+
+
+class AskRequest(BaseModel):
+    query: str
+
+
+@router.post("/ask")
+async def ask(body: AskRequest, request: Request):
+    if not body.query.strip():
+        raise HTTPException(400, "Вопрос не может быть пустым")
+
+    search_service: SearchService = request.app.state.search_service
+    result = await search_service.search(query=body.query)
+
+    return result
+
+
+
 @router.post("/upload-from-disk", status_code=status.HTTP_201_CREATED)
 async def upload_from_disk(request: Request):
     """Временный эндпоинт — грузит все файлы из docs/ в MinIO."""
@@ -92,25 +114,6 @@ async def upload_from_disk(request: Request):
         "files": results,
     }
 
-
-@router.post("/upload", status_code=status.HTTP_201_CREATED)
-async def upload_document(request: Request, file: UploadFile = File(...)):
-    if not file.filename:
-        raise HTTPException(400, "Имя файла обязательно")
-
-    _validate(file.filename, file.content_type)
-
-    content = await _read_file(file, MAX_FILE_SIZE)
-    if not content:
-        raise HTTPException(400, "Файл пустой")
-
-    service: IngestionService = request.app.state.ingestion_service
-    result = await service.ingest_bytes(
-        filename=file.filename,
-        content=content,
-    )
-
-    return {"doc_id": str(result.doc_id), "status": result.status.value}
 
 
 @router.get("/status/{doc_id}")

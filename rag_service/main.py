@@ -11,7 +11,7 @@ from rag_service.providers import minio_provider
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    engine, search_service, ingestion_service= build_rag_infrastructure()
+    engine, search_service, ingestion_service,minio_provider= build_rag_infrastructure()
     app.state.search_service = search_service
     app.state.ingestion_service = ingestion_service
     app.state.minio_provider = minio_provider

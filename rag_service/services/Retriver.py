@@ -109,7 +109,7 @@ class SearchService:
             rows = await repo.get_parents_by_ids(requested_parent_ids, doc_id=doc_id)
 
         # Индексируем строки для быстрого поиска
-        row_by_key = {(str(row.doc_id), str(row.parent_id)): row for row in rows}
+        row_by_key = {(str(row.doc_id), str(row.id)): row for row in rows}
 
         # Собираем sources в порядке релевантности
         sources: list[dict] = []
@@ -124,11 +124,12 @@ class SearchService:
                 continue
 
             payload = item["payload"]
+            print(f"{row=}")
             sources.append({
-                "parent_id": str(row.parent_id),
+                "parent_id": str(row.id),
                 "page_num": str(payload.get("page_num") or row.page_num or "N/A"),
                 "headers": payload.get("headers") or row.headers or {},
-                "text": row.text,  # ← полный текст из Postgres
+                "text": row.content,  # ← полный текст из Postgres
                 "score": round(float(item["score"]), 6),
             })
 
@@ -182,5 +183,5 @@ class SearchService:
 
         context = self._build_context(sources)
         answer = await self._llm_provider.generate(query=query, context=context)
-
+        # return {"query": query, "context": context}
         return {"answer": answer, "sources": sources}

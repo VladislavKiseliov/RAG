@@ -140,9 +140,9 @@ class QdrantVectorProvider(VectorProvider):
                 must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
             )
 
-        results = await self._client.search(
+        results = await self._client.query_points(
             collection_name=self._collection,
-            query_vector=vectors[0],
+            query=vectors[0],
             limit=max(1, top_k),
             score_threshold=score_threshold,
             query_filter=query_filter,
@@ -156,7 +156,7 @@ class QdrantVectorProvider(VectorProvider):
                 "score": float(r.score),
                 "payload": r.payload or {},
             }
-            for r in results
+            for r in results.points  # ← .points
         ]
 
     async def delete(self, doc_id: uuid.UUID) -> None:

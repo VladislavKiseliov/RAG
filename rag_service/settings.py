@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class RagSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="rag_service/.env",  # ← ищет в обоих местах
+        env_file=("rag_service/.env",".env"),  # ← ищет в обоих местах
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -39,6 +39,8 @@ class RagSettings(BaseSettings):
     # ──────────────────────────────────────────
     # LLM
     # ──────────────────────────────────────────
+    llm_provider: str = "groq"  # "groq" или "gemini"
+    groq_api_key: str = "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"
     gemini_api_key: str = ""                 # GEMINI_API_KEY
     llm_model_name: str = "models/gemini-2.5-flash-lite"  # LLM_MODEL_NAME
 

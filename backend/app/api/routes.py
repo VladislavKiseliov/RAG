@@ -25,18 +25,18 @@ try:
     from backend.app.api.shemas import LoginRequest, RefreshRequest, LogoutRequest, IngestRequest, Message, ChatUpdate
     from backend.app.sevices.scripts import get_db, RAG_SERVICE_URL, parse_uuid, _call_rag_service
 except ModuleNotFoundError:
-    from app.api.shemas import LoginRequest, RefreshRequest, LogoutRequest, IngestRequest, Message, ChatUpdate
-    from app.sevices.scripts import get_db, RAG_SERVICE_URL, parse_uuid, _call_rag_service
+    from backend.app.api.shemas import LoginRequest, RefreshRequest, LogoutRequest, IngestRequest, Message, ChatUpdate
+    from backend.app.sevices.scripts import get_db, RAG_SERVICE_URL, parse_uuid, _call_rag_service
 
 # Получаем путь к директории backend
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, backend_dir)
 
-from ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
+from backend.ServiceDataBase.app.implementations.PostgresAlchemy import PostgresAlchemy
 # from ServiceDataBase.app.implementations.Qdrant import QdrantManager
-from ServiceDataBase.app.models.database_models import Chats
+from backend.ServiceDataBase.app.models.database_models import Chats
 
-from app.sevices.security import Auth, oauth2_scheme
+from backend.app.sevices.security import Auth, oauth2_scheme
 
 
 # Создаем роутер для всех эндпоинтов

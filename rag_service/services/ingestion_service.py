@@ -16,7 +16,6 @@ from rag_service.core.exceptions import DocumentAlreadyExists
 from rag_service.models import DocumentStatus
 from rag_service.providers.vector_provider import VectorProvider
 from rag_service.rag_core_test.ChinkingEngine import DocumentProcessor
-from rag_service.repositories.document_repository import DocumentRepository
 from rag_service.services.document_service import DocumentService
 
 

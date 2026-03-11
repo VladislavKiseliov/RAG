@@ -41,16 +41,21 @@ def _build_vector_provider():
         wal_capacity_mb=settings.qdrant_wal_capacity_mb,
     )
 
+def _build_llm_provider():
+    if settings.llm_provider == "groq":
+        from rag_service.providers.LLM_provider import GroqLLMProvider
+        return GroqLLMProvider(api_key=settings.groq_api_key, model=settings.llm_model_name)
+    else:
+        from rag_service.providers.LLM_provider import GeminiLLMProvider
+        return GeminiLLMProvider(api_key=settings.gemini_api_key, model=settings.llm_model_name)
+
 def build_rag_infrastructure():
     engine = create_engine(settings.rag_database_url)
     session_factory = create_session_factory(engine)
     vector_provider = _build_vector_provider()
     minio_provider = _build_minio_provider()
+    llm_provider = _build_llm_provider()
 
-    llm_provider = GeminiLLMProvider(
-        api_key=settings.gemini_api_key,
-        model=settings.llm_model_name,
-    )
     search_service = SearchService(
         session_factory=session_factory,
         vector_provider=vector_provider,

@@ -127,7 +127,7 @@ class DocumentRepository:
         """Return parent chunks by parent_id list, optionally filtered by document."""
         if not parent_ids:
             return []
-        query = select(ParentChunks).where(ParentChunks.parent_id.in_(parent_ids))
+        query = select(ParentChunks).where(ParentChunks.id.in_(parent_ids))
         if doc_id is not None:
             query = query.where(ParentChunks.doc_id == doc_id)
         query = query.order_by(ParentChunks.chunk_index.asc())
