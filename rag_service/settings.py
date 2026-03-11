@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class RagSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=("rag_service/.env",".env"),  # ← ищет в обоих местах
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -39,8 +39,6 @@ class RagSettings(BaseSettings):
     # ──────────────────────────────────────────
     # LLM
     # ──────────────────────────────────────────
-    llm_provider: str = "groq"  # "groq" или "gemini"
-    groq_api_key: str = ""
     gemini_api_key: str = ""                 # GEMINI_API_KEY
     llm_model_name: str = "models/gemini-2.5-flash-lite"  # LLM_MODEL_NAME
 
@@ -51,19 +49,7 @@ class RagSettings(BaseSettings):
     qdrant_path: str = "./qdrant_storage"    # QDRANT_PATH
     redis_url: str = "redis://localhost:6379/0"  # REDIS_URL
     max_context_chars: int = 12000
-    vector_timeout_seconds: float = 600.0
-
-    # MinIO
-    minio_url: str
-    minio_access_key: str
-    minio_secret_key: str
-    minio_bucket: str
-    minio_secure: bool
-
-    # Redis
-    redis_url:str
-
-
+    vector_timeout_seconds: float = 60.0
 
 
 settings = RagSettings()
