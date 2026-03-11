@@ -1,268 +1,193 @@
-﻿"""HTTP routes for document upload, ingestion status, listing, and deletion."""
-
+﻿# rag_service/api/rag_routes.py
 from __future__ import annotations
 
-import asyncio
 import os
 import uuid
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, status
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from rag_service.db.session import create_engine, create_session_factory
-from rag_service.models import DocumentStatus
-from rag_service.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
-from rag_service.providers.local_embedding_provider import LocalEmbeddingProvider
-from rag_service.providers.qdrant_provider import QdrantVectorProvider
-from rag_service.providers.vector_provider import NullVectorProvider
+from rag_service.providers.minio_provider import MinioProvider
 from rag_service.repositories.document_repository import DocumentRepository
-from rag_service.services.ingestion_service import IngestionResult, IngestionService
+from rag_service.services.ingestion_service import IngestionService
+from rag_service.services.task import ingest_document_task
+router = APIRouter(prefix="/documents", tags=["documents"])
 
-
-def _to_int(value: str | None) -> int | None:
-    """Parse optional integer from environment variable value."""
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
-
-
-router = APIRouter(prefix="/documents", tags=["rag"])
-
-MAX_FILE_SIZE = 50 * 1024 * 1024
-SMALL_FILE_THRESHOLD = 2 * 1024 * 1024
-ALLOWED_MIME = {
+MAX_FILE_SIZE   = 50 * 1024 * 1024
+ALLOWED_MIME    = {
     "application/pdf",
     "text/plain",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
+ALLOWED_EXT     = (".pdf", ".txt", ".docx")
 
 
-def _derive_async_db_url() -> str:
-    """Derive asyncpg SQLAlchemy URL from configured DB environment variables."""
-    db_url = os.getenv("RAG_DATABASE_URL") or os.getenv("DATABASE_URL")
-    if not db_url:
-        raise RuntimeError("DATABASE_URL or RAG_DATABASE_URL is not set")
-    if db_url.startswith("postgresql+asyncpg://"):
-        return db_url
-    if db_url.startswith("postgresql://"):
-        return "postgresql+asyncpg://" + db_url[len("postgresql://") :]
-    if db_url.startswith("postgres://"):
-        return "postgresql+asyncpg://" + db_url[len("postgres://") :]
-    raise RuntimeError("Unsupported database URL scheme")
-
-
-_async_engine = create_engine(_derive_async_db_url())
-_session_factory: async_sessionmaker[AsyncSession] = create_session_factory(_async_engine)
-
-
-def _build_vector_provider():
-    """Build Qdrant provider when env is configured, else return no-op provider."""
-    qdrant_url = os.getenv("QDRANT_URL")
-    collection = os.getenv("COLLECTION_NAME") or os.getenv("QDRANT_COLLECTION")
-    if qdrant_url and collection:
-        backend = (os.getenv("EMBEDDING_BACKEND") or "local").lower()
-        if backend == "hf":
-            embedding = HuggingFaceEmbeddingProvider(model=os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-m3"))
-        else:
-            embedding = LocalEmbeddingProvider(model=os.getenv("LOCAL_EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"))
-        return QdrantVectorProvider(
-            url=qdrant_url,
-            collection=collection,
-            embedding_provider=embedding,
-            embedding_batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "64")),
-            upsert_batch_size=int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "64")),
-            max_retries=int(os.getenv("QDRANT_MAX_RETRIES", "3")),
-            retry_backoff=float(os.getenv("QDRANT_RETRY_BACKOFF", "0.5")),
-            hnsw_m=_to_int(os.getenv("QDRANT_HNSW_M")),
-            hnsw_ef_construct=_to_int(os.getenv("QDRANT_HNSW_EF_CONSTRUCT")),
-            optimizers_default_segment_number=_to_int(os.getenv("QDRANT_OPTIMIZERS_DEFAULT_SEGMENT_NUMBER")),
-            optimizers_memmap_threshold=_to_int(os.getenv("QDRANT_OPTIMIZERS_MEMMAP_THRESHOLD")),
-            optimizers_indexing_threshold=_to_int(os.getenv("QDRANT_OPTIMIZERS_INDEXING_THRESHOLD")),
-            wal_capacity_mb=_to_int(os.getenv("QDRANT_WAL_CAPACITY_MB")),
-        )
-    return NullVectorProvider()
-
-
-_vector_provider = _build_vector_provider()
-_ingestion_service = IngestionService(_session_factory, _vector_provider)
-
-
-async def _read_upload_file(file: UploadFile, max_bytes: int) -> bytes:
-    """Read uploaded file in chunks and enforce maximum size."""
-    size = 0
-    chunks: list[bytes] = []
-    while True:
-        data = await file.read(1024 * 1024)
-        if not data:
-            break
+async def _read_file(file: UploadFile, max_bytes: int) -> bytes:
+    size, chunks = 0, []
+    while data := await file.read(1024 * 1024):
         size += len(data)
         if size > max_bytes:
-            raise HTTPException(status_code=413, detail="File слишком большой")
+            raise HTTPException(413, "Файл слишком большой (макс 50MB)")
         chunks.append(data)
     return b"".join(chunks)
 
 
-def _schedule_ingestion(
-    *,
-    background_tasks: BackgroundTasks,
-    filename: str,
-    content: bytes,
-    content_type: str | None,
-    meta: dict | None,
-    doc_id: uuid.UUID,
-) -> None:
-    """Schedule async ingestion task for large files."""
+def _validate(filename: str, content_type: str | None) -> None:
+    if content_type in ALLOWED_MIME:
+        return
+    if any(filename.lower().endswith(ext) for ext in ALLOWED_EXT):
+        return
+    raise HTTPException(415, "Разрешены только PDF, TXT, DOCX")
 
-    async def _run() -> None:
-        await _ingestion_service.ingest_bytes(
+
+
+
+from pydantic import BaseModel
+from rag_service.services.Retriver import SearchService
+
+
+class AskRequest(BaseModel):
+    query: str
+
+
+@router.post("/ask")
+async def ask(body: AskRequest, request: Request):
+    if not body.query.strip():
+        raise HTTPException(400, "Вопрос не может быть пустым")
+
+    search_service: SearchService = request.app.state.search_service
+    result = await search_service.search(query=body.query)
+
+    return result
+
+
+
+@router.post("/upload-from-disk", status_code=status.HTTP_201_CREATED)
+async def upload_from_disk(request: Request):
+    """Временный эндпоинт — грузит все файлы из docs/ в MinIO."""
+
+    docs_dir = os.path.join(os.getcwd(), "docs")
+
+    if not os.path.exists(docs_dir):
+        raise HTTPException(status_code=404, detail="Директория docs/ не найдена")
+
+    allowed_ext = (".pdf", ".txt", ".docx")
+    files = [
+        f for f in os.listdir(docs_dir)
+        if os.path.isfile(os.path.join(docs_dir, f))
+           and f.lower().endswith(allowed_ext)
+    ]
+
+    if not files:
+        raise HTTPException(status_code=404, detail="Файлы не найдены в docs/")
+
+    minio: MinioProvider = request.app.state.minio_provider
+    results = []
+
+    for filename in files:
+        file_path = os.path.join(docs_dir, filename)
+        with open(file_path, "rb") as f:
+            content = f.read()
+
+        doc_id = uuid.uuid4()
+        minio_key = f"documents/{doc_id}/{filename}"
+
+        await minio.upload(
+            content,
+            minio_key,
+            content_type="application/pdf",
+        )
+
+        results.append({
+            "doc_id": str(doc_id),
+            "filename": filename,
+            "minio_key": minio_key,
+            "size": len(content),
+        })
+
+        ingest_document_task.delay(
+            doc_id=str(doc_id),
+            minio_key=minio_key,
             filename=filename,
-            content=content,
-            content_type=content_type,
-            meta=meta,
-            doc_id=doc_id,
         )
 
-    background_tasks.add_task(asyncio.create_task, _run())
+    return {
+        "uploaded": len(results),
+        "files": results,
+    }
 
-
-@router.post("/upload", status_code=status.HTTP_201_CREATED)
-async def upload_document(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-):
-    """Upload a document and start ingestion (sync for small, async for large files)."""
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
-    if file.content_type not in ALLOWED_MIME:
-        raise HTTPException(status_code=415, detail="Unsupported file type")
-
-    content = await _read_upload_file(file, MAX_FILE_SIZE)
-    if not content:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    file_hash = _ingestion_service.calculate_file_hash(content)
-
-    async with _session_factory() as session:
-        repo = DocumentRepository(session)
-        existing = await repo.get_document_by_hash(file_hash)
-        if existing is not None:
-            if existing.status != DocumentStatus.error:
-                return {
-                    "doc_id": str(existing.id),
-                    "status": existing.status.value,
-                    "chunk_count": existing.chunk_count,
-                }
-
-    doc_id = uuid.uuid4()
-
-    if len(content) > SMALL_FILE_THRESHOLD:
-        _schedule_ingestion(
-            background_tasks=background_tasks,
-            filename=file.filename,
-            content=content,
-            content_type=file.content_type,
-            meta=None,
-            doc_id=doc_id,
-        )
-        return {"doc_id": str(doc_id), "status": DocumentStatus.processing.value}
-
-    result: IngestionResult = await _ingestion_service.ingest_bytes(
-        filename=file.filename,
-        content=content,
-        content_type=file.content_type,
-        meta=None,
-        doc_id=doc_id,
-    )
-    return {"doc_id": str(result.doc_id), "status": result.status.value}
 
 
 @router.get("/status/{doc_id}")
-async def get_document_status(doc_id: str):
-    """Return status and metadata for a specific document id."""
+async def get_status(doc_id: str, request: Request):
     try:
         doc_uuid = uuid.UUID(doc_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document id")
+        raise HTTPException(400, "Неверный формат doc_id")
 
-    async with _session_factory() as session:
+    session_factory = request.app.state.ingestion_service._session_factory
+    async with session_factory() as session:
         repo = DocumentRepository(session)
-        doc = await repo.get_document_by_id(doc_uuid)
+        doc  = await repo.get_document_by_id(doc_uuid)
         if doc is None:
-            raise HTTPException(status_code=404, detail="Document not found")
-        return {
-            "doc_id": str(doc.id),
-            "status": doc.status.value,
-            "chunk_count": doc.chunk_count,
-            "filename": doc.filename,
-            "created_at": doc.created_at,
-        }
+            raise HTTPException(404, "Документ не найден")
+
+    return {
+        "doc_id":     str(doc.id),
+        "status":     doc.status.value,
+        "filename":   doc.filename,
+        "created_at": doc.created_at,
+    }
 
 
 @router.get("")
 async def list_documents(
+    request: Request,
     limit: int = 100,
     offset: int = 0,
     status: str | None = None,
     filename: str | None = None,
-    created_from: str | None = None,
-    created_to: str | None = None,
 ):
-    """List documents with pagination and optional filters."""
-    if limit < 1 or limit > 1000:
-        raise HTTPException(status_code=400, detail="Invalid limit")
+    if not (1 <= limit <= 1000):
+        raise HTTPException(400, "limit: от 1 до 1000")
     if offset < 0:
-        raise HTTPException(status_code=400, detail="Invalid offset")
+        raise HTTPException(400, "offset не может быть отрицательным")
 
-    async with _session_factory() as session:
+    session_factory = request.app.state.ingestion_service._session_factory
+    async with session_factory() as session:
         repo = DocumentRepository(session)
-        rows = await repo.list_documents(
-            limit=limit,
-            offset=offset,
-            status=status,
-            filename=filename,
-            created_from=created_from,
-            created_to=created_to,
+        docs = await repo.list_documents(
+            limit=limit, offset=offset,
+            status=status, filename=filename,
         )
-        return [
-            {
-                "doc_id": str(doc.id),
-                "status": doc.status.value,
-                "filename": doc.filename,
-                "created_at": doc.created_at,
-                "file_hash": doc.file_hash,
-                "chunk_count": doc.chunk_count,
-            }
-            for doc in rows
-        ]
+
+    return [
+        {
+            "doc_id":     str(d.id),
+            "status":     d.status.value,
+            "filename":   d.filename,
+            "created_at": d.created_at,
+        }
+        for d in docs
+    ]
 
 
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: str):
-    """Delete document vectors and DB rows by document id."""
+async def delete_document(doc_id: str, request: Request):
     try:
         doc_uuid = uuid.UUID(doc_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document id")
+        raise HTTPException(400, "Неверный формат doc_id")
 
-    async with _session_factory() as session:
+    ingestion_service: IngestionService = request.app.state.ingestion_service
+    session_factory = ingestion_service._session_factory
+    vector_provider = ingestion_service._vector_provider
+
+    async with session_factory() as session:
         repo = DocumentRepository(session)
-        doc = await repo.get_document_by_id(doc_uuid)
-        if doc is None:
-            raise HTTPException(status_code=404, detail="Document not found")
+        if await repo.get_document_by_id(doc_uuid) is None:
+            raise HTTPException(404, "Документ не найден")
 
-        tx = await session.begin()
-        try:
-            await _vector_provider.delete(doc_uuid)
+        async with session.begin():
+            await vector_provider.delete(doc_uuid)
             await repo.delete_document(doc_uuid)
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            if tx.is_active:
-                await tx.rollback()
 
     return {"status": "deleted", "doc_id": str(doc_uuid)}

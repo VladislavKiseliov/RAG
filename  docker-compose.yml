@@ -1,0 +1,166 @@
+services:
+  # ── Infrastructure ──────────────────────────────────────────
+  postgres:
+    image: postgres:16
+    container_name: myapp_db
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-myapp_db}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypassword}
+      PGDATA: ${PGDATA:-/var/lib/postgresql/data/pgdata}
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS:---encoding=UTF8}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./ServiceDataBase/init-scripts:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-myapp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rag_qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - rag_network
+
+  redis:
+    image: redis:7
+    container_name: rag_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: rag_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_network
+
+  # ── Application ─────────────────────────────────────────────
+  rag-service:
+    build:
+      context: .
+      dockerfile: rag_service/Dockerfile
+    container_name: rag_service
+    env_file: rag_service/.env
+    environment:
+      RAG_DATABASE_URL: ${RAG_DATABASE_URL_DOCKER:-postgresql+asyncpg://myuser:mypassword@postgres:5432/myapp_db}
+      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
+      MINIO_URL: ${MINIO_URL_DOCKER:-http://minio:9000}
+    ports:
+      - "${RAG_SERVICE_PORT:-8001}:8001"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - rag_network
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: rag_service/Dockerfile
+    container_name: rag_celery
+    env_file: rag_service/.env
+    environment:
+      RAG_DATABASE_URL: ${RAG_DATABASE_URL_DOCKER:-postgresql+asyncpg://myuser:mypassword@postgres:5432/myapp_db}
+      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
+      MINIO_URL: ${MINIO_URL_DOCKER:-http://minio:9000}
+    command: celery -A rag_service.celery_app worker --loglevel=info --concurrency=2
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - rag_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: rag_backend
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg2://myuser:mypassword@postgres:5432/myapp_db}
+      RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rag-service:
+        condition: service_started
+    networks:
+      - rag_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag_frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - rag_network
+
+networks:
+  rag_network:
+    name: rag_network
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  redis_data:
+  minio_data:
