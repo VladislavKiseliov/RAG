@@ -15,9 +15,9 @@ class Users(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        default=uuid.uuid4  # Можно без lambda, если это просто вызов функции
+        default=uuid.uuid4
     )
-    # Каскад здесь: если удалим пользователя, удалятся и его чаты
+
     chats: Mapped[list["Chats"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
@@ -32,7 +32,7 @@ class Users(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc)  # Авто-обновление даты при изменении
+        onupdate=lambda: datetime.now(timezone.utc)
     )
 
 
@@ -47,7 +47,7 @@ class Chats(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('users_shema.users.id', ondelete="CASCADE")  # БД удалит чат, если удален юзер
+        ForeignKey('users_shema.users.id', ondelete="CASCADE")
     )
     title: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
@@ -62,8 +62,7 @@ class Chats(Base):
 
     user: Mapped["Users"] = relationship(back_populates="chats")
 
-    # СВЯЗЬ С СООБЩЕНИЯМИ + Каскад
-    # passive_deletes=True позволяет SQLAlchemy не загружать сообщения в память при удалении чата
+
     messages: Mapped[list["Messages"]] = relationship(
         "Messages",
         back_populates="chat",
@@ -101,7 +100,7 @@ class RefreshTokens(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('users_shema.users.id', ondelete="CASCADE")  # Токен удалится, если удален юзер
+        ForeignKey('users_shema.users.id', ondelete="CASCADE")
     )
     token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -294,16 +294,17 @@ def chat_endpoint(
 
         # Сохраняем сообщение пользователя в БД
         postgres.add_new_message(db, conv_uuid, role="user", content=user_message)
-        print(2)
-        # Получаем ответ от rag_service-сервиса
-        assistant_response = _call_rag_service(user_message)
-        # assistant_response = "Hi,can i help you?"
-        print(3)
+
+        # Получаем ответ от rag_service
+        rag_result = _call_rag_service(user_message)
+        assistant_response = rag_result["answer"]
+        sources = rag_result["sources"]
+
         # Сохраняем ответ ассистента в БД
         postgres.add_new_message(db, conv_uuid, role="assistant", content=assistant_response)
-        print(4)
+
         # Возвращаем ответ клиенту
-        return {"response": assistant_response}
+        return {"response": assistant_response, "sources": sources}
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Некорректный формат данных: {str(e)}")

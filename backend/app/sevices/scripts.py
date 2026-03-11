@@ -13,12 +13,12 @@ engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL") or os.getenv("INGESTION_SERVICE_URL") or "http://localhost:8001"
 
-def _call_rag_service(question: str) -> str:
+def _call_rag_service(question: str) -> dict:
     if not RAG_SERVICE_URL:
         raise HTTPException(status_code=500, detail="RAG_SERVICE_URL is not set")
 
-    payload = {"query": question}  # ← было "question", стало "query"
-    url = f"{RAG_SERVICE_URL.rstrip('/')}/documents/ask"  # ← был /rag/answer, стал /documents/ask
+    payload = {"query": question}
+    url = f"{RAG_SERVICE_URL.rstrip('/')}/documents/ask"
     data = json.dumps(payload).encode("utf-8")
     req = urllib_request.Request(url, data=data, headers={"Content-Type": "application/json"})
 
@@ -26,7 +26,10 @@ def _call_rag_service(question: str) -> str:
         with urllib_request.urlopen(req, timeout=60) as response:
             body = response.read().decode("utf-8")
         response_json = json.loads(body)
-        return response_json.get("answer", "")
+        return {
+            "answer": response_json.get("answer", ""),
+            "sources": response_json.get("sources", []),
+        }
     except urllib_error.HTTPError as e:
         error_body = e.read().decode("utf-8") if e.fp else ""
         raise HTTPException(status_code=e.code, detail=error_body or "rag_service request failed")
