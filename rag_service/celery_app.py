@@ -5,7 +5,7 @@ celery_app = Celery(
     "rag_worker",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["rag_service.services.task"],
+    include=["rag_service.workers.task"],
 )
 
 celery_app.conf.update(

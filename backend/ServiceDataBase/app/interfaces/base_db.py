@@ -21,7 +21,7 @@ class DataBase(ABC):
         """Добавление нового чата в базу данных.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             chat_id (str): Уникальный идентификатор чата
             user_id (str): Идентификатор пользователя-владельца чата
             title (str): Заголовок или название чата
@@ -36,7 +36,7 @@ class DataBase(ABC):
         """Получение списка всех чатов пользователя.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             user_id (str): Идентификатор пользователя
             
         Returns:
@@ -50,7 +50,7 @@ class DataBase(ABC):
         """Обновление заголовка чата.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             chat_id (str): Идентификатор чата
             user_id (str): Идентификатор пользователя (для проверки доступа)
             new_title (str): Новый заголовок чата
@@ -65,7 +65,7 @@ class DataBase(ABC):
         """Удаление чата и всех связанных сообщений.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             chat_id (str): Идентификатор чата для удаления
             user_id (str): Идентификатор пользователя (для проверки доступа)
             
@@ -81,7 +81,7 @@ class DataBase(ABC):
         """Добавление нового сообщения в чат.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             chat_id (str): Идентификатор чата
             role (str): Роль отправителя ("user" или "assistant")
             content (str): Текст сообщения
@@ -96,7 +96,7 @@ class DataBase(ABC):
         """Получение истории сообщений чата.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             chat_id (str): Идентификатор чата
             limit (Optional[int]): Максимальное количество сообщений (None для всех)
             
@@ -111,7 +111,7 @@ class DataBase(ABC):
         """Удаление конкретного сообщения.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             message_id (int): Идентификатор сообщения
             chat_id (str): Идентификатор чата (для проверки доступа)
             
@@ -127,7 +127,7 @@ class DataBase(ABC):
         """Добавление нового пользователя в базу данных.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             login (str): Логин пользователя
             password (str): Пароль пользователя
         """
@@ -138,7 +138,7 @@ class DataBase(ABC):
         """Получение пользователя по имени.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             user_name (str): Имя пользователя
             
         Returns:
@@ -151,7 +151,7 @@ class DataBase(ABC):
         """Получение пользователя по логину.
         
         Args:
-            db (Session): Сессия SQLAlchemy
+           db (Session): Сессия SQLAlchemy
             user_name (str): Логин пользователя
             
         Returns:

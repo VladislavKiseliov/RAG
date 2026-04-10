@@ -1,6 +1,6 @@
 ﻿"""Unit tests for the lightweight parent/child chunking engine."""
 
-from rag_service.services.ingestion_service import ChinkingEngine
+from rag_service.application.ingestion_service import ChinkingEngine
 
 
 def test_chinking_engine_produces_parents_and_children_payload():

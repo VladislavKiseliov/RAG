@@ -1,6 +1,6 @@
 # test_minio.py (в корне проекта)
 import asyncio
-from providers.minio_provider import MinioProvider
+from rag_service.infrastructures.providers.minio_provider import MinioProvider
 
 
 async def main():

@@ -37,14 +37,6 @@ class RagSettings(BaseSettings):
     embedding_batch_size: int = 64           # EMBEDDING_BATCH_SIZE
 
     # ──────────────────────────────────────────
-    # LLM
-    # ──────────────────────────────────────────
-    llm_provider: str = "groq"  # "groq" или "gemini"
-    groq_api_key: str = "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"
-    gemini_api_key: str = ""                 # GEMINI_API_KEY
-    llm_model_name: str = "models/gemini-2.5-flash-lite"  # LLM_MODEL_NAME
-
-    # ──────────────────────────────────────────
     # Infrastructure
     # ──────────────────────────────────────────
     docs_directory: str = "./docs"           # DOCS_DIRECTORY
@@ -64,6 +56,4 @@ class RagSettings(BaseSettings):
     redis_url:str
 
 
-
-
-settings = RagSettings()
+settings = RagSettings(env_file=".env")

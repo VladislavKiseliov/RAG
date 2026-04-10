@@ -1,193 +1,212 @@
-﻿# rag_service/api/rag_routes.py
 from __future__ import annotations
 
-import os
 import uuid
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from datetime import datetime
 
-from rag_service.providers.minio_provider import MinioProvider
-from rag_service.repositories.document_repository import DocumentRepository
-from rag_service.services.ingestion_service import IngestionService
-from rag_service.services.task import ingest_document_task
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+
+from rag_service.api.schemas import (
+    DeleteDocumentResponse,
+    DocumentDetailResponse,
+    DocumentStatusResponse,
+    DocumentSummaryResponse,
+    PlaceholderActionResponse,
+    RetrieveRequest,
+    RetrieveResponse,
+    UploadDocumentResponse,
+)
+from rag_service.application.document_service import DocumentQueryService, DocumentService
+from rag_service.application.document_upload_service import DocumentUploadService
+from rag_service.application.ingestion_service import IngestionService
+
+
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-MAX_FILE_SIZE   = 50 * 1024 * 1024
-ALLOWED_MIME    = {
-    "application/pdf",
-    "text/plain",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-}
-ALLOWED_EXT     = (".pdf", ".txt", ".docx")
+
+def get_retrieve_service(request: Request):
+    return request.app.state.retrieve_service
 
 
-async def _read_file(file: UploadFile, max_bytes: int) -> bytes:
-    size, chunks = 0, []
-    while data := await file.read(1024 * 1024):
-        size += len(data)
-        if size > max_bytes:
-            raise HTTPException(413, "Файл слишком большой (макс 50MB)")
-        chunks.append(data)
-    return b"".join(chunks)
+def get_ingestion_service(request: Request) -> IngestionService:
+    return request.app.state.ingestion_service
 
 
-def _validate(filename: str, content_type: str | None) -> None:
-    if content_type in ALLOWED_MIME:
-        return
-    if any(filename.lower().endswith(ext) for ext in ALLOWED_EXT):
-        return
-    raise HTTPException(415, "Разрешены только PDF, TXT, DOCX")
+def get_document_service(request: Request) -> DocumentService:
+    return request.app.state.document_service
 
 
+def get_document_query_service(request: Request) -> DocumentQueryService:
+    return request.app.state.document_query_service
 
 
-from pydantic import BaseModel
-from rag_service.services.Retriver import SearchService
+def get_document_upload_service(request: Request) -> DocumentUploadService:
+    from rag_service.workers.task import ingest_document_task
+
+    return DocumentUploadService(
+        document_service=request.app.state.document_service,
+        minio_provider=request.app.state.minio_provider,
+        enqueue_ingestion=ingest_document_task.delay,
+    )
 
 
-class AskRequest(BaseModel):
-    query: str
+@router.post("/retrieve", response_model=RetrieveResponse)
+async def retrieve(
+    body: RetrieveRequest,
+    retrieve_service=Depends(get_retrieve_service),
+):
+    return await retrieve_service.search(query=body.query, top_k=body.top_k)
 
 
-@router.post("/ask")
-async def ask(body: AskRequest, request: Request):
-    if not body.query.strip():
-        raise HTTPException(400, "Вопрос не может быть пустым")
-
-    search_service: SearchService = request.app.state.search_service
-    result = await search_service.search(query=body.query)
-
-    return result
-
-
-
-@router.post("/upload-from-disk", status_code=status.HTTP_201_CREATED)
-async def upload_from_disk(request: Request):
-    """Временный эндпоинт — грузит все файлы из docs/ в MinIO."""
-
-    docs_dir = os.path.join(os.getcwd(), "docs")
-
-    if not os.path.exists(docs_dir):
-        raise HTTPException(status_code=404, detail="Директория docs/ не найдена")
-
-    allowed_ext = (".pdf", ".txt", ".docx")
-    files = [
-        f for f in os.listdir(docs_dir)
-        if os.path.isfile(os.path.join(docs_dir, f))
-           and f.lower().endswith(allowed_ext)
-    ]
-
-    if not files:
-        raise HTTPException(status_code=404, detail="Файлы не найдены в docs/")
-
-    minio: MinioProvider = request.app.state.minio_provider
-    results = []
-
-    for filename in files:
-        file_path = os.path.join(docs_dir, filename)
-        with open(file_path, "rb") as f:
-            content = f.read()
-
-        doc_id = uuid.uuid4()
-        minio_key = f"documents/{doc_id}/{filename}"
-
-        await minio.upload(
-            content,
-            minio_key,
-            content_type="application/pdf",
-        )
-
-        results.append({
-            "doc_id": str(doc_id),
-            "filename": filename,
-            "minio_key": minio_key,
-            "size": len(content),
-        })
-
-        ingest_document_task.delay(
-            doc_id=str(doc_id),
-            minio_key=minio_key,
-            filename=filename,
-        )
-
-    return {
-        "uploaded": len(results),
-        "files": results,
-    }
-
-
-
-@router.get("/status/{doc_id}")
-async def get_status(doc_id: str, request: Request):
+@router.post("/upload", response_model=UploadDocumentResponse, status_code=status.HTTP_201_CREATED)
+async def upload_document(
+    file: UploadFile = File(...),
+    upload_service: DocumentUploadService = Depends(get_document_upload_service),
+):
     try:
-        doc_uuid = uuid.UUID(doc_id)
-    except ValueError:
-        raise HTTPException(400, "Неверный формат doc_id")
-
-    session_factory = request.app.state.ingestion_service._session_factory
-    async with session_factory() as session:
-        repo = DocumentRepository(session)
-        doc  = await repo.get_document_by_id(doc_uuid)
-        if doc is None:
-            raise HTTPException(404, "Документ не найден")
-
-    return {
-        "doc_id":     str(doc.id),
-        "status":     doc.status.value,
-        "filename":   doc.filename,
-        "created_at": doc.created_at,
-    }
+        content = await file.read()
+        return await upload_service.upload_document(
+            filename=file.filename or "",
+            content=content,
+            content_type=file.content_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OverflowError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
 
 
-@router.get("")
+@router.get("", response_model=list[DocumentSummaryResponse])
 async def list_documents(
-    request: Request,
     limit: int = 100,
     offset: int = 0,
     status: str | None = None,
     filename: str | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    document_query_service: DocumentQueryService = Depends(get_document_query_service),
 ):
     if not (1 <= limit <= 1000):
-        raise HTTPException(400, "limit: от 1 до 1000")
+        raise HTTPException(400, "limit: from 1 to 1000")
     if offset < 0:
-        raise HTTPException(400, "offset не может быть отрицательным")
+        raise HTTPException(400, "offset cannot be negative")
 
-    session_factory = request.app.state.ingestion_service._session_factory
-    async with session_factory() as session:
-        repo = DocumentRepository(session)
-        docs = await repo.list_documents(
-            limit=limit, offset=offset,
-            status=status, filename=filename,
-        )
-
+    docs = await document_query_service.list_documents(
+        limit=limit,
+        offset=offset,
+        status=status,
+        filename=filename,
+        created_from=created_from,
+        created_to=created_to,
+    )
     return [
-        {
-            "doc_id":     str(d.id),
-            "status":     d.status.value,
-            "filename":   d.filename,
-            "created_at": d.created_at,
-        }
-        for d in docs
+        DocumentSummaryResponse(
+            doc_id=str(doc.id),
+            filename=doc.filename,
+            status=doc.status.value,
+            created_at=doc.created_at,
+            chunk_count=doc.chunk_count,
+        )
+        for doc in docs
     ]
 
 
-@router.delete("/{doc_id}")
-async def delete_document(doc_id: str, request: Request):
+@router.get("/{doc_id}", response_model=DocumentDetailResponse)
+async def get_document(
+    doc_id: str,
+    document_query_service: DocumentQueryService = Depends(get_document_query_service),
+):
     try:
         doc_uuid = uuid.UUID(doc_id)
     except ValueError:
-        raise HTTPException(400, "Неверный формат doc_id")
+        raise HTTPException(400, "Invalid doc_id format")
 
-    ingestion_service: IngestionService = request.app.state.ingestion_service
-    session_factory = ingestion_service._session_factory
-    vector_provider = ingestion_service._vector_provider
+    doc = await document_query_service.get_document_by_id(doc_uuid)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
 
-    async with session_factory() as session:
-        repo = DocumentRepository(session)
-        if await repo.get_document_by_id(doc_uuid) is None:
-            raise HTTPException(404, "Документ не найден")
+    meta = doc.meta if isinstance(doc.meta, dict) else None
+    return DocumentDetailResponse(
+        doc_id=str(doc.id),
+        filename=doc.filename,
+        status=doc.status.value,
+        created_at=doc.created_at,
+        chunk_count=doc.chunk_count,
+        file_hash=doc.file_hash,
+        minio_key=doc.minio_key or (meta.get("minio_key") if meta else None),
+        meta=meta,
+    )
 
-        async with session.begin():
-            await vector_provider.delete(doc_uuid)
-            await repo.delete_document(doc_uuid)
 
-    return {"status": "deleted", "doc_id": str(doc_uuid)}
+@router.get("/{doc_id}/status", response_model=DocumentStatusResponse)
+async def get_status(
+    doc_id: str,
+    document_query_service: DocumentQueryService = Depends(get_document_query_service),
+):
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid doc_id format")
+
+    doc = await document_query_service.get_document_by_id(doc_uuid)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+
+    return DocumentStatusResponse(
+        doc_id=str(doc.id),
+        status=doc.status.value,
+        filename=doc.filename,
+        created_at=doc.created_at,
+        chunk_count=doc.chunk_count,
+    )
+
+
+@router.delete("/{doc_id}", response_model=DeleteDocumentResponse)
+async def delete_document(
+    doc_id: str,
+    ingestion_service: IngestionService = Depends(get_ingestion_service),
+    document_query_service: DocumentQueryService = Depends(get_document_query_service),
+    document_service: DocumentService = Depends(get_document_service),
+):
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid doc_id format")
+
+    doc = await document_query_service.get_document_by_id(doc_uuid)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+
+    await ingestion_service.vector_provider.delete(doc_uuid)
+    await document_service.delete_document(doc_uuid)
+
+    return DeleteDocumentResponse(status="deleted", doc_id=str(doc_uuid))
+
+
+@router.post("/{doc_id}/reingest", response_model=PlaceholderActionResponse, status_code=status.HTTP_501_NOT_IMPLEMENTED)
+async def reingest_document(doc_id: str):
+    """Placeholder: should enqueue full document re-processing from stored source file."""
+    return PlaceholderActionResponse(
+        status="not_implemented",
+        action="reingest_document",
+        detail="Should recreate parent chunks and child vectors for an existing document.",
+    )
+
+
+@router.post("/{doc_id}/reindex", response_model=PlaceholderActionResponse, status_code=status.HTTP_501_NOT_IMPLEMENTED)
+async def reindex_document(doc_id: str):
+    """Placeholder: should rebuild vector points from already stored parent/child source data."""
+    return PlaceholderActionResponse(
+        status="not_implemented",
+        action="reindex_document",
+        detail="Should refresh vector storage without re-uploading the file.",
+    )
+
+
+@router.get("/{doc_id}/chunks", response_model=PlaceholderActionResponse, status_code=status.HTTP_501_NOT_IMPLEMENTED)
+async def get_document_chunks(doc_id: str):
+    """Placeholder: should expose parent chunks for debugging and admin inspection."""
+    return PlaceholderActionResponse(
+        status="not_implemented",
+        action="get_document_chunks",
+        detail="Should return parent chunk content and metadata for one document.",
+    )

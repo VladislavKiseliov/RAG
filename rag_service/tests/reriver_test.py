@@ -1,5 +1,5 @@
 import asyncio
-from rag_service.infrastructure import build_rag_infrastructure
+from rag_service.infrastructures import build_rag_infrastructure
 
 engine, search_service, ingestion_service, minio_provider = build_rag_infrastructure()
 
