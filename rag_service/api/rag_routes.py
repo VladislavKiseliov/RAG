@@ -54,7 +54,9 @@ async def retrieve(
     body: RetrieveRequest,
     retrieve_service=Depends(get_retrieve_service),
 ):
-    return await retrieve_service.search(query=body.query, top_k=body.top_k)
+    result = await retrieve_service.search(query=body.query, top_k=body.top_k)
+    print(result)
+    return result
 
 
 @router.post("/upload", response_model=UploadDocumentResponse, status_code=status.HTTP_201_CREATED)

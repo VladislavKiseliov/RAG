@@ -89,7 +89,7 @@ class Messages(Base):
         default=lambda: datetime.now(timezone.utc)
     )
 
-    # Обратная связь (необязательно, но полезно)
+    # Обратная связь
     chat: Mapped["Chats"] = relationship(back_populates="messages")
 
 

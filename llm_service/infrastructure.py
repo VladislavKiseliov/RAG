@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+import os
+
+from llm_service.application.answer_service import AnswerService
+from llm_service.application.rag_client import RagClient
+from llm_service.LLM_provider import GeminiLLMProvider, GroqLLMProvider, LLMProvider
+
+
+def _build_llm_provider() -> LLMProvider:
+    provider = os.getenv("LLM_PROVIDER", "groq").lower()
+    if provider == "gemini":
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+        return GeminiLLMProvider(api_key=api_key, model=model)
+    api_key = os.getenv("GROQ_API_KEY", "")
+    model = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+    return GroqLLMProvider(api_key=api_key, model=model)
+
+
+def build_answer_service() -> AnswerService:
+    rag_url = os.getenv("RAG_SERVICE_URL", "http://rag_service:8001")
+    timeout = float(os.getenv("LLM_RAG_TIMEOUT", "30"))
+    max_context_chars = int(os.getenv("LLM_MAX_CONTEXT_CHARS", "12000"))
+
+    rag_client = RagClient(base_url=rag_url, timeout=timeout)
+    llm_provider = _build_llm_provider()
+    return AnswerService(
+        rag_client=rag_client,
+        llm_provider=llm_provider,
+        max_context_chars=max_context_chars,
+    )

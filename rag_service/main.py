@@ -7,6 +7,7 @@ from rag_service.infrastructure import build_rag_infrastructure
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     container = build_rag_infrastructure()
 
     app.state.retrieve_service = container.retrieve_service

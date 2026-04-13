@@ -12,13 +12,14 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://myuser:mypasswor
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine)
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL") or os.getenv("INGESTION_SERVICE_URL") or "http://localhost:8001"
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "http://localhost:8002")
 
 def _call_rag_service(question: str) -> dict:
     if not RAG_SERVICE_URL:
         raise HTTPException(status_code=500, detail="RAG_SERVICE_URL is not set")
 
     payload = {"query": question}
-    url = f"{RAG_SERVICE_URL.rstrip('/')}/documents/ask"
+    url = f"{LLM_SERVICE_URL.rstrip('/')}/llm/answer"
     data = json.dumps(payload).encode("utf-8")
     req = urllib_request.Request(url, data=data, headers={"Content-Type": "application/json"})
 

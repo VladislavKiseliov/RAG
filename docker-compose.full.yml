@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16
     container_name: myapp_db
@@ -24,6 +24,16 @@ services:
     networks:
       - rag_network
 
+  redis:
+    image: redis:7
+    container_name: rag_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ragprogramm_redis_data:/data
+    restart: unless-stopped
+    networks:
+      - rag_network
 
   minio:
     image: minio/minio:latest
@@ -33,8 +43,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     ports:
-      - "${MINIO_PORT:-9000}:9000"        # API
-      - "${MINIO_CONSOLE_PORT:-9001}:9001" # Web UI
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     restart: unless-stopped
@@ -46,25 +56,15 @@ services:
     networks:
       - rag_network
 
-  backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    container_name: rag_backend
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg2://myuser:mypassword@postgres:5432/myapp_db}
-      RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
-      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rag_qdrant
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rag-service:
-        condition: service_started
     networks:
       - rag_network
 
@@ -74,20 +74,9 @@ services:
       dockerfile: rag_service/Dockerfile
     container_name: rag_service
     env_file:
-      - .env
-    environment:
-      RAG_DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+asyncpg://myuser:mypassword@postgres:5432/myapp_db}
-      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
-      COLLECTION_NAME: ${COLLECTION_NAME:-rag_documents_collection}
-      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-BAAI/bge-m3}
-      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
-      HF_TOKEN: ${HF_TOKEN}
-      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
-      MINIO_URL: ${MINIO_URL_DOCKER:-http://minio:9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-rag-documents}
-      MINIO_SECURE: ${MINIO_SECURE:-false}
+      - rag_service/.env
+    volumes:
+      - ./rag_service:/app/rag_service
     command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001
     ports:
       - "${RAG_SERVICE_PORT:-8001}:8001"
@@ -110,20 +99,9 @@ services:
       dockerfile: rag_service/Dockerfile
     container_name: rag_worker
     env_file:
-      - .env
-    environment:
-      RAG_DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+asyncpg://myuser:mypassword@postgres:5432/myapp_db}
-      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://qdrant:6333}
-      COLLECTION_NAME: ${COLLECTION_NAME:-rag_documents_collection}
-      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-BAAI/bge-m3}
-      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
-      HF_TOKEN: ${HF_TOKEN}
-      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
-      MINIO_URL: ${MINIO_URL_DOCKER:-http://minio:9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-rag-documents}
-      MINIO_SECURE: ${MINIO_SECURE:-false}
+      - rag_service/.env
+    volumes:
+      - ./rag_service:/app/rag_service
     command: celery -A rag_service.celery_app worker -l INFO
     restart: unless-stopped
     depends_on:
@@ -134,6 +112,53 @@ services:
       qdrant:
         condition: service_started
       redis:
+        condition: service_started
+    networks:
+      - rag_network
+
+  llm-service:
+    build:
+      context: .
+      dockerfile: llm_service/Dockerfile
+    container_name: llm_service
+    env_file:
+      - .env
+    environment:
+      RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
+    volumes:
+      - ./llm_service:/app/llm_service
+    command: uvicorn llm_service.main:app --host 0.0.0.0 --port 8002
+    ports:
+      - "${LLM_SERVICE_PORT:-8002}:8002"
+    restart: unless-stopped
+    depends_on:
+      rag-service:
+        condition: service_started
+    networks:
+      - rag_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: rag_backend
+    env_file:
+      - .env
+    environment:
+      RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
+      LLM_SERVICE_URL: ${LLM_SERVICE_URL_DOCKER:-http://llm-service:8002}
+    volumes:
+      - ./backend:/app/backend
+      - ./ServiceDataBase:/app/ServiceDataBase
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rag-service:
+        condition: service_started
+      llm-service:
         condition: service_started
     networks:
       - rag_network
@@ -154,9 +179,11 @@ services:
 
 networks:
   rag_network:
-    external: true
     name: rag_network
 
 volumes:
   postgres_data:
   minio_data:
+  qdrant_data:
+  ragprogramm_redis_data:
+    external: true

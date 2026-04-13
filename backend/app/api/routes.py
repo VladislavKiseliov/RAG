@@ -48,7 +48,7 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))  # Время жизни токена.
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL, echo=True, connect_args={"options": "-c search_path=users_shema"})
 SessionLocal = sessionmaker(bind=engine)
 postgres = PostgresAlchemy()
 auth = Auth(SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES)

@@ -1,0 +1,124 @@
+services:
+  rag-postgres:
+    image: postgres:16
+    container_name: rag_service_api_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-myapp_db}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypassword}
+      PGDATA: ${PGDATA:-/var/lib/postgresql/data/pgdata}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - rag_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-myapp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rag-redis:
+    image: redis:7
+    container_name: rag_service_api_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - rag_redis_data:/data
+    restart: unless-stopped
+
+  rag-minio:
+    image: minio/minio:latest
+    container_name: rag_service_api_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - rag_minio_data:/data
+    restart: unless-stopped
+
+  rag-qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rag_service_api_qdrant
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - rag_qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  rag-service:
+    build:
+      context: ..
+      dockerfile: rag_service/Dockerfile
+    container_name: rag_service_api
+    env_file:
+      - .env
+    environment:
+      RAG_DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+asyncpg://myuser:mypassword@rag-postgres:5432/myapp_db}
+      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://rag-qdrant:6333}
+      COLLECTION_NAME: ${COLLECTION_NAME:-rag_documents_collection}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-BAAI/bge-m3}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
+      HF_TOKEN: ${HF_TOKEN}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://rag-redis:6379/0}
+      MINIO_URL: ${MINIO_URL_DOCKER:-http://rag-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-rag-documents}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+    command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "${RAG_SERVICE_PORT:-8001}:8001"
+    restart: unless-stopped
+    depends_on:
+      rag-postgres:
+        condition: service_healthy
+      rag-minio:
+        condition: service_started
+      rag-qdrant:
+        condition: service_started
+      rag-redis:
+        condition: service_started
+
+  rag-worker:
+    build:
+      context: ..
+      dockerfile: rag_service/Dockerfile
+    container_name: rag_service_worker
+    env_file:
+      - .env
+    environment:
+      RAG_DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+asyncpg://myuser:mypassword@rag-postgres:5432/myapp_db}
+      QDRANT_URL: ${QDRANT_URL_DOCKER:-http://rag-qdrant:6333}
+      COLLECTION_NAME: ${COLLECTION_NAME:-rag_documents_collection}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-BAAI/bge-m3}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
+      HF_TOKEN: ${HF_TOKEN}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://rag-redis:6379/0}
+      MINIO_URL: ${MINIO_URL_DOCKER:-http://rag-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-rag-documents}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+    command: celery -A rag_service.celery_app worker -l INFO
+    restart: unless-stopped
+    depends_on:
+      rag-postgres:
+        condition: service_healthy
+      rag-minio:
+        condition: service_started
+      rag-qdrant:
+        condition: service_started
+      rag-redis:
+        condition: service_started
+
+volumes:
+  rag_postgres_data:
+  rag_redis_data:
+  rag_minio_data:
+  rag_qdrant_data:
