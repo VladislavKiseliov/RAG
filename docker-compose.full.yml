@@ -122,7 +122,7 @@
       dockerfile: llm_service/Dockerfile
     container_name: llm_service
     env_file:
-      - .env
+      - llm_service/.env
     environment:
       RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
     volumes:

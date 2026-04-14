@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import uuid
 from datetime import datetime
@@ -18,7 +18,9 @@ from rag_service.api.schemas import (
 from rag_service.application.document_service import DocumentQueryService, DocumentService
 from rag_service.application.document_upload_service import DocumentUploadService
 from rag_service.application.ingestion_service import IngestionService
+from rag_service.utils.logger_config import setup_logger
 
+logger = setup_logger("rag_service.api")
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -55,7 +57,7 @@ async def retrieve(
     retrieve_service=Depends(get_retrieve_service),
 ):
     result = await retrieve_service.search(query=body.query, top_k=body.top_k)
-    print(result)
+    logger.info("Retrieve", extra={"query": body.query, "top_k": body.top_k, "total": result.get("total")})
     return result
 
 
@@ -212,3 +214,4 @@ async def get_document_chunks(doc_id: str):
         action="get_document_chunks",
         detail="Should return parent chunk content and metadata for one document.",
     )
+

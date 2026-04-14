@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from backend.app.utils.logger_config import setup_logger
+
+setup_logger("backend")
 
 origins = [
     "http://localhost:5173",

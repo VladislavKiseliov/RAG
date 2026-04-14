@@ -1,21 +1,17 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 
 from llm_service.application.answer_service import AnswerService
 from llm_service.application.rag_client import RagClient
-from llm_service.LLM_provider import GeminiLLMProvider, GroqLLMProvider, LLMProvider
+from llm_service.LLM_provider import LLMProvider, OpenAICompatLLMProvider, _get_api_key
 
 
 def _build_llm_provider() -> LLMProvider:
-    provider = os.getenv("LLM_PROVIDER", "groq").lower()
-    if provider == "gemini":
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
-        return GeminiLLMProvider(api_key=api_key, model=model)
-    api_key = os.getenv("GROQ_API_KEY", "")
-    model = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
-    return GroqLLMProvider(api_key=api_key, model=model)
+    api_key = _get_api_key()
+    base_url = os.getenv("LLM_BASE_URL", "https://gatellm.ru/v1")
+    model = os.getenv("LLM_MODEL", "openai/gpt-4o-mini")
+    return OpenAICompatLLMProvider(api_key=api_key, base_url=base_url, model=model)
 
 
 def build_answer_service() -> AnswerService:

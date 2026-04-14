@@ -1,8 +1,11 @@
-from contextlib import asynccontextmanager
+﻿from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from rag_service.api.rag_routes import router as rag_router
 from rag_service.infrastructure import build_rag_infrastructure
+from rag_service.utils.logger_config import setup_logger
+
+setup_logger("rag_service")
 
 
 @asynccontextmanager
