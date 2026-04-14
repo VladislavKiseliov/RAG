@@ -168,6 +168,13 @@
       context: ./frontend
       dockerfile: Dockerfile
     container_name: rag_frontend
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     restart: unless-stopped
