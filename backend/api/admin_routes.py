@@ -3,7 +3,7 @@
 import os
 import time
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -15,8 +15,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 try:
-    from backend.app.sevices.scripts import get_db
-    from backend.app.sevices.security import oauth2_scheme
+    from backend.services.llm_client import get_db
+    from backend.services.auth_handler import oauth2_scheme
 except ModuleNotFoundError:
     from app.sevices.scripts import get_db
     from app.sevices.security import oauth2_scheme

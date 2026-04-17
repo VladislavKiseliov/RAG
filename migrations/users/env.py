@@ -21,7 +21,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 root_path = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root_path))
-from backend.ServiceDataBase.app.models.database_models import Base
+from backend.models.database_models import Base
 target_metadata = Base.metadata
 
 
