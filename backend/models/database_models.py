@@ -1,5 +1,6 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, DateTime, UUID, Text, Boolean
+from sqlalchemy import String, ForeignKey, DateTime, UUID, Text, Boolean, Integer
+from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime, timezone
 import uuid
 
@@ -88,6 +89,9 @@ class Messages(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc)
     )
+    sources: Mapped[list[dict]] = mapped_column(JSONB, default=list,nullable=True)
+    context: Mapped[str] = mapped_column(Text,nullable=True)
+    total: Mapped[int] = mapped_column(Integer,nullable=True)
 
     # Обратная связь
     chat: Mapped["Chats"] = relationship(back_populates="messages")

@@ -1,9 +1,12 @@
 from typing import List, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+from huggingface_hub import User
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
+from backend.api.routes import login
 from backend.models.database_models import Chats, Messages, Users, RefreshTokens
 
 class BaseRepository:
@@ -94,20 +97,46 @@ class AuthRepository(BaseRepository):
 class UserRepository(BaseRepository):
     """Управление данными профиля пользователя."""
 
-    async def get_user_id(self, user_id: uuid.UUID) -> Optional[Users]:
-        """Проверка существования пользователя по ID."""
+    async def get_user_by_id(self, user_id: uuid.UUID) -> Optional[Users]:
         async with self.session_factory() as session:
             stmt = select(Users).where(Users.id == user_id)
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
     async def delete_user(self, user_id: uuid.UUID) -> bool:
-        """Удаление аккаунта пользователя."""
         async with self.session_factory() as session:
             async with session.begin():
                 stmt = delete(Users).where(Users.id == user_id)
                 result = await session.execute(stmt)
-                return result.rowcount > 0
+            return result.rowcount > 0
+
+    async def get_users(self, page_size: int = 50) -> list[Users]:
+        async with self.session_factory() as session:
+            stmt = select(Users).limit(page_size)
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def create_user(self, login: str, password: str) -> Users:
+        async with self.session_factory() as session:
+            async with session.begin():
+                user = Users(login=login, password=password)
+                session.add(user)
+            await session.refresh(user)
+            return user
+
+    async def update_user(self, user_id: uuid.UUID, new_login: str, new_password: str) -> bool:
+        async with self.session_factory() as session:
+            async with session.begin():
+                stmt = (
+                    update(Users)
+                    .where(Users.id == user_id)
+                    .values(login=new_login, password=new_password, updated_at=datetime.now(timezone.utc))
+                )
+                result = await session.execute(stmt)
+            return result.rowcount > 0
+
+
+
 
 class ChatRepository(BaseRepository):
     """Управление чатами (создание, переименование, удаление)."""
@@ -151,11 +180,11 @@ class ChatRepository(BaseRepository):
 class MessageRepository(BaseRepository):
     """Работа с сообщениями внутри чатов."""
 
-    async def add_message(self, chat_id: uuid.UUID, role: str, content: str) -> Messages:
+    async def add_message(self, chat_id: uuid.UUID, role: str, content: str,sources :list = None) -> Messages:
         """Сохранение нового сообщения (от пользователя или AI)."""
         async with self.session_factory() as session:
             async with session.begin():
-                message = Messages(chat_id=chat_id, role=role, content=content)
+                message = Messages(chat_id=chat_id, role=role, content=content,sources = sources)
                 session.add(message)
             await session.refresh(message)
             return message

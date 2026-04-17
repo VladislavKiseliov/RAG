@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query
+from huggingface_hub import User
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -109,6 +110,41 @@ def require_admin_user(
         raise HTTPException(status_code=403, detail="Admin access required")
 
     return {"id": str(row.id), "login": row.login}
+
+
+
+@router.get("/users", response_model=list[User])
+async def get_users(service:UserService = Depends(get_users_service)):
+    return service.get_users()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @router.get("/stats")

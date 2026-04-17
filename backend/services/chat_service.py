@@ -22,7 +22,7 @@ class ChatService:
         """Создает новый чат и сразу возвращает его ID."""
         chat_id = uuid6.uuid7()
         # Репозиторий сам откроет транзакцию, сделает add и commit
-        result = await self.chat_repo.create_chat(chat_id, user_id, title)
+        result = await self.chat_repo.create_chat(chat_id = chat_id,user_id= user_id,title= title)
 
         if not result:
             raise AuthDatabaseError("Не удалось создать чат")
@@ -60,7 +60,7 @@ class ChatService:
         messages = await self.message_repo.get_history(chat_id)
 
         return [
-            {"role": msg.role, "content": msg.content, "created_at": msg.created_at}
+            {"role": msg.role, "content": msg.content, "sources": msg.sources, "created_at": msg.created_at}
             for msg in messages
         ]
 
@@ -79,9 +79,9 @@ class ChatService:
         rag_result = await get_llm_answer(content)
         assistant_response = rag_result["answer"]
         sources = rag_result.get("sources", [])
-
+        print(rag_result)
         # 3. Сохраняем ответ ассистента (Транзакция 2: зашли-вышли)
-        await self.message_repo.add_message(chat_id, role="assistant", content=assistant_response)
+        await self.message_repo.add_message(chat_id, role="assistant", content=assistant_response,sources = sources)
 
         return {
             "response": assistant_response,

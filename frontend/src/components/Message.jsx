@@ -1,5 +1,5 @@
-// src/components/Message.jsx
-import React, { useState } from 'react';
+﻿// src/components/Message.jsx
+import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 function TypingIndicator() {
@@ -16,8 +16,17 @@ function TypingIndicator() {
 
 function SourcesBlock({ sources }) {
     const [expanded, setExpanded] = useState(false);
-    const [tooltip, setTooltip] = useState(null); // { text, x, y }
-    const tooltipRef = React.useRef(null);
+    const [tooltip, setTooltip] = useState(null); // { text, name, top, left, width }
+    const tooltipRef = useRef(null);
+    const closeTimerRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+            }
+        };
+    }, []);
 
     if (!sources || sources.length === 0) return null;
 
@@ -25,38 +34,54 @@ function SourcesBlock({ sources }) {
     const seen = new Set();
     for (const s of sources) {
         const key = s.parent_id ?? JSON.stringify(s);
-        if (!seen.has(key)) { seen.add(key); unique.push(s); }
+        if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(s);
+        }
     }
+
+    const clearCloseTimer = () => {
+        if (closeTimerRef.current) {
+            clearTimeout(closeTimerRef.current);
+            closeTimerRef.current = null;
+        }
+    };
+
+    const scheduleCloseTooltip = () => {
+        clearCloseTimer();
+        closeTimerRef.current = setTimeout(() => {
+            setTooltip(null);
+            closeTimerRef.current = null;
+        }, 180);
+    };
 
     const formatName = (s) => {
         const h = s.headers || {};
         const parts = ['H1', 'H2', 'H3', 'H4']
-            .map(k => h[k])
+            .map((k) => h[k])
             .filter(Boolean)
-            .map(v => v.replace(/\*\*/g, '').trim());
+            .map((v) => v.replace(/\*\*/g, '').trim());
         if (parts.length > 0) return parts.join(' › ');
         return `Фрагмент ${unique.indexOf(s) + 1}`;
     };
 
     const handleMouseEnter = (e, s) => {
         if (!s.text) return;
+        clearCloseTimer();
         const rect = e.currentTarget.getBoundingClientRect();
         setTooltip({
             text: s.text,
             name: formatName(s),
-            // Позиционируем выше элемента
             top: rect.top + window.scrollY,
             left: rect.left + window.scrollX,
             width: rect.width,
         });
     };
 
-    const handleMouseLeave = () => setTooltip(null);
-
     return (
         <>
             <div className="sources-block">
-                <button className="sources-toggle" onClick={() => setExpanded(v => !v)}>
+                <button className="sources-toggle" onClick={() => setExpanded((v) => !v)}>
                     <span className="sources-icon">📄</span>
                     <span>
                         {unique.length} {unique.length === 1 ? 'источник' : unique.length < 5 ? 'источника' : 'источников'}
@@ -72,7 +97,7 @@ function SourcesBlock({ sources }) {
                                     key={i}
                                     className="source-item"
                                     onMouseEnter={(e) => handleMouseEnter(e, s)}
-                                    onMouseLeave={handleMouseLeave}
+                                    onMouseLeave={scheduleCloseTooltip}
                                 >
                                     <span className="source-index">{i + 1}</span>
                                     <div className="source-info">
@@ -93,7 +118,6 @@ function SourcesBlock({ sources }) {
                 )}
             </div>
 
-            {/* Portal-like tooltip — рендерится поверх всего */}
             {tooltip && (
                 <div
                     ref={tooltipRef}
@@ -107,8 +131,8 @@ function SourcesBlock({ sources }) {
                         width: 400,
                         maxWidth: 'calc(100vw - 32px)',
                     }}
-                    onMouseEnter={() => setTooltip(tooltip)} // держим открытым если навели на сам tooltip
-                    onMouseLeave={handleMouseLeave}
+                    onMouseEnter={clearCloseTimer}
+                    onMouseLeave={scheduleCloseTooltip}
                 >
                     <div className="source-tooltip-header">{tooltip.name}</div>
                     <div className="source-tooltip-text">{tooltip.text}</div>

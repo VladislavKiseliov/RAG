@@ -35,5 +35,6 @@ async def answer_question(
 
     if not request.include_context:
         result["context"] = None
+    print(f"result: {result}")
 
     return AskResponse(**result)

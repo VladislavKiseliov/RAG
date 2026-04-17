@@ -101,7 +101,7 @@ async def create_conversation(
         current_user: ID пользователя (строка), извлеченный из токена.
         service: Сервис для управления логикой чатов.
     """
-    chat_id = await service.create_chat(current_user)
+    chat_id = await service.create_chat(current_user.id)
     return {"conversation_id": chat_id}
 
 @router.get(
