@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from rag_service.application.document_upload_service import DocumentUploadService, MAX_FILE_SIZE
+from backend.services.document_upload_service import DocumentUploadService, MAX_FILE_SIZE
 from rag_service.models import DocumentStatus
 
 
@@ -18,9 +18,9 @@ def document_service_mock() -> AsyncMock:
 
 
 @pytest.fixture
-def minio_provider_mock() -> AsyncMock:
+def storage_repository_mock() -> AsyncMock:
     mock = AsyncMock()
-    mock.upload = AsyncMock()
+    mock.upload_file = AsyncMock()
     return mock
 
 
@@ -32,12 +32,12 @@ def enqueue_ingestion_mock() -> Mock:
 @pytest.fixture
 def upload_service(
     document_service_mock: AsyncMock,
-    minio_provider_mock: AsyncMock,
+    storage_repository_mock: AsyncMock,
     enqueue_ingestion_mock: Mock,
 ) -> DocumentUploadService:
     return DocumentUploadService(
         document_service=document_service_mock,
-        minio_provider=minio_provider_mock,
+        storage_repository=storage_repository_mock,
         enqueue_ingestion=enqueue_ingestion_mock,
     )
 
@@ -74,7 +74,7 @@ async def test_upload_document_raises_for_large_file(upload_service: DocumentUpl
 async def test_upload_document_returns_duplicate_response(
     upload_service: DocumentUploadService,
     document_service_mock: AsyncMock,
-    minio_provider_mock: AsyncMock,
+    storage_repository_mock: AsyncMock,
 ) -> None:
     existing_id = uuid.uuid4()
     existing = SimpleNamespace(
@@ -95,7 +95,7 @@ async def test_upload_document_returns_duplicate_response(
     assert response.files == []
     assert len(response.duplicates) == 1
     assert response.duplicates[0].doc_id == str(existing_id)
-    minio_provider_mock.upload.assert_not_called()
+    storage_repository_mock.upload_file.assert_not_called()
     document_service_mock.create_doc.assert_not_called()
 
 
@@ -103,7 +103,7 @@ async def test_upload_document_returns_duplicate_response(
 async def test_upload_document_creates_doc_uploads_to_minio_and_enqueues_task(
     upload_service: DocumentUploadService,
     document_service_mock: AsyncMock,
-    minio_provider_mock: AsyncMock,
+    storage_repository_mock: AsyncMock,
     enqueue_ingestion_mock: Mock,
 ) -> None:
     content = b"pdf-content"
@@ -112,14 +112,14 @@ async def test_upload_document_creates_doc_uploads_to_minio_and_enqueues_task(
     document_service_mock.get_document_by_hash.return_value = None
     document_service_mock.create_doc.return_value = created_id
 
-    with patch("rag_service.application.document_upload_service.uuid.uuid4", return_value=created_id):
+    with patch("backend.services.document_upload_service.uuid.uuid4", return_value=created_id):
         response = await upload_service.upload_document(
             filename="manual.pdf",
             content=content,
             content_type="application/pdf",
         )
 
-    minio_provider_mock.upload.assert_awaited_once_with(
+    storage_repository_mock.upload_file.assert_awaited_once_with(
         content,
         f"documents/{created_id}/manual.pdf",
         content_type="application/pdf",
@@ -157,7 +157,7 @@ async def test_upload_document_allows_replacing_error_document(
     document_service_mock.get_document_by_hash.return_value = errored
     document_service_mock.create_doc.return_value = created_id
 
-    with patch("rag_service.application.document_upload_service.uuid.uuid4", return_value=created_id):
+    with patch("backend.services.document_upload_service.uuid.uuid4", return_value=created_id):
         response = await upload_service.upload_document(
             filename="manual.pdf",
             content=b"abc",
@@ -172,21 +172,71 @@ async def test_upload_document_allows_replacing_error_document(
 async def test_upload_document_uses_default_content_type_when_missing(
     upload_service: DocumentUploadService,
     document_service_mock: AsyncMock,
-    minio_provider_mock: AsyncMock,
+    storage_repository_mock: AsyncMock,
 ) -> None:
     created_id = uuid.uuid4()
     document_service_mock.get_document_by_hash.return_value = None
     document_service_mock.create_doc.return_value = created_id
 
-    with patch("rag_service.application.document_upload_service.uuid.uuid4", return_value=created_id):
+    with patch("backend.services.document_upload_service.uuid.uuid4", return_value=created_id):
         await upload_service.upload_document(
             filename="manual.pdf",
             content=b"abc",
             content_type=None,
         )
 
-    minio_provider_mock.upload.assert_awaited_once_with(
+    storage_repository_mock.upload_file.assert_awaited_once_with(
         b"abc",
         f"documents/{created_id}/manual.pdf",
         content_type="application/octet-stream",
     )
+
+
+@pytest.mark.asyncio
+async def test_get_file_delegates_to_storage_repository(
+    upload_service: DocumentUploadService,
+    storage_repository_mock: AsyncMock,
+) -> None:
+    storage_repository_mock.get_file.return_value = b"file-content"
+
+    result = await upload_service.get_file(key="documents/1/manual.pdf")
+
+    assert result == b"file-content"
+    storage_repository_mock.get_file.assert_awaited_once_with("documents/1/manual.pdf")
+
+
+@pytest.mark.asyncio
+async def test_get_file_metadata_delegates_to_storage_repository(
+    upload_service: DocumentUploadService,
+    storage_repository_mock: AsyncMock,
+) -> None:
+    storage_repository_mock.get_file_metadata.return_value = {"key": "documents/1/manual.pdf", "size": 123}
+
+    result = await upload_service.get_file_metadata(key="documents/1/manual.pdf")
+
+    assert result == {"key": "documents/1/manual.pdf", "size": 123}
+    storage_repository_mock.get_file_metadata.assert_awaited_once_with("documents/1/manual.pdf")
+
+
+@pytest.mark.asyncio
+async def test_list_files_delegates_to_storage_repository(
+    upload_service: DocumentUploadService,
+    storage_repository_mock: AsyncMock,
+) -> None:
+    storage_repository_mock.list_files.return_value = [{"key": "documents/1/manual.pdf"}]
+
+    result = await upload_service.list_files(prefix="documents/1", limit=10)
+
+    assert result == [{"key": "documents/1/manual.pdf"}]
+    storage_repository_mock.list_files.assert_awaited_once_with(prefix="documents/1", limit=10)
+
+
+@pytest.mark.asyncio
+async def test_delete_file_delegates_to_storage_repository(
+    upload_service: DocumentUploadService,
+    storage_repository_mock: AsyncMock,
+) -> None:
+    result = await upload_service.delete_file(key="documents/1/manual.pdf")
+
+    assert result == {"status": "deleted", "key": "documents/1/manual.pdf"}
+    storage_repository_mock.delete_file.assert_awaited_once_with("documents/1/manual.pdf")

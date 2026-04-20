@@ -16,6 +16,7 @@ from backend.infrastructure import build_backend_infrastructure
 
 # Подключаем роутеры (используем абсолютные импорты)
 from backend.api.routes import router
+from backend.api.admin_routes import router as admin_router
 
 # Инициализируем логгер
 setup_logger("backend")
@@ -76,7 +77,7 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Подключаем роутеры
 app.include_router(router)
-#app.include_router(admin_router)
+app.include_router(admin_router)
 
 # Глобальный обработчик наших кастомных ошибок
 @app.exception_handler(AppError)

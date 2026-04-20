@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from rag_service.api.schemas import (
     DeleteDocumentResponse,
@@ -13,10 +13,10 @@ from rag_service.api.schemas import (
     PlaceholderActionResponse,
     RetrieveRequest,
     RetrieveResponse,
-    UploadDocumentResponse,
 )
 from rag_service.application.document_service import DocumentQueryService, DocumentService
-from rag_service.application.document_upload_service import DocumentUploadService
+from backend.repository.document_storage_repository import DocumentStorageRepository
+from backend.services.document_upload_service import DocumentUploadService
 from rag_service.application.ingestion_service import IngestionService
 from rag_service.utils.logger_config import setup_logger
 
@@ -46,7 +46,7 @@ def get_document_upload_service(request: Request) -> DocumentUploadService:
 
     return DocumentUploadService(
         document_service=request.app.state.document_service,
-        minio_provider=request.app.state.minio_provider,
+        storage_repository=DocumentStorageRepository(request.app.state.minio_provider),
         enqueue_ingestion=ingest_document_task.delay,
     )
 
@@ -60,23 +60,6 @@ async def retrieve(
     logger.info("Retrieve", extra={"query": body.query, "top_k": body.top_k, "total": result.get("total")})
     return result
 
-
-@router.post("/upload", response_model=UploadDocumentResponse, status_code=status.HTTP_201_CREATED)
-async def upload_document(
-    file: UploadFile = File(...),
-    upload_service: DocumentUploadService = Depends(get_document_upload_service),
-):
-    try:
-        content = await file.read()
-        return await upload_service.upload_document(
-            filename=file.filename or "",
-            content=content,
-            content_type=file.content_type,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except OverflowError as exc:
-        raise HTTPException(status_code=413, detail=str(exc)) from exc
 
 
 @router.get("", response_model=list[DocumentSummaryResponse])

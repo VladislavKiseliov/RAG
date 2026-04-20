@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { loginAdminMock, logoutAdminMock } from '../api/adminApi';
+import { loginAdmin, logoutAdmin } from '../api/adminApi';
 
 export const useAuthStore = create(
   persist(
@@ -8,22 +8,41 @@ export const useAuthStore = create(
       isAuthenticated: false,
       role: null,
       user: null,
+      accessToken: null,
+      refreshToken: null,
       isLoading: false,
       login: async (username, password) => {
         set({ isLoading: true });
-        const data = await loginAdminMock(username, password);
+        try {
+          const data = await loginAdmin(username, password);
+          localStorage.setItem('admin-access-token', data.access_token);
+          localStorage.setItem('admin-refresh-token', data.refresh_token);
+          set({
+            isAuthenticated: true,
+            role: data.role,
+            user: data.user,
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+          });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      logout: async () => {
+        const refreshToken = localStorage.getItem('admin-refresh-token');
+        await logoutAdmin(refreshToken);
+        localStorage.removeItem('admin-access-token');
+        localStorage.removeItem('admin-refresh-token');
         set({
-          isAuthenticated: true,
-          role: data.role,
-          user: data.user,
+          isAuthenticated: false,
+          role: null,
+          user: null,
+          accessToken: null,
+          refreshToken: null,
           isLoading: false,
         });
       },
-      logout: async () => {
-        await logoutAdminMock();
-        set({ isAuthenticated: false, role: null, user: null, isLoading: false });
-      },
     }),
-    { name: 'admin-auth-mock' },
+    { name: 'admin-auth' },
   ),
 );

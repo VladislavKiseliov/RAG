@@ -1,28 +1,63 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
+import json
 import uuid
+from datetime import datetime
 
 import pytest_asyncio
 import uuid6
-from sqlalchemy import delete
+from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from backend.models.database_models import Chats, RefreshTokens, Users
+from backend.settings import settings
+from backend.models.database_models import Base, Chats, Messages, RefreshTokens, Users
 from backend.repository.repository import AuthRepository, ChatRepository, MessageRepository, UserRepository
 
-DATABASE_URL = "postgresql+asyncpg://myuser:mypassword@localhost:5432/myapp_db"
+
+def _read_mock_json(filename: str) -> list[dict]:
+    with open(f"backend/tests/{filename}", encoding="utf-8") as file:
+        return json.load(file)
 
 
-@pytest_asyncio.fixture
+def _parse_dt(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+@pytest_asyncio.fixture(scope="session")
 async def engine():
-    engine = create_async_engine(DATABASE_URL, future=True, echo=True)
+    assert settings.MODE == "TEST", "Tests must run only with MODE=TEST"
+    assert settings.TEST_DB_NAME == "test_myapp_db", "TEST_DB_NAME must be 'test_myapp_db'"
+
+    engine = create_async_engine(settings.DATABASE_URL, future=True, echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    users = _read_mock_json("mock_users.json")
+    chats = _read_mock_json("mock_chats.json")
+    messages = _read_mock_json("mock_messages.json")
+    refresh_tokens = _read_mock_json("mock_refresh_tokens.json")
+
+    for token in refresh_tokens:
+        token["expires_at"] = _parse_dt(token["expires_at"])
+
+    seed_session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    async with seed_session_factory() as session:
+        for model, values in [
+            (Users, users),
+            (Chats, chats),
+            (Messages, messages),
+            (RefreshTokens, refresh_tokens),
+        ]:
+            await session.execute(insert(model).values(values))
+        await session.commit()
+
     try:
         yield engine
     finally:
         await engine.dispose()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session")
 async def session_factory(engine):
     return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

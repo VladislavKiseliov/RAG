@@ -4,3 +4,12 @@ export const httpClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   withCredentials: true,
 });
+
+httpClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('admin-access-token');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});

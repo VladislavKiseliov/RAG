@@ -1,0 +1,26 @@
+[
+  {
+    "chat_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1",
+    "role": "user",
+    "content": "Seed message 1",
+    "sources": [],
+    "context": "",
+    "total": 0
+  },
+  {
+    "chat_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2",
+    "role": "assistant",
+    "content": "Seed message 2",
+    "sources": [],
+    "context": "",
+    "total": 0
+  },
+  {
+    "chat_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3",
+    "role": "user",
+    "content": "Seed message 3",
+    "sources": [],
+    "context": "",
+    "total": 0
+  }
+]

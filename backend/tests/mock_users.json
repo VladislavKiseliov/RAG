@@ -1,0 +1,17 @@
+[
+  {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "login": "seed_user_1",
+    "password": "seed_password_1"
+  },
+  {
+    "id": "22222222-2222-2222-2222-222222222222",
+    "login": "seed_user_2",
+    "password": "seed_password_2"
+  },
+  {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "login": "seed_user_3",
+    "password": "seed_password_3"
+  }
+]

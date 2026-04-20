@@ -1,5 +1,4 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
-import { useAuthStore } from './stores/authStore';
 import PageLayout from './components/layout/PageLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -11,12 +10,6 @@ import Tasks from './pages/Tasks';
 import SystemStatus from './pages/SystemStatus';
 
 function ProtectedRoute({ children }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const role = useAuthStore((s) => s.role);
-
-  if (!isAuthenticated || role !== 'admin') {
-    return <Navigate to="/login" replace />;
-  }
   return children;
 }
 

@@ -2,11 +2,9 @@ from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
 
-from huggingface_hub import User
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from backend.api.routes import login
 from backend.models.database_models import Chats, Messages, Users, RefreshTokens
 
 class BaseRepository:
@@ -96,6 +94,12 @@ class AuthRepository(BaseRepository):
 
 class UserRepository(BaseRepository):
     """Управление данными профиля пользователя."""
+
+    async def get_user_by_login(self, login: str) -> Optional[Users]:
+        async with self.session_factory() as session:
+            stmt = select(Users).where(Users.login == login)
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
 
     async def get_user_by_id(self, user_id: uuid.UUID) -> Optional[Users]:
         async with self.session_factory() as session:

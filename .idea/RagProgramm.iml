@@ -8,7 +8,7 @@
       <excludeFolder url="file://$MODULE_DIR$/backend/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/rag_service/.venv" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.12 (RagProgramm)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.12 (RagProgramm) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { db } from './mockDb';
+import { httpClient } from './httpClient';
 
 const wait = (ms = 350) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -8,6 +9,20 @@ function paginate(items, page = 1, pageSize = 20) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const offset = (page - 1) * pageSize;
   return { items: items.slice(offset, offset + pageSize), total, page, pages, pageSize };
+}
+
+
+function normalizeUser(u) {
+  return {
+    user_id: u.id,
+    username: u.login,
+    is_blocked: false,
+    registered_at: u.created_at,
+    chats_count: 0,
+    messages_count: 0,
+    documents_count: 0,
+    recent_chats: [],
+  };
 }
 
 function sortByField(items, sortBy, sortDir = 'desc') {
@@ -20,29 +35,80 @@ function sortByField(items, sortBy, sortDir = 'desc') {
   return sortDir === 'asc' ? sorted : sorted.reverse();
 }
 
-export async function loginAdminMock(username, password) {
-  await wait();
-  if (username !== 'admin' || password !== 'admin') {
-    throw new Error('Неверный логин или пароль');
-  }
-  return { role: 'admin', user: { username: 'admin', displayName: 'Admin' } };
+function toMb(sizeBytes) {
+  const bytes = Number(sizeBytes || 0);
+  return Number((bytes / (1024 * 1024)).toFixed(1));
 }
 
-export async function logoutAdminMock() {
-  await wait(120);
+function parseDocIdFromKey(key = '') {
+  const parts = String(key).split('/');
+  if (parts.length >= 3 && parts[0] === 'documents') return parts[1];
+  return key;
+}
+
+function parseFilenameFromKey(key = '') {
+  const parts = String(key).split('/');
+  return parts[parts.length - 1] || key;
+}
+
+function normalizeStorageFile(item) {
+  const key = item.key;
+  return {
+    doc_id: parseDocIdFromKey(key),
+    filename: parseFilenameFromKey(key),
+    status: 'completed',
+    chunk_count: null,
+    uploaded_at: item.last_modified || new Date().toISOString(),
+    size_mb: toMb(item.size),
+    size: Number(item.size || 0),
+    minio_key: key,
+    file_hash: item.etag || null,
+    embedding_model: null,
+    collection: null,
+    error_text: null,
+  };
+}
+
+async function fetchStorageDocuments(limit = 1000) {
+  const { data } = await httpClient.get('/admin/documents/storage/files', { params: { limit } });
+  return (data?.items || []).map(normalizeStorageFile);
+}
+
+async function findStorageDocument(docId) {
+  const docs = await fetchStorageDocuments();
+  return docs.find((d) => d.doc_id === docId) || null;
+}
+
+export async function loginAdmin(username, password) {
+  const { data } = await httpClient.post('/auth/login', { username, password });
+  return {
+    role: 'admin',
+    user: { username, displayName: 'Admin' },
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+  };
+}
+
+export async function logoutAdmin(refreshToken) {
+  if (!refreshToken) return { ok: true };
+  await httpClient.post('/auth/logout', { refresh_token: refreshToken, revoke_all: false });
   return { ok: true };
 }
 
 export async function getStats() {
-  await wait();
-  const completedDocs = db.documents.filter((d) => d.status === 'completed').length;
+  const [docs, users] = await Promise.all([
+    fetchStorageDocuments(),
+    getUsers({ page: 1, pageSize: 1 }),
+  ]);
+  const completedDocs = docs.filter((d) => d.status === 'completed').length;
+
   return {
-    documents_total: db.documents.length,
-    documents_delta_7d: 12,
-    users_total: db.users.length,
-    users_delta_7d: 3,
+    documents_total: docs.length,
+    documents_delta_7d: 0,
+    users_total: users.total,
+    users_delta_7d: 0,
     chats_total: db.users.reduce((sum, u) => sum + u.chats_count, 0),
-    chats_delta_7d: 87,
+    chats_delta_7d: 0,
     tasks_active: db.tasks.filter((t) => t.status === 'ACTIVE').length,
     activity_7d: Array.from({ length: 7 }).map((_, idx) => ({
       day: dayjs().subtract(6 - idx, 'day').format('DD.MM'),
@@ -53,22 +119,21 @@ export async function getStats() {
 }
 
 export async function getDocumentStats() {
-  await wait(220);
-  const completed = db.documents.filter((d) => d.status === 'completed').length;
-  const processing = db.documents.filter((d) => d.status === 'processing').length;
-  const error = db.documents.filter((d) => d.status === 'error').length;
-  return { completed, processing, error, total: db.documents.length };
+  const docs = await fetchStorageDocuments();
+  const completed = docs.filter((d) => d.status === 'completed').length;
+  const processing = docs.filter((d) => d.status === 'processing').length;
+  const error = docs.filter((d) => d.status === 'error').length;
+  return { completed, processing, error, total: docs.length };
 }
 
 export async function getLatestDocuments(limit = 10) {
-  await wait(180);
-  return [...db.documents]
+  const docs = await fetchStorageDocuments();
+  return [...docs]
     .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at))
     .slice(0, limit);
 }
 
 export async function getDocuments(params) {
-  await wait();
   const {
     page = 1,
     pageSize = 20,
@@ -78,7 +143,7 @@ export async function getDocuments(params) {
     sortDir = 'desc',
   } = params;
 
-  let rows = [...db.documents];
+  let rows = await fetchStorageDocuments();
   if (status !== 'all') rows = rows.filter((d) => d.status === status);
   if (search?.trim().length >= 2) {
     const q = search.trim().toLowerCase();
@@ -89,109 +154,129 @@ export async function getDocuments(params) {
 }
 
 export async function getDocumentById(docId) {
-  await wait();
-  const doc = db.documents.find((d) => d.doc_id === docId);
-  if (!doc) throw new Error('Документ не найден');
-  return doc;
+  const doc = await findStorageDocument(docId);
+  if (!doc) throw new Error('Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ');
+
+  const { data } = await httpClient.get('/admin/documents/storage/files/metadata', {
+    params: { key: doc.minio_key },
+  });
+
+  return {
+    ...doc,
+    uploaded_at: data?.last_modified || doc.uploaded_at,
+    size_mb: toMb(data?.size ?? doc.size),
+    size: Number(data?.size ?? doc.size ?? 0),
+    file_hash: data?.etag || doc.file_hash,
+  };
 }
 
 export async function reindexDocument(docId) {
-  await wait(300);
-  const doc = db.documents.find((d) => d.doc_id === docId);
-  if (!doc) throw new Error('Документ не найден');
-  doc.status = 'processing';
-  doc.error_text = null;
-  setTimeout(() => {
-    doc.status = 'completed';
-    doc.chunk_count = 120 + Math.floor(Math.random() * 50);
-  }, 5000);
+  await wait(120);
   return { doc_id: docId, status: 'processing' };
 }
 
 export async function deleteDocument(docId) {
-  await wait(250);
-  const idx = db.documents.findIndex((d) => d.doc_id === docId);
-  if (idx === -1) throw new Error('Документ не найден');
-  db.documents.splice(idx, 1);
-  return { status: 'deleted' };
+  const doc = await findStorageDocument(docId);
+  if (!doc) throw new Error('Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ');
+
+  const { data } = await httpClient.delete('/admin/documents/storage/files', {
+    params: { key: doc.minio_key },
+  });
+  return data;
 }
 
 export async function bulkDeleteDocuments(docIds) {
-  await wait(320);
-  db.documents = db.documents.filter((d) => !docIds.includes(d.doc_id));
-  return { deleted: docIds.length };
+  let deleted = 0;
+  for (const id of docIds) {
+    try {
+      await deleteDocument(id);
+      deleted += 1;
+    } catch (error) {
+      console.error('bulkDeleteDocuments failed for id', id, error);
+    }
+  }
+  return { deleted };
 }
 
 export async function getDownloadUrl(docId) {
-  await wait(180);
+  const doc = await findStorageDocument(docId);
+  if (!doc) throw new Error('Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ');
+
+  const base = (httpClient.defaults.baseURL || '').replace(/\/$/, '');
+  const key = encodeURIComponent(doc.minio_key);
   return {
-    url: `http://minio:9000/documents/${docId}?X-Amz-Expires=900`,
-    expires_in: 900,
+    url: `${base}/admin/documents/storage/files/content?key=${key}`,
+    expires_in: null,
   };
 }
 
 export async function uploadDocuments(files) {
-  await wait(400);
-  const created = files.map((file) => ({
-    doc_id: crypto.randomUUID(),
-    filename: file.name,
-    status: 'processing',
-    chunk_count: null,
-    uploaded_at: new Date().toISOString(),
-    size_mb: Number((file.size / (1024 * 1024)).toFixed(1)),
-    minio_key: `documents/new/${file.name}`,
-    file_hash: `sha256:${crypto.randomUUID().replaceAll('-', '')}`,
-    embedding_model: 'BAAI/bge-m3',
-    collection: 'rag_documents_collection',
-    error_text: null,
-  }));
-  db.documents.unshift(...created);
-  setTimeout(() => {
-    created.forEach((doc) => {
-      doc.status = Math.random() < 0.85 ? 'completed' : 'error';
-      doc.chunk_count = doc.status === 'completed' ? 80 + Math.floor(Math.random() * 60) : null;
-      doc.error_text = doc.status === 'error' ? 'Ошибка обработки файла' : null;
+  const created = [];
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const { data } = await httpClient.post('/admin/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
-  }, 3500);
+
+    const uploaded = data?.files?.[0];
+    if (!uploaded) continue;
+
+    created.push({
+      doc_id: uploaded.doc_id,
+      filename: uploaded.filename || file.name,
+      status: uploaded.status || 'processing',
+      chunk_count: null,
+      uploaded_at: new Date().toISOString(),
+      size_mb: toMb(uploaded.size || file.size),
+      minio_key: uploaded.minio_key,
+      file_hash: null,
+      embedding_model: null,
+      collection: null,
+      error_text: null,
+    });
+  }
   return created;
 }
 
 export async function getUsers(params) {
-  await wait();
-  const { page = 1, pageSize = 25, search = '', status = 'all', sortBy = 'registered_at', sortDir = 'desc' } = params;
-  let rows = [...db.users];
-  if (status !== 'all') rows = rows.filter((u) => (status === 'blocked' ? u.is_blocked : !u.is_blocked));
+  const { page = 1, pageSize = 25, search = '', sortBy = 'registered_at', sortDir = 'desc' } = params;
+  const { data } = await httpClient.get('/admin/users/repo', { params: { page_size: 500 } });
+
+  let rows = (data?.items || []).map(normalizeUser);
   if (search?.trim().length >= 2) {
     const q = search.trim().toLowerCase();
     rows = rows.filter((u) => u.username.toLowerCase().includes(q));
   }
+
   rows = sortByField(rows, sortBy, sortDir);
   return paginate(rows, page, pageSize);
 }
 
 export async function getUserById(userId) {
-  await wait();
-  const user = db.users.find((u) => u.user_id === userId);
-  if (!user) throw new Error('Пользователь не найден');
-  return {
-    ...user,
-    recent_chats: Array.from({ length: 5 }).map((_, idx) => ({
-      chat_id: crypto.randomUUID(),
-      title: `Чат ${idx + 1}: рабочий диалог`,
-      created_at: dayjs().subtract(idx + 2, 'day').toISOString(),
-      messages_count: 8 + idx * 6,
-      last_message_at: dayjs().subtract(idx + 1, 'day').toISOString(),
-    })),
-  };
+  const { data } = await httpClient.get(`/admin/users/repo/${userId}`);
+  return normalizeUser(data);
+}
+
+export async function createUser(payload) {
+  const { data } = await httpClient.post('/admin/users/repo', payload);
+  return normalizeUser(data);
+}
+
+export async function updateUser(userId, payload) {
+  const { data } = await httpClient.put(`/admin/users/repo/${userId}`, payload);
+  return normalizeUser(data);
+}
+
+export async function deleteUser(userId) {
+  const { data } = await httpClient.delete(`/admin/users/repo/${userId}`);
+  return data;
 }
 
 export async function blockUser(userId, isBlocked) {
-  await wait(220);
-  const user = db.users.find((u) => u.user_id === userId);
-  if (!user) throw new Error('Пользователь не найден');
-  if (user.username === 'admin') throw new Error('admin нельзя блокировать');
-  user.is_blocked = isBlocked;
-  return { status: 'ok', is_blocked: isBlocked };
+  const { data } = await httpClient.patch(`/admin/users/${userId}/block`, { is_blocked: isBlocked });
+  return data;
 }
 
 export async function getTasks(tab = 'active', page = 1, pageSize = 12) {
@@ -205,7 +290,7 @@ export async function getTasks(tab = 'active', page = 1, pageSize = 12) {
 export async function cancelTask(taskId) {
   await wait(180);
   const task = db.tasks.find((t) => t.task_id === taskId);
-  if (!task) throw new Error('Задача не найдена');
+  if (!task) throw new Error('Р вЂ”Р В°Р Т‘Р В°РЎвЂЎР В° Р Р…Р Вµ Р Р…Р В°Р в„–Р Т‘Р ВµР Р…Р В°');
   task.status = 'FAILURE';
   task.traceback = 'Task revoked by admin';
   return { status: 'revoked' };
@@ -239,3 +324,4 @@ export async function getQdrantStats() {
     optimizer_status: 'ok',
   };
 }
+
