@@ -1,4 +1,4 @@
-import dayjs from 'dayjs';
+﻿import dayjs from 'dayjs';
 import { db } from './mockDb';
 import { httpClient } from './httpClient';
 
@@ -10,7 +10,6 @@ function paginate(items, page = 1, pageSize = 20) {
   const offset = (page - 1) * pageSize;
   return { items: items.slice(offset, offset + pageSize), total, page, pages, pageSize };
 }
-
 
 function normalizeUser(u) {
   return {
@@ -40,43 +39,35 @@ function toMb(sizeBytes) {
   return Number((bytes / (1024 * 1024)).toFixed(1));
 }
 
-function parseDocIdFromKey(key = '') {
-  const parts = String(key).split('/');
-  if (parts.length >= 3 && parts[0] === 'documents') return parts[1];
-  return key;
-}
+function normalizeRagDocument(item) {
+  const minioKey = item.minio_key || item?.meta?.minio_key || null;
+  const docId = item.doc_id || minioKey || '';
 
-function parseFilenameFromKey(key = '') {
-  const parts = String(key).split('/');
-  return parts[parts.length - 1] || key;
-}
-
-function normalizeStorageFile(item) {
-  const key = item.key;
   return {
-    doc_id: parseDocIdFromKey(key),
-    filename: parseFilenameFromKey(key),
-    status: 'completed',
-    chunk_count: null,
-    uploaded_at: item.last_modified || new Date().toISOString(),
-    size_mb: toMb(item.size),
+    doc_id: docId,
+    filename: item.filename || 'unknown',
+    status: item.status || 'processing',
+    chunk_count: item.chunk_count ?? null,
+    uploaded_at: item.created_at || new Date().toISOString(),
+    size_mb: toMb(item.size || 0),
     size: Number(item.size || 0),
-    minio_key: key,
-    file_hash: item.etag || null,
+    minio_key: minioKey,
+    file_hash: item.file_hash || null,
     embedding_model: null,
     collection: null,
     error_text: null,
+    meta: item.meta || null,
   };
 }
 
-async function fetchStorageDocuments(limit = 1000) {
-  const { data } = await httpClient.get('/admin/documents/storage/files', { params: { limit } });
-  return (data?.items || []).map(normalizeStorageFile);
+async function fetchDocuments(limit = 1000) {
+  const { data } = await httpClient.get('/admin/documents', { params: { limit, offset: 0 } });
+  return (Array.isArray(data) ? data : []).map(normalizeRagDocument);
 }
 
-async function findStorageDocument(docId) {
-  const docs = await fetchStorageDocuments();
-  return docs.find((d) => d.doc_id === docId) || null;
+async function findDocument(docId) {
+  const { data } = await httpClient.get(`/admin/documents/${docId}`);
+  return normalizeRagDocument(data);
 }
 
 export async function loginAdmin(username, password) {
@@ -97,7 +88,7 @@ export async function logoutAdmin(refreshToken) {
 
 export async function getStats() {
   const [docs, users] = await Promise.all([
-    fetchStorageDocuments(),
+    fetchDocuments(),
     getUsers({ page: 1, pageSize: 1 }),
   ]);
   const completedDocs = docs.filter((d) => d.status === 'completed').length;
@@ -119,7 +110,7 @@ export async function getStats() {
 }
 
 export async function getDocumentStats() {
-  const docs = await fetchStorageDocuments();
+  const docs = await fetchDocuments();
   const completed = docs.filter((d) => d.status === 'completed').length;
   const processing = docs.filter((d) => d.status === 'processing').length;
   const error = docs.filter((d) => d.status === 'error').length;
@@ -127,7 +118,7 @@ export async function getDocumentStats() {
 }
 
 export async function getLatestDocuments(limit = 10) {
-  const docs = await fetchStorageDocuments();
+  const docs = await fetchDocuments();
   return [...docs]
     .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at))
     .slice(0, limit);
@@ -143,7 +134,7 @@ export async function getDocuments(params) {
     sortDir = 'desc',
   } = params;
 
-  let rows = await fetchStorageDocuments();
+  let rows = await fetchDocuments();
   if (status !== 'all') rows = rows.filter((d) => d.status === status);
   if (search?.trim().length >= 2) {
     const q = search.trim().toLowerCase();
@@ -154,34 +145,16 @@ export async function getDocuments(params) {
 }
 
 export async function getDocumentById(docId) {
-  const doc = await findStorageDocument(docId);
-  if (!doc) throw new Error('Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ');
-
-  const { data } = await httpClient.get('/admin/documents/storage/files/metadata', {
-    params: { key: doc.minio_key },
-  });
-
-  return {
-    ...doc,
-    uploaded_at: data?.last_modified || doc.uploaded_at,
-    size_mb: toMb(data?.size ?? doc.size),
-    size: Number(data?.size ?? doc.size ?? 0),
-    file_hash: data?.etag || doc.file_hash,
-  };
+  return await findDocument(docId);
 }
 
 export async function reindexDocument(docId) {
-  await wait(120);
-  return { doc_id: docId, status: 'processing' };
+  const { data } = await httpClient.post(`/admin/documents/${docId}/reindex`);
+  return data;
 }
 
 export async function deleteDocument(docId) {
-  const doc = await findStorageDocument(docId);
-  if (!doc) throw new Error('Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ');
-
-  const { data } = await httpClient.delete('/admin/documents/storage/files', {
-    params: { key: doc.minio_key },
-  });
+  const { data } = await httpClient.delete(`/admin/documents/${docId}`);
   return data;
 }
 
@@ -199,13 +172,9 @@ export async function bulkDeleteDocuments(docIds) {
 }
 
 export async function getDownloadUrl(docId) {
-  const doc = await findStorageDocument(docId);
-  if (!doc) throw new Error('Р”РѕРєСѓРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ');
-
   const base = (httpClient.defaults.baseURL || '').replace(/\/$/, '');
-  const key = encodeURIComponent(doc.minio_key);
   return {
-    url: `${base}/admin/documents/storage/files/content?key=${key}`,
+    url: `${base}/admin/documents/${docId}/download`,
     expires_in: null,
   };
 }
@@ -290,7 +259,7 @@ export async function getTasks(tab = 'active', page = 1, pageSize = 12) {
 export async function cancelTask(taskId) {
   await wait(180);
   const task = db.tasks.find((t) => t.task_id === taskId);
-  if (!task) throw new Error('Р вЂ”Р В°Р Т‘Р В°РЎвЂЎР В° Р Р…Р Вµ Р Р…Р В°Р в„–Р Т‘Р ВµР Р…Р В°');
+  if (!task) throw new Error('Задача не найдена');
   task.status = 'FAILURE';
   task.traceback = 'Task revoked by admin';
   return { status: 'revoked' };
@@ -324,4 +293,3 @@ export async function getQdrantStats() {
     optimizer_status: 'ok',
   };
 }
-

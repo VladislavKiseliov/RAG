@@ -21,8 +21,8 @@ if __package__ in {None, ""}:
 from rag_service.db.session import create_engine, create_session_factory
 from rag_service.infrastructures.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
 from rag_service.infrastructures.providers.local_embedding_provider import LocalEmbeddingProvider
-from rag_service.infrastructures.providers.qdrant_provider import QdrantVectorProvider
-from rag_service.infrastructures.providers.vector_provider import NullVectorProvider, VectorProvider
+from rag_service.domain.qdrant_vector_storage import QdrantVectorStorage
+from rag_service.infrastructures.providers.vector_storage_provider import NullVectorProvider, VectorProvider
 from rag_service.application.retrieve_service import HttpLLMProvider, SearchService
 
 
@@ -86,7 +86,7 @@ def _build_vector_provider() -> VectorProvider:
         embedding = LocalEmbeddingProvider(model=model)
 
     print(f"[SMOKE] Qdrant provider: url={qdrant_url} collection={collection} backend={backend} model={model}")
-    return QdrantVectorProvider(
+    return QdrantVectorStorage(
         url=qdrant_url,
         collection=collection,
         embedding_provider=embedding,

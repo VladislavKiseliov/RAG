@@ -7,18 +7,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from backend.models.database_models import Users
 from backend.services.auth_service import AuthService
 from backend.services.chat_service import ChatService
-from backend.services.document_upload_service import DocumentUploadService
+from rag_service.application.document_upload_service import DocumentUploadService
 from backend.services.user_service import UserService
-from backend.repository.repository import AuthRepository, ChatRepository, MessageRepository, UserRepository
+from backend.repository.repository import AuthRepository, ChatRepository, MessageRepository, UserRepository, \
+    DocumentRepository
 from backend.infrastructure import BackendContainer
+
 
 def get_container(request: Request) -> BackendContainer:
     return request.app.state.container
 
 
 # 1. Получаем сессию базы
-async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
-    engine = request.app.state.engine
+async def get_session(container: BackendContainer = Depends(get_container)) -> AsyncGenerator[AsyncSession, None]:
+    engine = container.engine
     session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
     async with session_factory() as session:
@@ -60,8 +62,9 @@ def get_user_service(container: BackendContainer = Depends(get_container)) -> Us
     return UserService(user_repo=user_repo)
 
 
-def get_storage_service(container: BackendContainer = Depends(get_container))->DocumentUploadService:
+def get_storage_service(container: BackendContainer = Depends(get_container),)->DocumentUploadService:
 
 
-    return DocumentUploadService(document_service=,
-                                 strage_repository=container.storage_repository)
+    return DocumentUploadService(document_service=DocumentRepository(container.session_factory),
+                                 strage_repository=container.storage_repository
+                                 )

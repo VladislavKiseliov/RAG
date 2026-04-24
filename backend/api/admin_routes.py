@@ -1,28 +1,18 @@
 ﻿from __future__ import annotations
 
 import os
-import time
 import uuid
-from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-from backend.dependencies import get_container, get_user_service
-from backend.infrastructure import BackendContainer
-from backend.repository.document_storage_repository import DocumentStorageRepository
+
+from backend.dependencies import get_user_service
 from backend.services.user_service import UserService
-from backend.services.document_upload_service import DocumentUploadService
-from rag_service.api.schemas import UploadDocumentResponse
-from rag_service.application.document_service import DocumentService
-
-
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://rag-service:8001").rstrip("/")
 
 
 class BlockUserRequest(BaseModel):
@@ -39,36 +29,39 @@ class AdminUserUpdateRequest(BaseModel):
     password: str
 
 
+async def _proxy_rag_request(
+    method: str,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+) -> Any:
+    url = f"{RAG_SERVICE_URL}{path}"
+    async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
+        try:
+            response = await client.request(method=method, url=url, params=params, json=json_body)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail: Any
+            try:
+                detail = exc.response.json()
+            except Exception:
+                detail = exc.response.text or "RAG service error"
+            raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=503, detail=f"RAG service unavailable: {exc}") from exc
 
-def _build_minio_provider():
-    from rag_service.infrastructures.providers.minio_provider import MinioProvider
-
-    return MinioProvider(
-        url=os.getenv("MINIO_URL") or os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
-        access_key=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
-        secret_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
-        bucket=os.getenv("MINIO_BUCKET", "documents"),
-        secure=os.getenv("MINIO_SECURE", "false").lower() == "true",
-    )
-
-
-def get_admin_document_upload_service(
-    request: Request,
-    container: BackendContainer = Depends(get_container),
-) -> DocumentUploadService:
-    from rag_service.workers.task import ingest_document_task
-
-    return DocumentUploadService(
-        document_service=DocumentService(container.session_factory),
-        storage_repository=DocumentStorageRepository(_build_minio_provider()),
-        enqueue_ingestion=ingest_document_task.delay,
-    )
+    if not response.content:
+        return None
+    try:
+        return response.json()
+    except ValueError:
+        return response.text
 
 
 @router.get("/users/repo")
 async def admin_users_repo(
     page_size: int = Query(50, ge=1, le=500),
-    _: dict[str, Any] = Depends(require_admin_user),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     return await user_service.get_users_repo(page_size=page_size)
@@ -77,7 +70,6 @@ async def admin_users_repo(
 @router.get("/users/repo/{user_id}")
 async def admin_user_repo_detail(
     user_id: uuid.UUID,
-    _: dict[str, Any] = Depends(require_admin_user),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     user = await user_service.get_user_repo_by_id(user_id)
@@ -89,7 +81,6 @@ async def admin_user_repo_detail(
 @router.post("/users/repo")
 async def admin_user_repo_create(
     payload: AdminUserCreateRequest,
-    _: dict[str, Any] = Depends(require_admin_user),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     try:
@@ -102,7 +93,6 @@ async def admin_user_repo_create(
 async def admin_user_repo_update(
     user_id: uuid.UUID,
     payload: AdminUserUpdateRequest,
-    _: dict[str, Any] = Depends(require_admin_user),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     try:
@@ -121,7 +111,6 @@ async def admin_user_repo_update(
 @router.delete("/users/repo/{user_id}")
 async def admin_user_repo_delete(
     user_id: uuid.UUID,
-    _: dict[str, Any] = Depends(require_admin_user),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     deleted = await user_service.delete_user_repo(user_id)
@@ -130,82 +119,70 @@ async def admin_user_repo_delete(
     return {"status": "deleted", "user_id": str(user_id)}
 
 
-@router.post("/documents/upload", response_model=UploadDocumentResponse, status_code=status.HTTP_201_CREATED)
-async def admin_upload_document(
-    file: UploadFile = File(...),
-    _: dict[str, Any] = Depends(require_admin_user),
-    upload_service: DocumentUploadService = Depends(get_admin_document_upload_service),
-):
-    try:
-        content = await file.read()
-        return await upload_service.upload_document(
-            filename=file.filename or "",
-            content=content,
-            content_type=file.content_type,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except OverflowError as exc:
-        raise HTTPException(status_code=413, detail=str(exc)) from exc
+@router.get("/documents")
+async def admin_documents_list(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    status: str | None = Query(None),
+    filename: str | None = Query(None),
+    created_from: str | None = Query(None),
+    created_to: str | None = Query(None),
+) -> Any:
+    params = {
+        "limit": limit,
+        "offset": offset,
+        "status": status,
+        "filename": filename,
+        "created_from": created_from,
+        "created_to": created_to,
+    }
+    clean_params = {k: v for k, v in params.items() if v is not None}
+    return await _proxy_rag_request("GET", "/documents", params=clean_params)
 
 
-@router.get("/documents/storage/files")
-async def admin_list_storage_files(
-    prefix: str | None = Query(None),
-    limit: int | None = Query(None, ge=1, le=1000),
-    _: dict[str, Any] = Depends(require_admin_user),
-    upload_service: DocumentUploadService = Depends(get_admin_document_upload_service),
-) -> dict[str, Any]:
-    items = await upload_service.list_files(prefix=prefix, limit=limit)
-    return {"items": items, "total": len(items)}
+@router.get("/documents/{doc_id}")
+async def admin_document_detail(doc_id: str) -> Any:
+    return await _proxy_rag_request("GET", f"/documents/{doc_id}")
 
 
-@router.get("/documents/storage/files/metadata")
-async def admin_get_storage_file_metadata(
-    key: str = Query(..., min_length=1),
-    _: dict[str, Any] = Depends(require_admin_user),
-    upload_service: DocumentUploadService = Depends(get_admin_document_upload_service),
-) -> dict[str, Any]:
-    return await upload_service.get_file_metadata(key=key)
+@router.get("/documents/{doc_id}/status")
+async def admin_document_status(doc_id: str) -> Any:
+    return await _proxy_rag_request("GET", f"/documents/{doc_id}/status")
 
 
-@router.get("/documents/storage/files/content")
-async def admin_get_storage_file_content(
-    key: str = Query(..., min_length=1),
-    _: dict[str, Any] = Depends(require_admin_user),
-    upload_service: DocumentUploadService = Depends(get_admin_document_upload_service),
-) -> Response:
-    content = await upload_service.get_file(key=key)
-    filename = os.path.basename(key) or "file.bin"
+@router.delete("/documents/{doc_id}")
+async def admin_document_delete(doc_id: str) -> Any:
+    return await _proxy_rag_request("DELETE", f"/documents/{doc_id}")
+
+
+@router.post("/documents/{doc_id}/reindex")
+async def admin_document_reindex(doc_id: str) -> Any:
+    return await _proxy_rag_request("POST", f"/documents/{doc_id}/reindex")
+
+
+@router.get("/documents/{doc_id}/download")
+async def admin_document_download(doc_id: str) -> Response:
+    detail = await _proxy_rag_request("GET", f"/documents/{doc_id}")
+    minio_key = detail.get("minio_key") if isinstance(detail, dict) else None
+    if not minio_key:
+        raise HTTPException(status_code=404, detail="Document minio_key not found")
+
+    url = f"{RAG_SERVICE_URL}/documents/storage/files/content"
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
+        try:
+            res = await client.get(url, params={"key": minio_key})
+            res.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text or "RAG download error") from exc
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=503, detail=f"RAG service unavailable: {exc}") from exc
+
+    headers = {}
+    cd = res.headers.get("content-disposition")
+    if cd:
+        headers["Content-Disposition"] = cd
     return Response(
-        content=content,
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        content=res.content,
+        media_type=res.headers.get("content-type", "application/octet-stream"),
+        headers=headers,
     )
-
-
-@router.delete("/documents/storage/files")
-async def admin_delete_storage_file(
-    key: str = Query(..., min_length=1),
-    _: dict[str, Any] = Depends(require_admin_user),
-    upload_service: DocumentUploadService = Depends(get_admin_document_upload_service),
-) -> dict[str, Any]:
-    return await upload_service.delete_file(key=key)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

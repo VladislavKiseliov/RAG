@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rag_service.application.ingestion_service import IngestionResult, IngestionService
+from rag_service.workers.ingestion_service import IngestionResult, IngestionService
 from rag_service.models import DocumentStatus
 
 
@@ -42,7 +42,7 @@ def ingestion_service(
         document_service=document_service_mock,
         vector_provider=vector_provider_mock,
         vector_indexing_service=vector_indexing_service_mock,
-        minio_provider=SimpleNamespace(),
+        s3_storage=SimpleNamespace(),
         vector_timeout_seconds=1.0,
     )
 

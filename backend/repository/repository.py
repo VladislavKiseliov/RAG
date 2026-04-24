@@ -1,11 +1,29 @@
+import enum
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update, delete
+
+from sqlalchemy import select, update, delete, Select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.models.database_models import Chats, Messages, Users, RefreshTokens
+from rag_service import DocumentAlreadyExists
+from rag_service.models import Documents
+
+class DocumentAlreadyExists(Exception):
+    """Брошено при конфликте уникальности по file_hash."""
+    def __init__(self, file_hash: str) -> None:
+        super().__init__(f"Document with hash '{file_hash}' already exists")
+        self.file_hash = file_hash
+
+class DocumentStatus(str, enum.Enum):
+    processing = "processing"
+    completed = "completed"
+    error = "error"
+
+
 
 class BaseRepository:
     """Базовый класс для инъекции фабрики сессий."""
@@ -204,3 +222,103 @@ class MessageRepository(BaseRepository):
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+
+
+class DocumentRepository(BaseRepository):
+
+    async def get_document_by_hash(self, file_hash: str) -> Documents | None:
+        """Return a document by SHA-256 hash, or `None` if absent."""
+        async with self.session_factory() as session:
+            result = await session.execute(select(Documents).where(Documents.file_hash == file_hash))
+            return result.scalar_one_or_none()
+
+    async def get_document_by_id(self, doc_id: uuid.UUID) -> Documents | None:
+        """Return a document by UUID, or `None` if absent."""
+        async with self.session_factory() as session:
+            result = await session.execute(select(Documents).where(Documents.id == doc_id))
+            return result.scalar_one_or_none()
+
+    async def list_documents(
+            self,
+            *,
+            limit: int,
+            offset: int,
+            status: str | None = None,
+            filename: str | None = None,
+            created_from: datetime | None = None,
+            created_to: datetime | None = None,
+    ) -> list[Documents]:
+        """List documents with pagination and optional filters."""
+        query: Select = select(Documents)
+
+        if status:
+            query = query.where(Documents.status == status)
+        if filename:
+            query = query.where(Documents.filename.ilike(f"%{filename}%"))
+        if created_from is not None:
+            query = query.where(Documents.created_at >= created_from)
+        if created_to is not None:
+            query = query.where(Documents.created_at <= created_to)
+
+        query = query.order_by(Documents.created_at.desc()).limit(limit).offset(offset)
+
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
+    async def create_document(
+            self,
+            filename: str,
+            file_hash: str,
+            meta: dict | None,
+            *,
+            doc_id: uuid.UUID | None = None,
+    ) -> uuid.UUID:
+        """Create a document in `processing` status and return its id."""
+        doc = Documents(
+            id=doc_id or uuid.uuid4(),
+            filename=filename,
+            file_hash=file_hash,
+            meta=meta,
+            status=DocumentStatus.processing,
+        )
+
+        async with self.session_factory() as session:
+            try:
+                session.add(doc)
+                await session.flush()
+                await session.commit()
+            except IntegrityError as exc:
+                await session.rollback()
+                message = str(exc)
+                if (
+                        "uq_documents_file_hash" in message
+                        or ("duplicate key value" in message and "file_hash" in message)
+                ):
+                    raise DocumentAlreadyExists(file_hash) from exc
+                raise
+
+        return doc.id
+
+    async def set_status(
+            self,
+            doc_id: uuid.UUID,
+            status: DocumentStatus,
+            *,
+            chunk_count: int | None = None,
+    ) -> None:
+        """Update document status and optionally its processed child chunk count."""
+        values: dict[str, DocumentStatus | int] = {"status": status}
+        if chunk_count is not None:
+            values["chunk_count"] = chunk_count
+
+        async with self.session_factory() as session:
+            await session.execute(update(Documents).where(Documents.id == doc_id).values(**values))
+            await session.commit()
+
+    async def delete_document(self, doc_id: uuid.UUID) -> None:
+        """Delete document row; linked parent chunks are removed by cascade."""
+        async with self.session_factory() as session:
+            await session.execute(delete(Documents).where(Documents.id == doc_id))
+            await session.commit()

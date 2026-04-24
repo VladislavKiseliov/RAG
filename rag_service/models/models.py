@@ -13,10 +13,6 @@ class Base(DeclarativeBase):
     pass
 
 
-class DocumentStatus(str, enum.Enum):
-    processing = "processing"
-    completed = "completed"
-    error = "error"
 
 
 class Documents(Base):

@@ -5,9 +5,12 @@ from __future__ import annotations
 import uuid
 from pathlib import PurePath
 from datetime import datetime
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from backend.repository.repository import DocumentAlreadyExists
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
 from rag_service.models import DocumentStatus, Documents, ParentChunks
 
@@ -21,110 +24,119 @@ def _sanitize_filename(filename: str) -> str:
     return PurePath(cleaned).name
 
 
-class DocumentService:
+class DataBaseDocumentService:
     """Business operations over document rows and parent chunks."""
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        """Create service bound to an async session factory."""
-        self._repo = DocumentRepository(session_factory)
+        self.session_factory = session_factory
+
+    @asynccontextmanager
+    async def session_scope(self) -> AsyncGenerator[tuple[AsyncSession, DocumentRepository], None]:
+        """Управляет жизненным циклом сессии и создает репозиторий."""
+        async with self.session_factory() as session:
+            try:
+                yield session, DocumentRepository(session)
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     async def get_document_by_hash(self, file_hash: str) -> Documents | None:
-        """Return existing document by file hash if present."""
-        return await self._repo.get_document_by_hash(file_hash)
+        async with self.session_scope() as (_, repo):
+            return await repo.get_document_by_hash(file_hash)
 
     async def create_doc(
-        self,
-        filename: str,
-        file_hash: str,
-        meta: dict | None = None,
-        *,
-        doc_id: uuid.UUID | None = None,
-    ) -> uuid.UUID:
-        """Create document with deduplication logic by hash and status."""
-        safe_name = _sanitize_filename(filename)
-        existing = await self._repo.get_document_by_hash(file_hash)
-        if existing is not None:
-            if existing.status == DocumentStatus.completed:
-                return existing.id
-            if existing.status == DocumentStatus.error:
-                await self._repo.delete_document(existing.id)
-            else:
-                return existing.id
+            self,
+            doc_id: uuid.UUID,
+            filename: str,
+            metadata: dict[str, Any],
 
-        return await self._repo.create_document(safe_name, file_hash, meta, doc_id=doc_id)
+    ) -> uuid.UUID:
+        safe_name = _sanitize_filename(filename)
+
+        async with self.session_scope() as (session, repo):
+            existing_by_name = await repo.get_document_by_id(doc_id)
+
+            if existing_by_name:
+                raise DocumentAlreadyExists(f"Document {doc_id} already exists")
+
+            new_id = await repo.create_document(filename=safe_name,
+                                                metadata=metadata,
+                                                doc_status=DocumentStatus.proccessing,
+                                                doc_id=doc_id)
+            await session.commit()
+            return new_id
 
     async def add_parent_chunks(self, doc_id: uuid.UUID, parents: list[dict]) -> None:
-        """Append parent chunks for a document."""
         if not parents:
             return
 
-        current_max = await self._repo.get_max_chunk_index(doc_id)
-        start_index = (current_max + 1) if current_max is not None else 0
+        async with self.session_scope() as (session, repo):
+            current_max = await repo.get_max_chunk_index(doc_id)
+            start_index = (current_max + 1) if current_max is not None else 0
 
-        rows = []
-        for idx, parent in enumerate(parents):
-            rows.append(
-                {
-                    "id": parent.get("id", uuid.uuid4()),
+            rows = []
+            for idx, parent in enumerate(parents):
+                rows.append({
+                    "id": parent.get("id", uuid.uuid4()), # Вернул генерацию ID из оригинала
                     "content": str(parent["text"]),
                     "page_num": str(parent.get("page_num") or ""),
                     "headers": parent.get("headers") or {},
                     "chunk_index": start_index + idx,
-                }
-            )
+                })
 
-        await self._repo.bulk_insert_chunks(doc_id, rows)
+            await repo.bulk_insert_chunks(doc_id, rows)
+            await session.commit()
 
     async def set_status(
-        self,
-        doc_id: uuid.UUID,
-        status: DocumentStatus,
-        *,
-        chunk_count: int | None = None,
+            self,
+            doc_id: uuid.UUID,
+            status: DocumentStatus,
+            *,
+            chunk_count: int | None = None,
     ) -> None:
-        """Set document status and optionally update child chunk count."""
-        await self._repo.set_status(doc_id, status, chunk_count=chunk_count)
+        async with self.session_scope() as (session, repo):
+            await repo.set_status(doc_id, status, chunk_count=chunk_count)
+            await session.commit()
 
     async def delete_document(self, doc_id: uuid.UUID) -> None:
-        """Delete document and all linked chunks by cascade."""
-        await self._repo.delete_document(doc_id)
+        async with self.session_scope() as (session, repo):
+            await repo.delete_document(doc_id)
+            await session.commit()
 
+    async def update_metadata_document(self, doc_id: uuid.UUID, metadata: dict[str, Any]) -> None:
+        pass
 
 class DocumentQueryService:
     """Read-only queries over document metadata and chunks."""
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        """Create query service bound to an async session factory."""
-        self._repo = DocumentRepository(session_factory)
+        self.session_factory = session_factory
+
+    @asynccontextmanager
+    async def session_scope(self) -> AsyncGenerator[tuple[AsyncSession, DocumentRepository], None]:
+        async with self.session_factory() as session:
+            yield session, DocumentRepository(session)
 
     async def get_document_by_id(self, doc_id: uuid.UUID) -> Documents | None:
-        """Return one document by id."""
-        return await self._repo.get_document_by_id(doc_id)
+        async with self.session_scope() as (_, repo):
+            return await repo.get_document_by_id(doc_id)
 
     async def list_documents(
         self,
         *,
         limit: int,
         offset: int,
-        status: str | None = None,
-        filename: str | None = None,
-        created_from: datetime | None = None,
-        created_to: datetime | None = None,
+        **filters
     ) -> list[Documents]:
-        """Return documents with filters and pagination."""
-        return await self._repo.list_documents(
-            limit=limit,
-            offset=offset,
-            status=status,
-            filename=filename,
-            created_from=created_from,
-            created_to=created_to,
-        )
+        async with self.session_scope() as (_, repo):
+            return await repo.list_documents(limit=limit, offset=offset, **filters)
 
     async def get_parent_chunks(
         self,
         requested_parent_ids: list[uuid.UUID],
         doc_id: uuid.UUID | None = None,
     ) -> list[ParentChunks]:
-        """Return parent chunks by ids, optionally scoped to one document."""
-        return await self._repo.get_parents_by_ids(requested_parent_ids, doc_id=doc_id)
+        async with self.session_scope() as (_, repo):
+            return await repo.get_parents_by_ids(requested_parent_ids, doc_id=doc_id)

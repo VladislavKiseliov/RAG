@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from backend.repository.document_storage_repository import DocumentStorageRepository
+from rag_service.infrastructures.repositories.s3_storage_repository import DocumentStorageRepository
 from backend.services.auth_handler import AuthHandler
 from backend.settings import settings
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, async_sessionmaker, AsyncSession

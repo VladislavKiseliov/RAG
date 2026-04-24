@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from backend.repository.document_storage_repository import DocumentStorageRepository
+from rag_service.infrastructures.repositories.s3_storage_repository import DocumentStorageRepository
 
 
 @pytest.fixture

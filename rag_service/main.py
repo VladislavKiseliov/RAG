@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 
 from rag_service.api.rag_routes import router as rag_router
-from rag_service.infrastructure import build_rag_infrastructure
+from rag_service.infrastructure import build_rag_infrastructure, RagContainer
 from rag_service.utils.logger_config import setup_logger
 
 setup_logger("rag_service")
@@ -11,13 +11,8 @@ setup_logger("rag_service")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    container = build_rag_infrastructure()
-
-    app.state.retrieve_service = container.retrieve_service
-    app.state.ingestion_service = container.ingestion_service
-    app.state.minio_provider = container.minio_provider
-    app.state.document_service = container.document_service
-    app.state.document_query_service = container.document_query_service
+    container:RagContainer = build_rag_infrastructure()
+    app.state.container = container
 
     yield
 

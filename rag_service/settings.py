@@ -46,13 +46,13 @@ class RagSettings(BaseSettings):
     vector_timeout_seconds: float = 600.0
 
     # MinIO
-    MINIO_URL: str
-    MINIO_URL_ACCESS_KEY: str
-    MINIO_URL_SECRET_KEY: str
-    MINIO_BUCKET: str
-    MINIO_SECURE: bool
+    minio_url: str
+    minio_access_key: str
+    minio_secret_key: str
+    minio_bucket: str
+    minio_secure: bool
     # Redis
     redis_url:str
 
 
-settings = RagSettings(env_file=".env")
+settings = RagSettings(env_file="rag_service/.env")

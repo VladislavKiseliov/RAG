@@ -17,10 +17,10 @@ from qdrant_client.models import (
 )
 
 from rag_service.infrastructures.providers.embedding_provider import EmbeddingProvider
-from rag_service.infrastructures.providers.vector_provider import VectorProvider
+from rag_service.infrastructures.providers.vector_storage_provider import VectorProvider
 
 
-class QdrantVectorProvider(VectorProvider):
+class QdrantVectorStorage():
     """Qdrant-backed vector storage adapter.
 
     Responsibility boundary:

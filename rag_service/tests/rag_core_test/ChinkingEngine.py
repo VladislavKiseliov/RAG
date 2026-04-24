@@ -22,7 +22,7 @@ if __package__ in {None, ""}:
         sys.path.insert(0, str(project_root))
 
 from rag_service.models import DocumentStatus
-from rag_service.infrastructures.providers.vector_provider import VectorProvider
+from rag_service.infrastructures.providers.vector_storage_provider import VectorProvider
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
 from rag_service.application.document_service import DocumentService
 
@@ -264,7 +264,7 @@ if __name__ == "__main__":
     from rag_service.db.session import create_engine, create_session_factory
     from rag_service.infrastructures.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
     from rag_service.infrastructures.providers.local_embedding_provider import LocalEmbeddingProvider
-    from rag_service.infrastructures.providers.qdrant_provider import QdrantVectorProvider
+    from rag_service.domain.qdrant_vector_storage import QdrantVectorStorage
 
     def _load_env_file(path: Path) -> None:
         """Load simple KEY=VALUE pairs from .env into os.environ if missing."""
@@ -334,7 +334,7 @@ if __name__ == "__main__":
     else:
         embedding = LocalEmbeddingProvider(model=embedding_model)
 
-    vector_provider: VectorProvider = QdrantVectorProvider(
+    vector_provider: VectorProvider = QdrantVectorStorage(
         url=qdrant_url,
         collection=collection,
         embedding_provider=embedding,

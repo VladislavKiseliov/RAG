@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from rag_service.application.document_service import DocumentQueryService
 from rag_service.domain.retrieval import build_retrieved_items, group_hits_by_parent
-from rag_service.infrastructures.providers.vector_provider import VectorProvider
+from rag_service.infrastructures.providers.vector_storage_provider import VectorProvider
 
 
 class RetrieveService:
@@ -26,9 +26,8 @@ class RetrieveService:
     def __init__(
         self,
         *,
-        session_factory: async_sessionmaker[AsyncSession],
-        vector_provider: VectorProvider,
-        document_service: DocumentQueryService,
+        vector_storage: VectorProvider,
+        database: DocumentQueryService,
     ) -> None:
         """Create retrieval service with required infrastructure dependencies.
 
@@ -36,11 +35,10 @@ class RetrieveService:
             session_factory: SQLAlchemy async session factory.
                 Currently passed as an infrastructure dependency for DB-related flows.
             vector_provider: Vector search provider used to search child chunks.
-            document_service: Read-only document query service used to load parent chunks.
+            database: Read-only document query service used to load parent chunks.
         """
-        self._session_factory = session_factory
-        self._vector_provider = vector_provider
-        self._document_service = document_service
+        self.vector_storage = vector_storage
+        self._document_service = database
 
     async def search(
         self,
@@ -93,7 +91,7 @@ class RetrieveService:
                 "total": 0,
             }
 
-        hits = await self._vector_provider.search(
+        hits = await self.vector_storage.search(
             clean_query,
             top_k=max(1, top_k),
             doc_id=doc_id,

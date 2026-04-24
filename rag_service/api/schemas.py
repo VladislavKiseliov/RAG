@@ -1,7 +1,14 @@
+import enum
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class DocumentStatus(str, enum.Enum):
+    processing = "processing"
+    completed = "completed"
+    error = "error"
 
 
 class RetrieveRequest(BaseModel):
@@ -84,3 +91,25 @@ class PlaceholderActionResponse(BaseModel):
     status: Literal["not_implemented"]
     action: str
     detail: str
+
+
+
+
+class UploadFileResponse(BaseModel):
+    status_doc: str
+    doc_id: str
+    presigned_url: str
+
+
+class S3Object(BaseModel):
+    key: str
+
+class S3Data(BaseModel):
+    object: S3Object
+
+class MinioRecord(BaseModel):
+    s3: S3Data
+
+class MinioWebhookEvent(BaseModel):
+    # MinIO присылает список записей в поле "Records"
+    records: list[MinioRecord] = Field(..., alias="Records")

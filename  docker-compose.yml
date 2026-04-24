@@ -155,6 +155,27 @@ services:
     networks:
       - rag_network
 
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+    container_name: rag_admin_panel
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"
+    volumes:
+      - ./admin-panel:/app
+      - /app/node_modules
+    ports:
+      - "${ADMIN_PANEL_PORT:-5174}:5174"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - rag_network
+
 networks:
   rag_network:
     name: rag_network

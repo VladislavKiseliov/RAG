@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from rag_service.infrastructures.providers.embedding_provider import EmbeddingProvider
-from rag_service.infrastructures.providers.vector_provider import VectorProvider
+from rag_service.infrastructures.providers.vector_storage_provider import VectorProvider
 
 
 class VectorIndexingService:

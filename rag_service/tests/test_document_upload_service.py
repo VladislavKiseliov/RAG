@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from backend.services.document_upload_service import DocumentUploadService, MAX_FILE_SIZE
+from rag_service.application.document_upload_service import DocumentUploadService, MAX_FILE_SIZE
 from rag_service.models import DocumentStatus
 
 

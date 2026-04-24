@@ -35,26 +35,58 @@
     networks:
       - rag_network
 
-  minio:
-    image: minio/minio:latest
-    container_name: rag_minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    volumes:
-      - minio_data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - rag_network
+
+  rag_minio:
+      image: minio/minio:latest
+      container_name: rag_minio
+      command: server /data --console-address ":9001"
+      environment:
+        MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+        MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      ports:
+        - "${MINIO_PORT:-9000}:9000"
+        - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      volumes:
+        - minio_data:/data
+      restart: unless-stopped
+      healthcheck:
+        test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+      networks:
+        - rag_network
+
+  minio-init:
+      image: minio/mc
+      depends_on:
+        rag_minio:
+          condition: service_healthy # Ждем именно прохождения хелсчека
+      networks:
+        - rag_network
+      entrypoint: >
+        /bin/sh -c "
+        until (/usr/bin/mc alias set myminio http://rag_minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin}) do 
+          echo 'Waiting for MinIO...' && sleep 2; 
+        done;
+
+        /usr/bin/mc mb --ignore-existing myminio/documents;
+
+        # Настройка вебхука
+        /usr/bin/mc admin config set myminio notify_webhook:1 \
+          endpoint='http://backend:8000/api/v1/webhooks/minio' \
+          auth_token='your-secret-token';
+
+        /usr/bin/mc admin service restart myminio;
+
+        # Небольшая пауза, чтобы MinIO успел проснуться после рестарта
+        sleep 5;
+
+        # Привязка события (важно: имя после arn должно совпадать с индексом notify_webhook)
+        /usr/bin/mc event add myminio/documents arn:minio:sqs::1:webhook --event put;
+
+        echo 'MinIO Webhook configured successfully!';
+        "
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -177,6 +209,27 @@
       - /app/node_modules
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - rag_network
+
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+    container_name: rag_admin_panel
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"
+    volumes:
+      - ./admin-panel:/app
+      - /app/node_modules
+    ports:
+      - "${ADMIN_PANEL_PORT:-5174}:5174"
     restart: unless-stopped
     depends_on:
       backend:
