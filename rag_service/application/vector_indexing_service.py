@@ -1,49 +1,78 @@
 from __future__ import annotations
 
 from rag_service.infrastructures.providers.embedding_provider import EmbeddingProvider
-from rag_service.infrastructures.providers.vector_storage_provider import VectorProvider
 
 
 class VectorIndexingService:
-    """Embeds point texts and sends ready vectors to the vector store."""
+    """
+    Application-level service for text vectorization.
 
-    def __init__(
-        self,
-        *,
-        embedding_provider: EmbeddingProvider,
-        vector_provider: VectorProvider,
-        embedding_batch_size: int = 64,
-    ) -> None:
+    Responsibilities:
+        - Orchestrate batching logic for heavy embedding tasks.
+        - Validate input strings before processing.
+        - Provide a clean interface for single query and batch document vectorization.
+    """
+
+    def __init__(self, embedding_provider: EmbeddingProvider, batch_size: int = 64):
+        """
+        Initializes the service with a persistent embedding provider.
+
+        Args:
+            embedding_provider: A shared instance of the model provider.
+            batch_size: Number of texts to process in a single model pass.
+        """
         self._embedding_provider = embedding_provider
-        self._vector_provider = vector_provider
-        self._embedding_batch_size = max(1, embedding_batch_size)
+        self._batch_size = max(1, batch_size)
 
-    async def upsert_points(self, points: list[dict]) -> None:
-        if not points:
-            return
+    async def get_query_embedding(self, query: str) -> list[float]:
+        """
+        Converts a single user query into an embedding vector.
 
-        texts = [str(point.get("text", "")) for point in points]
-        if any(not text.strip() for text in texts):
-            raise RuntimeError("Point text is empty")
+        Args:
+            query: User's natural language input.
 
-        vectors: list[list[float]] = []
-        for start in range(0, len(texts), self._embedding_batch_size):
-            batch = texts[start : start + self._embedding_batch_size]
+        Returns:
+            A list of floats representing the query in vector space.
+        """
+        clean_query = query.strip()
+        if not clean_query:
+            raise RuntimeError("Query text cannot be empty or whitespace only.")
+
+        vectors = await self._embedding_provider.embed([clean_query])
+
+        if not vectors:
+            raise RuntimeError("Embedding provider failed to generate a vector.")
+
+        return vectors[0]
+
+    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
+        """
+        Converts a list of document chunks into embeddings using batching.
+
+        Args:
+            texts: List of strings to vectorize.
+
+        Returns:
+            A list of embedding vectors (lists of floats).
+        """
+        if not texts:
+            return []
+
+        # Optional: check for empty chunks to avoid model errors
+        if any(not t.strip() for t in texts):
+            raise ValueError("Input list contains empty or invalid strings.")
+
+        all_vectors = []
+        for start in range(0, len(texts), self._batch_size):
+            batch = texts[start: start + self._batch_size]
             batch_vectors = await self._embedding_provider.embed(batch)
-            if not batch_vectors:
-                raise RuntimeError("Embeddings are empty")
-            vectors.extend(batch_vectors)
+            all_vectors.extend(batch_vectors)
 
-        ready_points = []
-        for point, vector in zip(points, vectors, strict=True):
-            payload = dict(point.get("payload") or {})
-            payload.setdefault("text", point["text"])
-            ready_points.append(
-                {
-                    "id": point.get("id"),
-                    "vector": vector,
-                    "payload": payload,
-                }
-            )
+        return all_vectors
 
-        await self._vector_provider.upsert_vectors(ready_points)
+
+
+
+
+
+

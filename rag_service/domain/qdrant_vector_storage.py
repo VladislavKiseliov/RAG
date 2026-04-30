@@ -16,8 +16,13 @@ from qdrant_client.models import (
     WalConfigDiff,
 )
 
+from rag_service.domain.errors.vector import (
+    VectorCollectionError,
+    VectorDeleteError,
+    VectorSearchError,
+    VectorUpsertError,
+)
 from rag_service.infrastructures.providers.embedding_provider import EmbeddingProvider
-from rag_service.infrastructures.providers.vector_storage_provider import VectorProvider
 
 
 class QdrantVectorStorage():
@@ -43,7 +48,6 @@ class QdrantVectorStorage():
         *,
         url: str,
         collection: str,
-        embedding_provider: EmbeddingProvider,
         distance: str = "Cosine",
         upsert_batch_size: int = 64,
         hnsw_m: int | None = None,
@@ -58,8 +62,7 @@ class QdrantVectorStorage():
         Args:
             url: Qdrant base URL.
             collection: Target Qdrant collection name.
-            embedding_provider: Provider used only for query embedding during search.
-                Ingestion-time embeddings are prepared outside this class.
+            Ingestion-time embeddings are prepared outside this class.
             distance: Vector distance metric name understood by Qdrant.
             upsert_batch_size: Maximum number of ready vector points sent per upsert call.
             hnsw_m: Optional HNSW graph connectivity parameter.
@@ -76,7 +79,6 @@ class QdrantVectorStorage():
 
         self._client = AsyncQdrantClient(url=url)
         self._collection = collection
-        self._embedding_provider = embedding_provider
         self._distance = Distance[distance.upper()]
         self._upsert_batch_size = max(1, upsert_batch_size)
         self._hnsw_m = hnsw_m
@@ -86,7 +88,7 @@ class QdrantVectorStorage():
         self._optimizers_indexing_threshold = optimizers_indexing_threshold
         self._wal_capacity_mb = wal_capacity_mb
 
-    async def upsert_vectors(self, points: list[dict]) -> None:
+    async def upsert_vectors(self, doc_id: uuid.UUID, childs: list,vectors:list[list[float]]) -> None:
         """Persist already-vectorized points in Qdrant.
 
         Expected point format:
@@ -101,6 +103,9 @@ class QdrantVectorStorage():
         - Payload is stored as-is after shallow copying.
         - Upserts are split into Qdrant-sized batches only.
         """
+
+        points = self._creates_points(doc_id, childs, vectors)
+
         if not points:
             return
 
@@ -108,53 +113,90 @@ class QdrantVectorStorage():
         if not first_vector:
             raise RuntimeError("Point vector is empty")
 
-        await self._ensure_collection(len(first_vector))
+        try:
+            await self._ensure_collection(len(first_vector))
 
-        for start in range(0, len(points), self._upsert_batch_size):
-            batch = points[start : start + self._upsert_batch_size]
-            qdrant_points: list[PointStruct] = []
-            for index, point in enumerate(batch, start=start):
-                point_id = self._normalize_point_id(point.get("id"), fallback=f"point:{index}")
-                qdrant_points.append(
-                    PointStruct(
-                        id=point_id,
-                        vector=point["vector"],
-                        payload=dict(point.get("payload") or {}),
+            for start in range(0, len(points), self._upsert_batch_size):
+                batch = points[start : start + self._upsert_batch_size]
+                qdrant_points: list[PointStruct] = []
+                for index, point in enumerate(batch, start=start):
+                    point_id = self._normalize_point_id(point.get("id"), fallback=f"point:{index}")
+                    qdrant_points.append(
+                        PointStruct(
+                            id=point_id,
+                            vector=point["vector"],
+                            payload=dict(point.get("payload") or {}),
+                        )
                     )
-                )
 
-            await self._client.upsert(
-                collection_name=self._collection,
-                points=qdrant_points,
-                wait=True,
+                await self._client.upsert(
+                    collection_name=self._collection,
+                    points=qdrant_points,
+                    wait=True,
+                )
+        except VectorCollectionError:
+            raise
+        except Exception as exc:
+            raise VectorUpsertError("Failed to upsert vectors to Qdrant") from exc
+
+    def _creates_points(self,doc_id: uuid.UUID, childs: list,vectors:list[list[float]]) -> list[dict]:
+        """
+                Internal mapper that assembles the dictionary structure for Qdrant points.
+
+                This method ensures that the 'text' and 'doc_id' are always present
+                in the point's payload for efficient retrieval and filtering.
+                """
+        if not childs or not vectors:
+            return []
+
+        ready_points = []
+        for child, vector in zip(childs, vectors, strict=True):
+            ready_points.append(
+                {
+                    "id": child.get("id") or str(uuid.uuid4()),
+                    "vector": vector,
+                    "payload": {
+                        "parent_id": child["parent_id"],
+                        "headers": child.get("headers") or {},
+                        "text": child["text"],
+                        "source": child.get("source", ""),
+                        "doc_id": str(doc_id),
+                    },
+                }
             )
+
+        return ready_points
+
 
     async def search(
         self,
-        query: str,
+        query_vector: list[float],
         *,
         top_k: int = 5,
         doc_id: uuid.UUID | None = None,
         score_threshold: float | None = None,
     ) -> list[dict]:
-        """Search nearest stored chunks by text query.
-
-        Search flow:
-        1. normalize and validate the text query,
-        2. embed the query text into one vector,
-        3. execute Qdrant vector search,
-        4. optionally filter by one document,
-        5. return lightweight hits with `id`, `score`, and `payload`.
-
-        This method still owns query embedding because retrieval currently uses
-        a text-first contract at the provider boundary.
         """
-        clean_query = query.strip()
-        if not clean_query:
-            return []
+        Executes a vector similarity search in the Qdrant collection.
 
-        vectors = await self._embedding_provider.embed([clean_query])
-        if not vectors:
+        This method is "model-agnostic," meaning it only handles pre-computed
+        embeddings. It performs a geometric search to find the nearest
+        neighbors in the vector space.
+
+        Args:
+            query_vector: A single embedding vector representing the search query.
+            top_k: The maximum number of similar points to return. Defaults to 5.
+            doc_id: Optional UUID to restrict the search to a specific document's chunks.
+            score_threshold: Optional minimum similarity score (0.0 to 1.0)
+                to filter out irrelevant results.
+
+        Returns:
+            List[Dict[str, Any]]: A list of search hits, where each hit contains
+                the point 'id', similarity 'score', and the associated 'payload'.
+                Returns an empty list if no results are found or if the query_vector is empty.
+        """
+
+        if not query_vector:
             return []
 
         query_filter = None
@@ -163,37 +205,43 @@ class QdrantVectorStorage():
                 must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
             )
 
-        results = await self._client.query_points(
-            collection_name=self._collection,
-            query=vectors[0],
-            limit=max(1, top_k),
-            score_threshold=score_threshold,
-            query_filter=query_filter,
-            with_payload=True,
-            with_vectors=False,
-        )
+        try:
+            results = await self._client.query_points(
+                collection_name=self._collection,
+                query=query_vector[0],
+                limit=max(1, top_k),
+                score_threshold=score_threshold,
+                query_filter=query_filter,
+                with_payload=True,
+                with_vectors=False,
+            )
 
-        return [
-            {
-                "id": r.id,
-                "score": float(r.score),
-                "payload": r.payload or {},
-            }
-            for r in results.points
-        ]
+            return [
+                {
+                    "id": r.id,
+                    "score": float(r.score),
+                    "payload": r.payload or {},
+                }
+                for r in results.points
+            ]
+        except Exception as exc:
+            raise VectorSearchError("Failed to execute vector search in Qdrant") from exc
 
     async def delete(self, doc_id: uuid.UUID) -> None:
         """Delete every vector point that belongs to one document.
 
         Document ownership is resolved by payload field `doc_id`.
         """
-        await self._client.delete(
-            collection_name=self._collection,
-            points_selector=Filter(
-                must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
-            ),
-            wait=True,
-        )
+        try:
+            await self._client.delete(
+                collection_name=self._collection,
+                points_selector=Filter(
+                    must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
+                ),
+                wait=True,
+            )
+        except Exception as exc:
+            raise VectorDeleteError(f"Failed to delete vectors for doc_id={doc_id}") from exc
 
     async def _ensure_collection(self, vector_size: int) -> None:
         """Create the target collection lazily if it does not exist yet.
@@ -201,40 +249,43 @@ class QdrantVectorStorage():
         The collection schema is derived from the first upserted vector size
         and the configured distance/index optimizer settings.
         """
-        exists = await self._client.collection_exists(self._collection)
-        if exists:
-            return
+        try:
+            exists = await self._client.collection_exists(self._collection)
+            if exists:
+                return
 
-        hnsw_config = None
-        if self._hnsw_m is not None or self._hnsw_ef_construct is not None:
-            hnsw_config = HnswConfigDiff(
-                m=self._hnsw_m,
-                ef_construct=self._hnsw_ef_construct,
+            hnsw_config = None
+            if self._hnsw_m is not None or self._hnsw_ef_construct is not None:
+                hnsw_config = HnswConfigDiff(
+                    m=self._hnsw_m,
+                    ef_construct=self._hnsw_ef_construct,
+                )
+
+            optimizers_config = None
+            if any(v is not None for v in [
+                self._optimizers_default_segment_number,
+                self._optimizers_memmap_threshold,
+                self._optimizers_indexing_threshold,
+            ]):
+                optimizers_config = OptimizersConfigDiff(
+                    default_segment_number=self._optimizers_default_segment_number,
+                    memmap_threshold=self._optimizers_memmap_threshold,
+                    indexing_threshold=self._optimizers_indexing_threshold,
+                )
+
+            wal_config = None
+            if self._wal_capacity_mb is not None:
+                wal_config = WalConfigDiff(wal_capacity_mb=self._wal_capacity_mb)
+
+            await self._client.create_collection(
+                collection_name=self._collection,
+                vectors_config=VectorParams(size=vector_size, distance=self._distance),
+                hnsw_config=hnsw_config,
+                optimizers_config=optimizers_config,
+                wal_config=wal_config,
             )
-
-        optimizers_config = None
-        if any(v is not None for v in [
-            self._optimizers_default_segment_number,
-            self._optimizers_memmap_threshold,
-            self._optimizers_indexing_threshold,
-        ]):
-            optimizers_config = OptimizersConfigDiff(
-                default_segment_number=self._optimizers_default_segment_number,
-                memmap_threshold=self._optimizers_memmap_threshold,
-                indexing_threshold=self._optimizers_indexing_threshold,
-            )
-
-        wal_config = None
-        if self._wal_capacity_mb is not None:
-            wal_config = WalConfigDiff(wal_capacity_mb=self._wal_capacity_mb)
-
-        await self._client.create_collection(
-            collection_name=self._collection,
-            vectors_config=VectorParams(size=vector_size, distance=self._distance),
-            hnsw_config=hnsw_config,
-            optimizers_config=optimizers_config,
-            wal_config=wal_config,
-        )
+        except Exception as exc:
+            raise VectorCollectionError("Failed to ensure Qdrant collection") from exc
 
     @staticmethod
     def _normalize_point_id(raw_id: Any, *, fallback: str) -> str | int:

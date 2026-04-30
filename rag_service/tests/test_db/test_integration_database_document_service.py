@@ -1,0 +1,269 @@
+from __future__ import annotations
+
+"""Integration tests for DataBaseDocumentService on a real test PostgreSQL DB.
+
+The suite seeds multiple documents with different statuses and verifies that
+service methods work against real persistence state (not mocks).
+"""
+
+import uuid
+from datetime import datetime, timezone
+
+import pytest
+import pytest_asyncio
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from rag_service.api.schemas import DocumentStatus
+from rag_service.application.document_service import DataBaseDocumentService
+from rag_service.models import Base, Documents, ParentChunks
+from rag_service.settings import settings
+
+
+pytestmark = pytest.mark.asyncio(loop_scope="module")
+
+SEEDED_DOCUMENTS = [
+    {
+        "id": uuid.uuid4(),
+        "filename": "seed-pending.pdf",
+        "status": "pending",
+        "file_hash": None,
+        "minio_key": "documents/2026/04/seed-pending__aaaa1111.pdf",
+        "meta": {"source": "seed", "tag": "pending"},
+        "chunk_count": 0,
+    },
+    {
+        "id": uuid.uuid4(),
+        "filename": "seed-processing.pdf",
+        "status": "processing",
+        "file_hash": "f" * 64,
+        "minio_key": "documents/2026/04/seed-processing__bbbb2222.pdf",
+        "meta": {"source": "seed", "tag": "processing"},
+        "chunk_count": None,
+    },
+    {
+        "id": uuid.uuid4(),
+        "filename": "seed-completed.pdf",
+        "status": "completed",
+        "file_hash": "e" * 64,
+        "minio_key": "documents/2026/04/seed-completed__cccc3333.pdf",
+        "meta": {"source": "seed", "tag": "completed"},
+        "chunk_count": 3,
+    },
+]
+
+
+@pytest_asyncio.fixture(scope="module", loop_scope="module")
+async def engine():
+    """Create engine and normalize schema constraints for service integration tests."""
+    assert settings.MODE == "TEST", "Integration tests must run with MODE=TEST"
+    engine = create_async_engine(settings.DATABASE_URL, future=True)
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS rag_kernel"))
+        await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text("ALTER TABLE rag_kernel.documents ALTER COLUMN file_hash DROP NOT NULL")
+        )
+        await conn.execute(text("ALTER TABLE rag_kernel.documents DROP CONSTRAINT IF EXISTS ck_documents_status"))
+        await conn.execute(
+            text(
+                "ALTER TABLE rag_kernel.documents "
+                "ALTER COLUMN status TYPE TEXT USING status::text"
+            )
+        )
+        await conn.execute(text("DROP TYPE IF EXISTS rag_kernel.document_status_enum"))
+        await conn.execute(
+            text(
+                "ALTER TABLE rag_kernel.documents "
+                "ADD CONSTRAINT ck_documents_status "
+                "CHECK (status IN ('pending', 'uploading', 'processing', 'extracting', 'indexing', 'completed', 'error'))"
+            )
+        )
+    yield engine
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="module", loop_scope="module")
+async def session_factory(engine):
+    """Provide async session factory bound to real test PostgreSQL engine."""
+    return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+
+@pytest_asyncio.fixture(scope="module", loop_scope="module")
+async def service(session_factory) -> DataBaseDocumentService:
+    """Instantiate DataBaseDocumentService used by integration tests."""
+    return DataBaseDocumentService(session_factory=session_factory)
+
+
+@pytest_asyncio.fixture(scope="module", loop_scope="module", autouse=True)
+async def seeded_data(session_factory):
+    """Seed test DB with documents in multiple statuses and parent chunks."""
+    async with session_factory() as session:
+        for item in SEEDED_DOCUMENTS:
+            session.add(
+                Documents(
+                    id=item["id"],
+                    filename=item["filename"],
+                    file_hash=item["file_hash"],
+                    status=item["status"],
+                    minio_key=item["minio_key"],
+                    meta=item["meta"],
+                    chunk_count=item["chunk_count"],
+                )
+            )
+        await session.commit()
+
+    # Add parent chunks only for processing seed (chunk_count is None there).
+    processing_doc_id = SEEDED_DOCUMENTS[1]["id"]
+    async with session_factory() as session:
+        session.add_all(
+            [
+                ParentChunks(
+                    id=uuid.uuid4(),
+                    doc_id=processing_doc_id,
+                    content="seed chunk 1",
+                    chunk_index=0,
+                    page_num="1",
+                    headers={"h1": "A"},
+                ),
+                ParentChunks(
+                    id=uuid.uuid4(),
+                    doc_id=processing_doc_id,
+                    content="seed chunk 2",
+                    chunk_index=1,
+                    page_num="1",
+                    headers={"h1": "A"},
+                ),
+            ]
+        )
+        await session.commit()
+
+    yield
+
+    # Cleanup seeded rows.
+    async with session_factory() as session:
+        for item in SEEDED_DOCUMENTS:
+            await session.execute(
+                text("DELETE FROM rag_kernel.documents WHERE id = :doc_id"),
+                {"doc_id": item["id"]},
+            )
+        await session.commit()
+
+
+async def test_get_document_by_id_reads_seeded_document(service: DataBaseDocumentService) -> None:
+    """Read one seeded document by id and verify core fields."""
+    target = SEEDED_DOCUMENTS[0]
+    doc = await service.get_document_by_id(target["id"])
+    assert doc is not None
+    assert doc.id == target["id"]
+    assert doc.filename == target["filename"]
+    assert doc.status == target["status"]
+
+
+async def test_list_documents_filters_by_status(service: DataBaseDocumentService) -> None:
+    """List documents with status filter and ensure only matching records are returned."""
+    items = await service.list_documents(limit=100, offset=0, status="completed")
+    assert len(items) >= 1
+    assert all(item.status == "completed" for item in items)
+
+
+async def test_get_document_full_info_returns_chunk_counters(service: DataBaseDocumentService) -> None:
+    """Return full info payload and compute chunks_total fallback from parent_chunks."""
+    target = SEEDED_DOCUMENTS[1]  # processing doc with chunk_count=None and two parent chunks
+    info = await service.get_document_full_info(target["id"])
+    assert info is not None
+    assert info["doc_id"] == str(target["id"])
+    assert info["filename"] == target["filename"]
+    assert info["status"] == "processing"
+    assert info["minio_key"] == target["minio_key"]
+    assert info["meta"]["tag"] == "processing"
+    assert info["chunk_count"] is None
+    assert isinstance(info["created_at"], datetime)
+
+
+async def test_create_doc_persists_minio_key_and_meta(
+    service: DataBaseDocumentService,
+    session_factory,
+) -> None:
+    """Create a new document and verify minio key + metadata persistence."""
+    new_doc_id = uuid.uuid4()
+    filename = "created-from-service.pdf"
+    minio_key = "documents/2026/04/created-from-service__dddd4444.pdf"
+    await service.create_doc(
+        doc_id=new_doc_id,
+        filename=filename,
+        metadata={"source": "test-create"},
+        minio_key=minio_key,
+    )
+
+    async with session_factory() as session:
+        result = await session.execute(select(Documents).where(Documents.id == new_doc_id))
+        created = result.scalar_one_or_none()
+        assert created is not None
+        assert created.filename == filename
+        assert created.minio_key == minio_key
+        assert created.meta == {"source": "test-create"}
+        assert created.status == DocumentStatus.PENDING
+
+        await session.execute(text("DELETE FROM rag_kernel.documents WHERE id = :doc_id"), {"doc_id": new_doc_id})
+        await session.commit()
+
+
+async def test_set_status_updates_status_and_chunk_count(
+    service: DataBaseDocumentService,
+    session_factory,
+) -> None:
+    """Update status/chunk_count and verify persisted values."""
+    target = SEEDED_DOCUMENTS[0]["id"]
+    await service.set_status(target, DocumentStatus.COMPLETED, chunk_count=7)
+
+    async with session_factory() as session:
+        result = await session.execute(select(Documents).where(Documents.id == target))
+        doc = result.scalar_one()
+        assert doc.status == "completed"
+        assert doc.chunk_count == 7
+
+
+async def test_update_document_updates_selected_fields(
+    service: DataBaseDocumentService,
+    session_factory,
+) -> None:
+    """Update multiple fields and verify persisted values."""
+    target = SEEDED_DOCUMENTS[0]["id"]
+    new_meta = {"source": "updated", "tag": "after-update"}
+    new_key = "documents/2026/04/updated__ffff6666.pdf"
+    new_hash = "a" * 64
+
+    await service.update_document(
+        target,
+        status=DocumentStatus.UPLOAD,
+        metadata=new_meta,
+        chunk_count=9,
+        minio_key=new_key,
+        file_hash=new_hash,
+    )
+
+    async with session_factory() as session:
+        result = await session.execute(select(Documents).where(Documents.id == target))
+        doc = result.scalar_one()
+        assert doc.status == "uploading"
+        assert doc.meta == new_meta
+        assert doc.chunk_count == 9
+        assert doc.minio_key == new_key
+        assert doc.file_hash == new_hash
+
+
+async def test_delete_document_removes_row(service: DataBaseDocumentService, session_factory) -> None:
+    """Delete a document and ensure it no longer exists in database."""
+    temp_id = uuid.uuid4()
+    await service.create_doc(
+        doc_id=temp_id,
+        filename="to-delete.pdf",
+        metadata={"tmp": True},
+        minio_key="documents/2026/04/to-delete__eeee5555.pdf",
+    )
+    await service.delete_document(temp_id)
+
+    async with session_factory() as session:
+        result = await session.execute(select(Documents).where(Documents.id == temp_id))
+        assert result.scalar_one_or_none() is None

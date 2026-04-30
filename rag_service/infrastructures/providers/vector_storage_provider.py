@@ -1,57 +1,62 @@
-from typing import Protocol, Any, runtime_checkable
+from typing import Protocol, Any, runtime_checkable, List, Dict, Optional
 import uuid
 
 
 @runtime_checkable
 class VectorStorageProvider(Protocol):
     """
-    Протокол для векторного хранилища.
+    Protocol for vector storage operations.
 
-    Определяет методы для сохранения векторов, семантического поиска
-    и управления данными на уровне документов.
+    Defines a clean interface for persisting embeddings, performing
+    geometric similarity searches, and managing document-scoped data.
+
+    This interface is model-agnostic: it accepts pre-computed vectors
+    rather than raw text strings.
     """
 
-    async def upsert_vectors(self, points: list[dict[str, Any]]) -> None:
+    async def upsert_vectors(
+            self,
+            doc_id: uuid.UUID,
+            childs: List[Dict[str, Any]],
+            vectors: List[List[float]]
+    ) -> None:
         """
-        Сохраняет уже подготовленные векторы и метаданные (payload) в хранилище.
+        Persists pre-computed vectors and their associated metadata.
 
         Args:
-            points: Список словарей. Каждый словарь должен содержать:
-                - "id": уникальный идентификатор (int/UUID/str)
-                - "vector": список float (эмбеддинг)
-                - "payload": метаданные чанка (текст, doc_id и т.д.)
+            doc_id: Unique identifier of the source document.
+            childs: List of chunk data (metadata, text, etc.) from the application.
+            vectors: List of corresponding embedding vectors.
         """
         ...
 
     async def search(
             self,
-            query: str,
+            query_vector: List[float],
             *,
             top_k: int = 5,
-            doc_id: uuid.UUID | None = None,
-            score_threshold: float | None = None
-    ) -> list[dict[str, Any]]:
+            doc_id: Optional[uuid.UUID] = None,
+            score_threshold: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
         """
-        Выполняет семантический поиск по текстовому запросу.
-
-        Внутри метода происходит векторизация запроса и поиск ближайших соседей.
+        Performs a similarity search using a pre-computed vector.
 
         Args:
-            query: Текст поискового запроса.
-            top_k: Количество возвращаемых результатов.
-            doc_id: Опциональный фильтр для поиска только внутри одного документа.
-            score_threshold: Минимальный порог сходства (0.0 - 1.0).
+            query_vector: A single embedding vector representing the search query.
+            top_k: Maximum number of similar points to return.
+            doc_id: Optional filter to restrict search to a specific document.
+            score_threshold: Minimum similarity score threshold (0.0 to 1.0).
 
         Returns:
-            list[dict]: Список найденных чанков с их score и payload.
+            List[Dict[str, Any]]: Search hits containing 'id', 'score', and 'payload'.
         """
         ...
 
     async def delete(self, doc_id: uuid.UUID) -> None:
         """
-        Удаляет все векторные точки, связанные с конкретным документом.
+        Removes all vector points associated with a specific document.
 
         Args:
-            doc_id: UUID документа, чьи векторы нужно удалить.
+            doc_id: UUID of the document whose vectors should be deleted.
         """
         ...

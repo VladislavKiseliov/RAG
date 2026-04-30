@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from backend.models.database_models import Users
 from backend.services.auth_service import AuthService
 from backend.services.chat_service import ChatService
-from rag_service.application.document_upload_service import DocumentUploadService
+from rag_service.application.document_orchestrator import DocumentUploadService
 from backend.services.user_service import UserService
 from backend.repository.repository import AuthRepository, ChatRepository, MessageRepository, UserRepository, \
     DocumentRepository

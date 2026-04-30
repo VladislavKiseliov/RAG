@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import uuid
 from pathlib import PurePath
-from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from backend.repository.repository import DocumentAlreadyExists
+from rag_service.domain.errors.postgres import DocumentAlreadyExists
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
 from rag_service.models import DocumentStatus, Documents, ParentChunks
 
@@ -46,11 +45,32 @@ class DataBaseDocumentService:
         async with self.session_scope() as (_, repo):
             return await repo.get_document_by_hash(file_hash)
 
+    async def get_document_by_id(self, doc_id: uuid.UUID) -> Documents | None:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_document_by_id(doc_id)
+
+    async def list_documents(
+            self,
+            *,
+            limit: int,
+            offset: int,
+            status: str | None = None,
+            filename: str | None = None,
+    ) -> list[Documents]:
+        async with self.session_scope() as (_, repo):
+            return await repo.list_documents(
+                limit=limit,
+                offset=offset,
+                status=status,
+                filename=filename,
+            )
+
     async def create_doc(
             self,
             doc_id: uuid.UUID,
             filename: str,
             metadata: dict[str, Any],
+            minio_key: str | None = None,
 
     ) -> uuid.UUID:
         safe_name = _sanitize_filename(filename)
@@ -63,7 +83,8 @@ class DataBaseDocumentService:
 
             new_id = await repo.create_document(filename=safe_name,
                                                 metadata=metadata,
-                                                doc_status=DocumentStatus.proccessing,
+                                                minio_key=minio_key,
+                                                doc_status=DocumentStatus.PENDING,
                                                 doc_id=doc_id)
             await session.commit()
             return new_id
@@ -100,6 +121,28 @@ class DataBaseDocumentService:
             await repo.set_status(doc_id, status, chunk_count=chunk_count)
             await session.commit()
 
+    async def update_document(
+            self,
+            doc_id: uuid.UUID,
+            *,
+            status: str | DocumentStatus | None = None,
+            metadata: dict[str, Any] | None = None,
+            chunk_count: int | None = None,
+            minio_key: str | None = None,
+            file_hash: str | None = None,
+    ) -> None:
+        """Update selected document fields and commit transaction."""
+        async with self.session_scope() as (session, repo):
+            await repo.update_document(
+                doc_id,
+                status=status,
+                metadata=metadata,
+                chunk_count=chunk_count,
+                minio_key=minio_key,
+                file_hash=file_hash,
+            )
+            await session.commit()
+
     async def delete_document(self, doc_id: uuid.UUID) -> None:
         async with self.session_scope() as (session, repo):
             await repo.delete_document(doc_id)
@@ -107,6 +150,25 @@ class DataBaseDocumentService:
 
     async def update_metadata_document(self, doc_id: uuid.UUID, metadata: dict[str, Any]) -> None:
         pass
+
+    async def get_document_full_info(self, doc_id: uuid.UUID) -> dict[str, Any] | None:
+        """Return full document info from Postgres with chunk counters only."""
+        async with self.session_scope() as (_, repo):
+            document = await repo.get_document_by_id(doc_id)
+            if document is None:
+                return None
+
+            return {
+                "doc_id": str(document.id),
+                "filename": document.filename,
+                "status": getattr(document.status, "value", str(document.status)),
+                "minio_key": document.minio_key,
+                "meta": document.meta or {},
+                "created_at": document.created_at,
+                # Documents model currently has no updated_at column.
+                "updated_at": getattr(document, "updated_at", None),
+                "chunk_count": document.chunk_count,
+            }
 
 class DocumentQueryService:
     """Read-only queries over document metadata and chunks."""

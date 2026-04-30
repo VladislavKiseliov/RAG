@@ -67,6 +67,7 @@ class DocumentRepository:
             self,
             filename: str,
             metadata: dict | None,
+            minio_key: str | None,
             doc_status: DocumentStatus,
             doc_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
@@ -75,6 +76,7 @@ class DocumentRepository:
             id=doc_id,
             filename=filename,
             meta=metadata,
+            minio_key=minio_key,
             status=doc_status,
         )
 
@@ -94,6 +96,37 @@ class DocumentRepository:
         values: dict[str, Any] = {"status": status}
         if chunk_count is not None:
             values["chunk_count"] = chunk_count
+
+        await self._session.execute(
+            update(Documents).where(Documents.id == doc_id).values(**values)
+        )
+
+    async def update_document(
+            self,
+            doc_id: uuid.UUID,
+            *,
+            status: str | DocumentStatus | None = None,
+            metadata: dict | None = None,
+            chunk_count: int | None = None,
+            minio_key: str | None = None,
+            file_hash: str | None = None,
+    ) -> None:
+        """Update selected document fields by id."""
+        values: dict[str, Any] = {}
+
+        if status is not None:
+            values["status"] = getattr(status, "value", status)
+        if metadata is not None:
+            values["meta"] = metadata
+        if chunk_count is not None:
+            values["chunk_count"] = chunk_count
+        if minio_key is not None:
+            values["minio_key"] = minio_key
+        if file_hash is not None:
+            values["file_hash"] = file_hash
+
+        if not values:
+            return
 
         await self._session.execute(
             update(Documents).where(Documents.id == doc_id).values(**values)
@@ -126,6 +159,15 @@ class DocumentRepository:
         query = query.order_by(ParentChunks.chunk_index.asc())
 
         result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_parent_chunks_by_doc_id(self, doc_id: uuid.UUID) -> list[ParentChunks]:
+        """Return all parent chunks for a document ordered by chunk_index."""
+        result = await self._session.execute(
+            select(ParentChunks)
+            .where(ParentChunks.doc_id == doc_id)
+            .order_by(ParentChunks.chunk_index.asc())
+        )
         return list(result.scalars().all())
 
     async def bulk_insert_chunks(

@@ -6,9 +6,18 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class DocumentStatus(str, enum.Enum):
-    processing = "processing"
-    completed = "completed"
-    error = "error"
+    # 1. Начальные этапы
+    PENDING = "pending"  # Запись создана, ждем начала загрузки
+    UPLOAD = "uploading"  # Файл загружен в Хранилище
+
+    # 2. Процессинг
+    PROCESSING = "processing"  # Общий статус (уже есть у тебя)
+    EXTRACTING = "extracting"  # Идет парсинг текста из PDF/файла
+    INDEXING = "indexing"  # Идет генерация эмбеддингов и запись в Qdrant
+
+    # 3. Финалы
+    COMPLETED = "completed"  # Все готово, можно искать по документу
+    ERROR = "error"  # Произошла ошибка
 
 
 class RetrieveRequest(BaseModel):
@@ -93,10 +102,7 @@ class PlaceholderActionResponse(BaseModel):
     detail: str
 
 
-
-
 class UploadFileResponse(BaseModel):
-    status_doc: str
     doc_id: str
     presigned_url: str
 
