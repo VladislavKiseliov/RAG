@@ -14,7 +14,7 @@ class Base(DeclarativeBase):
 
 
 
-class Documents(Base):
+class DocumentListItemDTO(Base):
     __tablename__ = "documents"
     __table_args__ = (
         Index("ix_documents_file_hash", "file_hash"),
@@ -70,4 +70,4 @@ class ParentChunks(Base):
     page_num: Mapped[str | None] = mapped_column(String(32), nullable=True)
     headers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    document: Mapped[Documents] = relationship(back_populates="parent_chunks")
+    document: Mapped[DocumentListItemDTO] = relationship(back_populates="parent_chunks")

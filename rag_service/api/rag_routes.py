@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from urllib.parse import unquote
+import logging
 import os
 import uuid
+from pathlib import Path
 from typing import Any, Annotated
 
 import httpx
@@ -23,11 +26,21 @@ from rag_service.workers.ingestion_service import IngestionService
 from rag_service.dependencies import DocumentOrchestratorDep, RetrieveServiceDep, TaskDispatcherServiceDep, DocServiceDep
 from rag_service.utils.logger_config import setup_logger
 
+
+
+
+# import os
+# print("HTTP_PROXY", os.environ.get("HTTP_PROXY"))
+# print("HTTPS_PROXY", os.environ.get("HTTPS_PROXY"))
+# print("ALL_PROXY", os.environ.get("ALL_PROXY"))
+
 logger = setup_logger("rag_service.api")
 
 router = APIRouter(tags=["RAG Knowledge Engine"])
 
-
+# logging.basicConfig(level=logging.DEBUG)
+# logging.getLogger("httpx").setLevel(logging.DEBUG)
+# logging.getLogger("httpcore").setLevel(logging.DEBUG)
 # =============================================================================
 # 1. CLIENT API (Поиск и получение знаний для Агента)
 # =============================================================================
@@ -56,20 +69,7 @@ async def generate_link_upload_file(
     """Шаг 1: Регистрация файла и получение Presigned URL для MinIO"""
     try:
         response = await upload_service.get_upload_link(filename, file_size)
-
-        # TEMP DEBUG FLOW:
-        test_payload = b"temporary test upload from /documents/ingest/upload-link"
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            put_result = await client.put(
-                response.presigned_url,
-                content=test_payload,
-                headers={"Content-Type": "text/plain"},
-            )
-        if put_result.status_code not in {200, 204}:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Temporary test upload failed: status={put_result.status_code}",
-            )
+        print("ok")
 
         return response
     except UploadValidationError as exc:
@@ -81,25 +81,31 @@ async def handle_minio_webhook(
         event: MinioWebhookEvent,
         task_dispatcher :TaskDispatcherServiceDep,
         database: DocServiceDep,
-        x_minio_extract_token: Annotated[str | None, Header(alias="X-Minio-Extract-Token")] = None,
+        authorization: Annotated[str | None, Header(alias="authorization")] = None,
 ):
+
     """Шаг 2: Сигнал от MinIO о завершении загрузки. Инициирует задачу в Celery."""
+    print("веб хук пришел")
+    token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    print(f"{token=}")
+    print(f"{os.getenv("MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1")=}")
     # WEBHOOK_TOKEN должен быть в конфиге
-    if x_minio_extract_token != os.getenv("MINIO_WEBHOOK_TOKEN"):
+    if token != os.getenv("MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1"):
         raise HTTPException(status_code=401, detail="Invalid notification token")
-    print("OK")
+    print("OK_webhook")
     for record in event.records:
         key = record.s3.object.key
-        parts = key.split("/")
-        print(f"{key}:{event}")
-        if len(parts) >= 2:
-            try:
-                doc_id = uuid.UUID(parts[1])
-                print(f"{key}:{doc_id}")
-                await database.update_document(doc_id=doc_id, status=DocumentStatus.UPLOAD)
-                await task_dispatcher.dispatch_ingestion(doc_id=doc_id, minio_key=key)
-            except (ValueError, IndexError):
-                logger.warning(f"Could not extract UUID from key: {key}")
+        miniokey = unquote(key)
+        try:
+            parts = miniokey.split("/")
+            id, exc = os.path.splitext(parts[3])
+            doc_id = uuid.UUID(id)
+            print(1)
+            await database.update_document(doc_id=doc_id, status=DocumentStatus.UPLOAD)
+            print(2)
+            await task_dispatcher.dispatch_ingestion(doc_id=doc_id, minio_key=miniokey)
+        except (ValueError, IndexError):
+            logger.warning(f"Could not extract UUID from key: {key}")
 
     return {"status": "accepted"}
 
@@ -132,31 +138,50 @@ async def handle_minio_webhook(
 # # 3. MANAGEMENT API (Управление документами и метаданными)
 # # =============================================================================
 #
-# @router.get("/documents", response_model=list[DocumentSummaryResponse])
-# async def list_documents(
-#         limit: int = 100,
-#         offset: int = 0,
-#         status: str | None = None,
-#         filename: str | None = None,
-#         document_query_service: DocumentQueryService = Depends(get_document_query_service),
-# ):
-#     """Список всех документов в базе с фильтрацией"""
-#     docs = await document_query_service.list_documents(
-#         limit=limit,
-#         offset=offset,
-#         status=status,
-#         filename=filename
-#     )
-#     return [
-#         DocumentSummaryResponse(
-#             doc_id=str(doc.id),
-#             filename=doc.filename,
-#             status=doc.status.value,
-#             created_at=doc.created_at,
-#             chunk_count=doc.chunk_count,
-#         ) for doc in docs
-#     ]
-#
+@router.get("/documents")
+async def list_documents(
+        database: DocServiceDep,
+        limit: int = 100,
+        offset: int = 0,
+):
+    """Список всех документов в базе с фильтрацией"""
+    docs = await database.list_documents(
+        limit=limit,
+        offset=offset,
+    )
+    print(f"{docs=}")
+    return [
+        {
+            "doc_id": str(d.id),
+            "filename": d.filename,
+            "status": d.status.value if hasattr(d.status, "value") else str(d.status),
+            "created_at": d.created_at.isoformat(),
+            "chunk_count": d.chunk_count,
+            "minio_key": d.minio_key,
+        }
+        for d in docs
+    ]
+
+
+@router.delete("/documents/{doc_id}", response_model=DeleteDocumentResponse)
+async def delete_document(
+        doc_id: str,
+        upload_service: DocumentOrchestratorDep,
+):
+    """Delete a document from storage, vector DB, and Postgres."""
+    try:
+        uuid.UUID(doc_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid doc_id format") from exc
+
+    try:
+        await upload_service.delete_document(doc_id=doc_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return DeleteDocumentResponse(status="deleted", doc_id=doc_id)
+
+
 #
 # @router.get("/documents/{doc_id}", response_model=DocumentDetailResponse)
 # async def get_document_details(

@@ -1,5 +1,5 @@
 import enum
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 import uuid
 from datetime import datetime, timezone
 
@@ -9,14 +9,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.models.database_models import Chats, Messages, Users, RefreshTokens
-from rag_service import DocumentAlreadyExists
-from rag_service.models import Documents
 
 class DocumentAlreadyExists(Exception):
     """Брошено при конфликте уникальности по file_hash."""
     def __init__(self, file_hash: str) -> None:
         super().__init__(f"Document with hash '{file_hash}' already exists")
         self.file_hash = file_hash
+
+class DocumentListItemDTO(TypedDict):
+    doc_id: str
+    filename: str
+    status: str
+    size: int | None
+    minio_key: str | None
+    created_at: str
+
 
 class DocumentStatus(str, enum.Enum):
     processing = "processing"
@@ -227,16 +234,16 @@ class MessageRepository(BaseRepository):
 
 class DocumentRepository(BaseRepository):
 
-    async def get_document_by_hash(self, file_hash: str) -> Documents | None:
+    async def get_document_by_hash(self, file_hash: str) -> DocumentListItemDTO | None:
         """Return a document by SHA-256 hash, or `None` if absent."""
         async with self.session_factory() as session:
-            result = await session.execute(select(Documents).where(Documents.file_hash == file_hash))
+            result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.file_hash == file_hash))
             return result.scalar_one_or_none()
 
-    async def get_document_by_id(self, doc_id: uuid.UUID) -> Documents | None:
+    async def get_document_by_id(self, doc_id: uuid.UUID) -> DocumentListItemDTO | None:
         """Return a document by UUID, or `None` if absent."""
         async with self.session_factory() as session:
-            result = await session.execute(select(Documents).where(Documents.id == doc_id))
+            result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
             return result.scalar_one_or_none()
 
     async def list_documents(
@@ -248,20 +255,20 @@ class DocumentRepository(BaseRepository):
             filename: str | None = None,
             created_from: datetime | None = None,
             created_to: datetime | None = None,
-    ) -> list[Documents]:
+    ) -> list[DocumentListItemDTO]:
         """List documents with pagination and optional filters."""
-        query: Select = select(Documents)
+        query: Select = select(DocumentListItemDTO)
 
         if status:
-            query = query.where(Documents.status == status)
+            query = query.where(DocumentListItemDTO.status == status)
         if filename:
-            query = query.where(Documents.filename.ilike(f"%{filename}%"))
+            query = query.where(DocumentListItemDTO.filename.ilike(f"%{filename}%"))
         if created_from is not None:
-            query = query.where(Documents.created_at >= created_from)
+            query = query.where(DocumentListItemDTO.created_at >= created_from)
         if created_to is not None:
-            query = query.where(Documents.created_at <= created_to)
+            query = query.where(DocumentListItemDTO.created_at <= created_to)
 
-        query = query.order_by(Documents.created_at.desc()).limit(limit).offset(offset)
+        query = query.order_by(DocumentListItemDTO.created_at.desc()).limit(limit).offset(offset)
 
         async with self.session_factory() as session:
             result = await session.execute(query)
@@ -276,7 +283,7 @@ class DocumentRepository(BaseRepository):
             doc_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
         """Create a document in `processing` status and return its id."""
-        doc = Documents(
+        doc = DocumentListItemDTO(
             id=doc_id or uuid.uuid4(),
             filename=filename,
             file_hash=file_hash,
@@ -314,11 +321,11 @@ class DocumentRepository(BaseRepository):
             values["chunk_count"] = chunk_count
 
         async with self.session_factory() as session:
-            await session.execute(update(Documents).where(Documents.id == doc_id).values(**values))
+            await session.execute(update(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id).values(**values))
             await session.commit()
 
     async def delete_document(self, doc_id: uuid.UUID) -> None:
         """Delete document row; linked parent chunks are removed by cascade."""
         async with self.session_factory() as session:
-            await session.execute(delete(Documents).where(Documents.id == doc_id))
+            await session.execute(delete(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
             await session.commit()

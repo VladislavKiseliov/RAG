@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.application.document_service import DataBaseDocumentService
-from rag_service.models import Base, Documents, ParentChunks
+from rag_service.models import Base, DocumentListItemDTO, ParentChunks
 from rag_service.settings import settings
 
 
@@ -101,7 +101,7 @@ async def seeded_data(session_factory):
     async with session_factory() as session:
         for item in SEEDED_DOCUMENTS:
             session.add(
-                Documents(
+                DocumentListItemDTO(
                     id=item["id"],
                     filename=item["filename"],
                     file_hash=item["file_hash"],
@@ -197,7 +197,7 @@ async def test_create_doc_persists_minio_key_and_meta(
     )
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == new_doc_id))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == new_doc_id))
         created = result.scalar_one_or_none()
         assert created is not None
         assert created.filename == filename
@@ -218,7 +218,7 @@ async def test_set_status_updates_status_and_chunk_count(
     await service.set_status(target, DocumentStatus.COMPLETED, chunk_count=7)
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == target))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == target))
         doc = result.scalar_one()
         assert doc.status == "completed"
         assert doc.chunk_count == 7
@@ -244,7 +244,7 @@ async def test_update_document_updates_selected_fields(
     )
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == target))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == target))
         doc = result.scalar_one()
         assert doc.status == "uploading"
         assert doc.meta == new_meta
@@ -265,5 +265,5 @@ async def test_delete_document_removes_row(service: DataBaseDocumentService, ses
     await service.delete_document(temp_id)
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == temp_id))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == temp_id))
         assert result.scalar_one_or_none() is None

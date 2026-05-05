@@ -32,7 +32,7 @@ class DocumentOrchestrator:
 
         # 2. Генерируем ID
         doc_id = uuid.uuid4()
-        key = self._build_object_key(filename, doc_id)
+        key = self._build_object_key(filename = filename,doc_id = doc_id)
 
         # 3. Создаем запись со статусом загрузки
         await self.database.create_doc(
@@ -130,14 +130,10 @@ class DocumentOrchestrator:
         return sha256(content).hexdigest()
 
     @staticmethod
-    def _build_object_key(filename: str, doc_id: uuid.UUID) -> str:
+    def _build_object_key(filename:str,doc_id: uuid.UUID) -> str:
         name, ext = os.path.splitext(filename)
-        slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", name.strip()).strip("-._").lower()
-        if not slug:
-            slug = "document"
-        short_id = str(doc_id).split("-")[0]
         now = datetime.now(timezone.utc)
-        return f"documents/{now:%Y/%m}/{slug}__{short_id}{ext.lower()}"
+        return f"documents/{now:%Y/%m}/{doc_id}{ext.lower()}"
 
 
 

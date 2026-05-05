@@ -14,14 +14,14 @@ asyncio.set_event_loop(_loop)
 
 
 @celery_app.task(name="ingest_document", bind=True, max_retries=3)
-def ingest_document_task(self, doc_id: str, minio_key: str):
+def ingest_document_task(self, doc_id: uuid.UUID, minio_key: str):
     # Получаем контейнер (создастся только один раз на процесс воркера)
     container = get_worker_container()
 
     async def _run():
         # Используем наш оркестратор/менеджер
         await container.ingestion_service.process_document(
-            doc_id=uuid.UUID(doc_id),
+            doc_id=doc_id,
             minio_key=minio_key,
         )
 
@@ -31,9 +31,8 @@ def ingest_document_task(self, doc_id: str, minio_key: str):
         # При ошибке обновляем статус через сервис из контейнера
         _loop.run_until_complete(
             container.document_service.update_document(
-                doc_id=uuid.UUID(doc_id),
+                doc_id=doc_id,
                 status=DocumentStatus.ERROR,
-                error_message=str(exc)
             )
         )
         raise self.retry(exc=exc, countdown=60)

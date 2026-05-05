@@ -20,7 +20,8 @@ class S3StorageRepository:
 
     def __init__(
         self,
-        endpoint_url: str,
+        private_endpoint_url: str,
+        public_endpoint_url: str,
         access_key: str,
         secret_key: str,
         bucket: str,
@@ -30,7 +31,8 @@ class S3StorageRepository:
         Initialize a storage repository bound to a single bucket.
 
         Args:
-            endpoint_url: S3-compatible endpoint URL (for example MinIO).
+            private_endpoint_url: S3-compatible endpoint URL (for example MinIO).
+            public_endpoint_url: S3-compatible endpoint URL for external downloads.
             access_key: Access key (AWS access key ID format).
             secret_key: Secret key (AWS secret access key format).
             bucket: Target bucket name.
@@ -38,12 +40,18 @@ class S3StorageRepository:
         """
         self._session = aioboto3.Session()
         self._config = {
-            "endpoint_url": endpoint_url,
+            "endpoint_url": private_endpoint_url,
             "aws_access_key_id": access_key,
             "aws_secret_access_key": secret_key,
             "config": Config(signature_version="s3v4"),
         }
         self.bucket = bucket
+
+        # If public URL is not provided, use internal one.
+        self._public_cfg = {
+            **self._config,
+            "endpoint_url": public_endpoint_url
+        }
 
     @asynccontextmanager
     async def _get_client(self):
@@ -55,6 +63,12 @@ class S3StorageRepository:
         """
         async with self._session.client("s3", **self._config) as client:
             yield client
+
+    @asynccontextmanager
+    async def _get_public_client(self):
+        async with self._session.client("s3", **self._public_cfg) as client:
+            yield client
+
 
     async def upload_file(self, content: bytes, key: str, content_type: str) -> None:
         """
@@ -119,7 +133,7 @@ class S3StorageRepository:
             Presigned URL.
         """
         try:
-            async with self._get_client() as client:
+            async with self._get_public_client() as client:
                 return await client.generate_presigned_url(
                     "put_object",
                     Params={"Bucket": self.bucket, "Key": key},

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
-from rag_service.models import Base, Documents, ParentChunks
+from rag_service.models import Base, DocumentListItemDTO, ParentChunks
 from rag_service.settings import settings
 
 
@@ -149,7 +149,7 @@ async def test_get_document_by_hash_returns_matching_row(
     doc_id = await _create_document(repo, db_session, created_doc_ids, filename="hash.pdf")
 
     await db_session.execute(
-        update(Documents).where(Documents.id == doc_id).values(file_hash=hash_value)
+        update(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id).values(file_hash=hash_value)
     )
     await db_session.commit()
 
@@ -188,7 +188,7 @@ async def test_list_documents_filters_status_filename_and_created_range(
 
     old_time = datetime.now(timezone.utc) - timedelta(days=3)
     await db_session.execute(
-        update(Documents).where(Documents.id == old_doc_id).values(created_at=old_time)
+        update(DocumentListItemDTO).where(DocumentListItemDTO.id == old_doc_id).values(created_at=old_time)
     )
     await db_session.commit()
 

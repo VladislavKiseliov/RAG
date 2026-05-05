@@ -264,7 +264,7 @@ if __name__ == "__main__":
     from rag_service.db.session import create_engine, create_session_factory
     from rag_service.infrastructures.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
     from rag_service.infrastructures.providers.local_embedding_provider import LocalEmbeddingProvider
-    from rag_service.domain.qdrant_vector_storage import QdrantVectorStorage
+    from rag_service.infrastructures.repositories.qdrant_vector_storage import QdrantVectorStorage
 
     def _load_env_file(path: Path) -> None:
         """Load simple KEY=VALUE pairs from .env into os.environ if missing."""

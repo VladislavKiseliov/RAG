@@ -36,7 +36,7 @@ from rag_service.dependencies import (
     get_task_dispatcher_service,
 )
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.models import Base, Documents
+from rag_service.models import Base, DocumentListItemDTO
 from rag_service.settings import settings
 
 
@@ -214,7 +214,7 @@ async def test_upload_link_put_and_webhook_acceptance(
 
     print("\n[STEP 4] Verify DB row exists")
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == doc_id))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         document = result.scalar_one_or_none()
         print("db document exists:", document is not None)
         if document is not None:

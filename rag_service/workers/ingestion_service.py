@@ -131,7 +131,6 @@ class IngestionService:
                 await self._document_service.update_document(
                     doc_id,
                     status=DocumentStatus.ERROR,
-                    error_message=str(e)
                 )
                 raise e
 
@@ -154,22 +153,16 @@ class IngestionService:
             doc_id: uuid.UUID,
             file_name: str,
             meta: Optional[Dict] = None
-    ) -> str:
+    ):
         """Checks for duplicates and creates a preliminary SQL record."""
         file_hash = self._compute_hash(file_bytes)
 
-        existing = await self._document_service.get_by_hash(file_hash)
+        existing = await self._document_service.get_document_by_hash(file_hash)
         if existing:
             raise ValueError(f"Document with hash {file_hash} already exists.")
+        print(f"{file_hash=}")
+        await self._document_service.update_document(doc_id = doc_id,file_hash = file_hash)
 
-        await self._document_service.create_doc(
-            doc_id=doc_id,
-            filename=file_name,
-            file_hash=file_hash,
-            meta=meta,
-            status=DocumentStatus.PROCESSING
-        )
-        return file_hash
 
     async def extract_and_store_chunks(self, doc_id: uuid.UUID, file_path: str) -> List[Dict]:
         """Runs the parsing pipeline and stores structural chunks in SQL."""

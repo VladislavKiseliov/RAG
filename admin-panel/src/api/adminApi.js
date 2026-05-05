@@ -182,12 +182,23 @@ export async function getDownloadUrl(docId) {
 export async function uploadDocuments(files) {
   const created = [];
   for (const file of files) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const { data } = await httpClient.post('/admin/documents/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const { data } = await httpClient.post('/admin/documents/upload-link', null, {
+      params: { filename: file.name, file_size: file.size },
     });
+
+    const presignedUrl = data?.presigned_url;
+    if (!presignedUrl) {
+      throw new Error('Upload link was not returned by backend');
+    }
+
+    const putRes = await fetch(presignedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+    if (!putRes.ok) {
+      throw new Error(`Direct upload to storage failed: ${putRes.status}`);
+    }
 
     const uploaded = data?.files?.[0];
     if (!uploaded) continue;

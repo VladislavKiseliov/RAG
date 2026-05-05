@@ -7,10 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from backend.models.database_models import Users
 from backend.services.auth_service import AuthService
 from backend.services.chat_service import ChatService
-from rag_service.application.document_orchestrator import DocumentUploadService
 from backend.services.user_service import UserService
-from backend.repository.repository import AuthRepository, ChatRepository, MessageRepository, UserRepository, \
-    DocumentRepository
+from backend.repository.repository import AuthRepository, ChatRepository, MessageRepository, UserRepository
 from backend.infrastructure import BackendContainer
 
 
@@ -62,9 +60,4 @@ def get_user_service(container: BackendContainer = Depends(get_container)) -> Us
     return UserService(user_repo=user_repo)
 
 
-def get_storage_service(container: BackendContainer = Depends(get_container),)->DocumentUploadService:
 
-
-    return DocumentUploadService(document_service=DocumentRepository(container.session_factory),
-                                 strage_repository=container.storage_repository
-                                 )

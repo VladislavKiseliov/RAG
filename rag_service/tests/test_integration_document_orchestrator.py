@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from rag_service.application.document_orchestrator import DocumentOrchestrator
 from rag_service.application.document_service import DataBaseDocumentService
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.models import Base, Documents
+from rag_service.models import Base, DocumentListItemDTO
 from rag_service.settings import settings
 
 
@@ -154,7 +154,7 @@ async def test_get_upload_link_persists_document_and_returns_presigned_url(
     assert "documents/" in response.presigned_url
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == doc_id))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         document = result.scalar_one_or_none()
 
     assert document is not None
@@ -204,7 +204,7 @@ async def test_get_list_document_returns_size_and_status(
     created_doc_ids.append(doc_id)
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == doc_id))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         document = result.scalar_one()
     assert document.minio_key is not None
 
@@ -239,7 +239,7 @@ async def test_delete_document_removes_file_vectors_and_db_record(
     doc_id = uuid.UUID(response.doc_id)
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == doc_id))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         document = result.scalar_one()
     assert document.minio_key is not None
 
@@ -250,7 +250,7 @@ async def test_delete_document_removes_file_vectors_and_db_record(
         await s3_repository.stat(document.minio_key)
 
     async with session_factory() as session:
-        result = await session.execute(select(Documents).where(Documents.id == doc_id))
+        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         deleted = result.scalar_one_or_none()
     assert deleted is None
     vector_storage_mock.delete_vectors_by_id.assert_any_await(str(doc_id))

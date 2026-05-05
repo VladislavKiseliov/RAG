@@ -10,7 +10,7 @@ class TaskDispatcherService:
     async def dispatch_ingestion(self, doc_id: uuid.UUID, minio_key: str):
         """Ставит задачу на обработку документа."""
         from rag_service.workers.task import ingest_document_task
-        ingest_document_task.delay(str(doc_id), minio_key)
+        ingest_document_task.delay(doc_id, minio_key)
 
     async def dispatch_reindexing(self, doc_id: uuid.UUID):
         """Ставит задачу на переиндексацию (будущий метод)."""

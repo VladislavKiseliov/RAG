@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from rag_service.domain.errors.postgres import DocumentAlreadyExists
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
-from rag_service.models import DocumentStatus, Documents, ParentChunks
+from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -41,11 +41,11 @@ class DataBaseDocumentService:
             finally:
                 await session.close()
 
-    async def get_document_by_hash(self, file_hash: str) -> Documents | None:
+    async def get_document_by_hash(self, file_hash: str) -> DocumentListItemDTO | None:
         async with self.session_scope() as (_, repo):
             return await repo.get_document_by_hash(file_hash)
 
-    async def get_document_by_id(self, doc_id: uuid.UUID) -> Documents | None:
+    async def get_document_by_id(self, doc_id: uuid.UUID) -> DocumentListItemDTO | None:
         async with self.session_scope() as (_, repo):
             return await repo.get_document_by_id(doc_id)
 
@@ -56,14 +56,9 @@ class DataBaseDocumentService:
             offset: int,
             status: str | None = None,
             filename: str | None = None,
-    ) -> list[Documents]:
+    ) -> list[DocumentListItemDTO]:
         async with self.session_scope() as (_, repo):
-            return await repo.list_documents(
-                limit=limit,
-                offset=offset,
-                status=status,
-                filename=filename,
-            )
+            return await repo.list_documents(limit=limit, offset=offset, status=status, filename=filename)
 
     async def create_doc(
             self,
@@ -181,7 +176,7 @@ class DocumentQueryService:
         async with self.session_factory() as session:
             yield session, DocumentRepository(session)
 
-    async def get_document_by_id(self, doc_id: uuid.UUID) -> Documents | None:
+    async def get_document_by_id(self, doc_id: uuid.UUID) -> DocumentListItemDTO | None:
         async with self.session_scope() as (_, repo):
             return await repo.get_document_by_id(doc_id)
 
@@ -191,9 +186,9 @@ class DocumentQueryService:
         limit: int,
         offset: int,
         **filters
-    ) -> list[Documents]:
+    ) -> list[DocumentListItemDTO]:
         async with self.session_scope() as (_, repo):
-            return await repo.list_documents(limit=limit, offset=offset, **filters)
+            return await repo.list_documents(limit=limit, offset=offset, database=DocServiceDep, **filters)
 
     async def get_parent_chunks(
         self,

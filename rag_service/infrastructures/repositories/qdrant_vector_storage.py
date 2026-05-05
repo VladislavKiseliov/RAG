@@ -204,11 +204,12 @@ class QdrantVectorStorage():
             query_filter = Filter(
                 must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
             )
-
+        print(f"Querying Qdrant with {query_vector=}")
         try:
+
             results = await self._client.query_points(
                 collection_name=self._collection,
-                query=query_vector[0],
+                query=query_vector,
                 limit=max(1, top_k),
                 score_threshold=score_threshold,
                 query_filter=query_filter,
@@ -225,7 +226,8 @@ class QdrantVectorStorage():
                 for r in results.points
             ]
         except Exception as exc:
-            raise VectorSearchError("Failed to execute vector search in Qdrant") from exc
+            print(f"{exc=}")
+            raise VectorSearchError(f"Failed to execute vector search in Qdrant {exc=}") from exc
 
     async def delete(self, doc_id: uuid.UUID) -> None:
         """Delete every vector point that belongs to one document.

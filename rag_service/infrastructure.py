@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 # Импорты сервисов и провайдеров
 from rag_service.application.document_service import DataBaseDocumentService
-from rag_service.domain.qdrant_vector_storage import QdrantVectorStorage
+from rag_service.infrastructures.repositories.qdrant_vector_storage import QdrantVectorStorage
 from rag_service.infrastructures.providers.s3_storage_provider import S3StorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
 from rag_service.workers.ingestion_service import IngestionService
@@ -61,7 +61,8 @@ def _create_db_factory(database_url: str, pool_size: int = 5):
 
 def _build_s3_storage() -> S3StorageProvider:
     return S3StorageRepository(
-        endpoint_url=settings.minio_url,
+        private_endpoint_url=settings.minio_private_url,
+        public_endpoint_url=settings.minio_public_url,
         access_key=settings.minio_access_key,
         secret_key=settings.minio_secret_key,
         bucket=settings.minio_bucket,
@@ -121,7 +122,7 @@ def build_rag_infrastructure(db_pool_size: int = 10) -> RagContainer:
 def build_worker_infrastructure() -> WorkerContainer:
     """Создает инфраструктуру для воркера Celery."""
     # Для воркера пул маленький, так как один процесс обрабатывает одну задачу
-    engine, session_factory = _create_db_factory(settings.rag_database_url, pool_size=2)
+    engine, session_factory = _create_db_factory(settings.DATABASE_URL, pool_size=2)
 
     # 1. Слой данных
     doc_service = DataBaseDocumentService(session_factory=session_factory)
