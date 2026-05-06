@@ -1,13 +1,33 @@
 # RAGProgramm
 
-Монорепозиторий с multi-service RAG-платформой:
-- `backend` — API приложения (auth, chat, admin-proxy);
-- `rag_service` — ingestion/retrieval, работа с документами, MinIO/Qdrant/Postgres;
-- `llm_service` — генерация ответа по контексту;
-- `frontend` — пользовательский чат;
-- `admin-panel` — админка документов и пользователей.
+## Vision / Product Direction
 
-## Архитектура
+RAGProgramm is evolving into a **local enterprise AI application** for internal company use.
+
+Current goal:
+- help employees work with internal documentation faster;
+- provide contextual answers based on uploaded company files;
+- keep data inside company infrastructure (self-hosted/local deployment).
+
+Planned evolution:
+- grow from a document assistant into a full corporate messenger;
+- keep AI as a built-in participant in employee communication;
+- scale as a modular platform with new services and workflows.
+
+Important:
+- sections below describe what is already implemented and currently operational;
+- the vision section describes the next product stage.
+
+## Project Overview
+
+Monorepo with a multi-service RAG platform:
+- `backend` вЂ” application API (auth, chat, admin-proxy);
+- `rag_service` вЂ” ingestion/retrieval, document handling, MinIO/Qdrant/Postgres;
+- `llm_service` вЂ” answer generation from retrieved context;
+- `frontend` вЂ” end-user chat UI;
+- `admin-panel` вЂ” admin UI for documents and users.
+
+## Architecture
 
 ```mermaid
 graph TB
@@ -26,7 +46,7 @@ graph TB
     W --> Q
 ```
 
-### Детальная компонентная схема
+### Component Diagram
 
 ```mermaid
 graph TB
@@ -75,7 +95,7 @@ graph TB
     RAG -->|"document status/query"| PG
 ```
 
-### Детальная последовательность (upload -> webhook -> ingestion -> retrieval)
+### End-to-End Sequence (upload -> webhook -> ingestion -> retrieval)
 
 ```mermaid
 sequenceDiagram
@@ -124,44 +144,44 @@ sequenceDiagram
     BE-->>Admin: answer + sources
 ```
 
-### Зоны ответственности
+## Responsibility Boundaries
 
-1. `backend` — внешний API приложения, auth/chat/admin orchestration.
-2. `rag_service` API — управление документами, retrieval, webhook-приемник.
-3. `rag-worker` — асинхронная обработка документов и индексация.
-4. `llm_service` — генерация ответа на основе контекста из RAG.
-5. `MinIO` — хранение исходных файлов и генерация webhook событий.
-6. `PostgreSQL` — метаданные, статусы документов, чаты, пользователи.
-7. `Qdrant` — векторный индекс для поиска релевантного контекста.
-8. `Redis` — брокер задач между API и воркером.
+1. `backend` вЂ” external app API, auth/chat/admin orchestration.
+2. `rag_service` API вЂ” document management, retrieval, webhook receiver.
+3. `rag-worker` вЂ” asynchronous document processing and indexing.
+4. `llm_service` вЂ” answer generation using RAG context.
+5. `MinIO` вЂ” source file storage and webhook events.
+6. `PostgreSQL` вЂ” metadata, document statuses, chats, users.
+7. `Qdrant` вЂ” vector index for semantic retrieval.
+8. `Redis` вЂ” task broker between API and worker.
 
-## Основные компоненты
+## Main Components
 
 - `backend`
   - FastAPI + SQLAlchemy;
-  - авторизация/токены, чаты, история;
-  - admin-роуты для пользователей;
-  - проксирование document-операций в `rag_service`.
+  - auth/tokens, chats, history;
+  - admin routes for users/documents;
+  - proxy for document operations into `rag_service`.
 
 - `rag_service`
-  - FastAPI API для retrieval и ingestion;
-  - presigned URL для загрузки в MinIO;
-  - webhook от MinIO -> постановка задач в Redis/Celery;
-  - worker: обработка документа, обновление статусов, запись в Qdrant.
+  - FastAPI API for retrieval and ingestion;
+  - presigned URL generation for MinIO uploads;
+  - MinIO webhook receiver -> enqueue to Redis/Celery;
+  - worker pipeline: document processing, status updates, Qdrant indexing.
 
 - `llm_service`
-  - API `/llm/answer`;
-  - получает контекст из `rag_service`;
-  - формирует финальный ответ.
+  - `/llm/answer` API;
+  - consumes context from `rag_service`;
+  - produces final user answer.
 
-## Быстрый запуск (Docker)
+## Quick Start (Docker)
 
-1. Скопировать env:
+1. Copy env file:
 ```bash
 cp .env.example .env
 ```
 
-2. Проверить `.env` (минимум):
+2. Validate `.env` (minimum):
 - Postgres (`POSTGRES_*`);
 - MinIO (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`);
 - webhook:
@@ -169,40 +189,40 @@ cp .env.example .env
   - `MINIO_NOTIFY_WEBHOOK_ENDPOINT_1=...`
   - `MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1=...`
 
-3. Поднять полный стек:
+3. Start full stack:
 ```bash
 docker compose -f docker-compose.full.yml up -d --build
 ```
 
-4. Проверить контейнеры:
+4. Check containers:
 ```bash
 docker ps
 ```
 
-## Порты по умолчанию
+## Default Ports
 
-- `backend` — `8000`
-- `rag_service` — `8001`
-- `llm_service` — `8002`
-- `frontend` — `5173`
-- `admin-panel` — `5174`
-- `minio api` — `9000`
-- `minio console` — `9001`
-- `qdrant` — `6333`
-- `postgres` — `5432`
-- `redis` — `6379`
+- `backend` вЂ” `8000`
+- `rag_service` вЂ” `8001`
+- `llm_service` вЂ” `8002`
+- `frontend` вЂ” `5173`
+- `admin-panel` вЂ” `5174`
+- `minio api` вЂ” `9000`
+- `minio console` вЂ” `9001`
+- `qdrant` вЂ” `6333`
+- `postgres` вЂ” `5432`
+- `redis` вЂ” `6379`
 
-## Ingestion flow (Presigned URL)
+## Ingestion Flow (Presigned URL)
 
-1. Клиент запрашивает ссылку:
+1. Client requests upload link:
    - `POST /documents/ingest/upload-link` (`rag_service`)
-2. `rag_service` создает запись документа и возвращает presigned URL.
-3. Клиент грузит файл напрямую в MinIO (PUT по URL).
-4. MinIO отправляет webhook в `rag_service`.
-5. `rag_service` ставит задачу в Redis/Celery.
-6. `rag-worker` забирает файл, обрабатывает, обновляет Postgres, индексирует в Qdrant.
+2. `rag_service` creates a document row and returns a presigned URL.
+3. Client uploads file directly to MinIO (`PUT` by URL).
+4. MinIO sends webhook to `rag_service`.
+5. `rag_service` enqueues ingestion task to Redis/Celery.
+6. `rag-worker` processes file, updates Postgres, indexes vectors in Qdrant.
 
-## Ключевые API
+## Key APIs
 
 ### Backend (`:8000`)
 - `POST /auth/register`
@@ -217,70 +237,74 @@ docker ps
 - `POST /admin/users/repo`
 - `PUT /admin/users/repo/{user_id}`
 - `DELETE /admin/users/repo/{user_id}`
-- `GET /admin/documents` (proxy в `rag_service`)
+- `GET /admin/documents`
+- `POST /admin/documents/upload-link`
+- `POST /admin/documents/batch-delete`
+- `GET /admin/system/health`
 
 ### RAG Service (`:8001`)
 - `POST /documents/retrieve`
 - `POST /documents/ingest/upload-link`
 - `POST /documents/ingest/webhook`
+- `POST /documents/batch-delete`
 
 ### LLM Service (`:8002`)
 - `POST /llm/answer`
 
-## Миграции
+## Migrations
 
-Примеры:
+Examples:
 
 ```bash
 alembic -n users upgrade head
 alembic -n rag upgrade head
 ```
 
-Если нужна конкретная БД/URL через `-x db_url=...`, передавайте параметр в используемый `env.py`.
+If you need a specific DB URL, pass it via `-x db_url=...` and use it in your Alembic `env.py`.
 
-## Тесты
+## Tests
 
-Пример запуска тестов RAG:
+Run all RAG tests:
 ```bash
 pytest rag_service/tests -q
 ```
 
-Пример интеграционного сценария:
+Run upload/webhook integration scenario:
 ```bash
 pytest rag_service/tests/test_integration_upload_webhook_flow.py -s -vv
 ```
 
-## Проверка MinIO webhook
+## MinIO Webhook Validation
 
-1. Проверка конфигурации webhook:
+1. Check webhook config:
 ```bash
 mc admin config get myminio notify_webhook:1
 ```
 
-2. Проверка события на бакете:
+2. Check bucket event binding:
 ```bash
 mc event list myminio/<bucket-name>
 ```
 
-Важно: событие должно быть на том же бакете, куда реально идет загрузка (например, `rag-documents`).
+Important: event binding must be configured on the same bucket that receives uploads (for example `rag-documents`).
 
-## Частые проблемы
+## Common Issues
 
-- `Invalid hostname` в `mc alias set`  
-  Используйте DNS-safe имя сервиса (без `_`), например `minio`.
+- `Invalid hostname` in `mc alias set`  
+  Use a DNS-safe service name (without `_`), for example `minio`.
 
-- Webhook не приходит  
-  Обычно причина: event привязан к другому бакету, либо endpoint недоступен из контейнера.
+- Webhook does not arrive  
+  Usually event is bound to wrong bucket or endpoint is unreachable from container network.
 
-- `psycopg2 ... pg_config not found` при сборке  
-  Используйте `psycopg2-binary` или ставьте системные зависимости в образ.
+- `psycopg2 ... pg_config not found` during build  
+  Use `psycopg2-binary` or install required system dependencies in image.
 
 - `torch==...+cpu not found`  
-  Исправьте pinned-версию в `requirements.txt` на доступную для вашей платформы.
+  Fix pinned version in `requirements.txt` to a version available for your platform.
 
-## Локальная разработка без Docker
+## Local Development (without Docker)
 
-Каждый сервис можно запустить отдельно:
+Start services separately:
 
 ```bash
 uvicorn backend.main:app --reload --port 8000
@@ -288,12 +312,12 @@ uvicorn rag_service.main:app --reload --port 8001
 uvicorn llm_service.main:app --reload --port 8002
 ```
 
-Для `rag_service` отдельно запускается воркер:
+Start RAG worker separately:
 ```bash
 celery -A rag_service.celery_app worker -l INFO
 ```
 
-## Структура репозитория
+## Repository Structure
 
 ```text
 backend/
@@ -309,7 +333,7 @@ docker-compose.app.yml
 
 ---
 
-Если README не соответствует текущим endpoint-ам после изменений, сначала проверьте роутеры:
+If README and live endpoints diverge after changes, verify router files first:
 - `backend/api/routes.py`
 - `backend/api/admin_routes.py`
 - `rag_service/api/rag_routes.py`
