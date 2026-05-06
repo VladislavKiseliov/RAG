@@ -40,7 +40,7 @@ function toMb(sizeBytes) {
 }
 
 function normalizeRagDocument(item) {
-  const minioKey = item.minio_key || item?.meta?.minio_key || null;
+  const minioKey = item.s3key || item?.meta?.s3key || null;
   const docId = item.doc_id || minioKey || '';
 
   return {
@@ -51,7 +51,7 @@ function normalizeRagDocument(item) {
     uploaded_at: item.created_at || new Date().toISOString(),
     size_mb: toMb(item.size || 0),
     size: Number(item.size || 0),
-    minio_key: minioKey,
+    s3key: minioKey,
     file_hash: item.file_hash || null,
     embedding_model: null,
     collection: null,
@@ -159,16 +159,8 @@ export async function deleteDocument(docId) {
 }
 
 export async function bulkDeleteDocuments(docIds) {
-  let deleted = 0;
-  for (const id of docIds) {
-    try {
-      await deleteDocument(id);
-      deleted += 1;
-    } catch (error) {
-      console.error('bulkDeleteDocuments failed for id', id, error);
-    }
-  }
-  return { deleted };
+  const { data } = await httpClient.post('/admin/documents/batch-delete', { doc_ids: docIds });
+  return data;
 }
 
 export async function getDownloadUrl(docId) {
@@ -210,7 +202,7 @@ export async function uploadDocuments(files) {
       chunk_count: null,
       uploaded_at: new Date().toISOString(),
       size_mb: toMb(uploaded.size || file.size),
-      minio_key: uploaded.minio_key,
+      s3key: uploaded.s3key,
       file_hash: null,
       embedding_model: null,
       collection: null,
@@ -277,21 +269,8 @@ export async function cancelTask(taskId) {
 }
 
 export async function getHealth() {
-  await wait(230);
-  db.services.forEach((srv) => {
-    if (Math.random() < 0.05) {
-      srv.status = 'offline';
-      srv.latency_ms = null;
-      return;
-    }
-    const jitter = Math.max(1, (srv.latency_ms || 30) + Math.floor((Math.random() - 0.5) * 20));
-    srv.latency_ms = jitter;
-    srv.status = jitter > 220 ? 'degraded' : 'online';
-  });
-  return {
-    services: db.services,
-    checked_at: new Date().toISOString(),
-  };
+  const { data } = await httpClient.get('/admin/system/health');
+  return data;
 }
 
 export async function getQdrantStats() {

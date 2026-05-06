@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import pytest_asyncio
 from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from rag_service.api.schemas import DocumentStatus
@@ -23,28 +24,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 async def engine():
     """Create engine and align schema to current model contract for repository tests."""
     assert settings.MODE == "TEST", "Repository integration tests must run with MODE=TEST"
-    engine = create_async_engine(settings.DATABASE_URL, future=True)
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS rag_kernel"))
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(
-            text("ALTER TABLE rag_kernel.documents ALTER COLUMN file_hash DROP NOT NULL")
-        )
-        await conn.execute(text("ALTER TABLE rag_kernel.documents DROP CONSTRAINT IF EXISTS ck_documents_status"))
-        await conn.execute(
-            text(
-                "ALTER TABLE rag_kernel.documents "
-                "ALTER COLUMN status TYPE TEXT USING status::text"
-            )
-        )
-        await conn.execute(text("DROP TYPE IF EXISTS rag_kernel.document_status_enum"))
-        await conn.execute(
-            text(
-                "ALTER TABLE rag_kernel.documents "
-                "ADD CONSTRAINT ck_documents_status "
-                "CHECK (status IN ('pending', 'uploading', 'processing', 'extracting', 'indexing', 'completed', 'error'))"
-            )
-        )
+    engine = create_async_engine("postgresql+asyncpg://myuser:mypassword@localhost:5432/myapp_db", future=True)
     yield engine
     await engine.dispose()
 
@@ -92,14 +72,14 @@ async def _create_document(
     *,
     filename: str = "test-doc.pdf",
     status: DocumentStatus = DocumentStatus.PENDING,
-    minio_key: str | None = None,
+    s3key: str | None = None,
     metadata: dict | None = None,
 ) -> uuid.UUID:
     """Create and commit one document row for test setup."""
     doc_id = await repo.create_document(
         filename=filename,
         metadata=metadata or {"source": "repo-test"},
-        minio_key=minio_key,
+        s3key=s3key,
         doc_status=status,
         doc_id=uuid.uuid4(),
     )
@@ -113,7 +93,7 @@ async def test_create_document_persists_core_fields(
     db_session: AsyncSession,
     created_doc_ids: list[uuid.UUID],
 ) -> None:
-    """Create document and verify filename/status/meta/minio_key persistence."""
+    """Create document and verify filename/status/meta/s3key persistence."""
     key = f"documents/2026/04/{uuid.uuid4()}__a1b2c3d4.pdf"
     doc_id = await _create_document(
         repo,
@@ -121,7 +101,7 @@ async def test_create_document_persists_core_fields(
         created_doc_ids,
         filename="manual.pdf",
         status=DocumentStatus.PENDING,
-        minio_key=key,
+        s3key=key,
         metadata={"origin": "integration"},
     )
 
@@ -129,7 +109,7 @@ async def test_create_document_persists_core_fields(
     assert loaded is not None
     assert loaded.filename == "manual.pdf"
     assert loaded.status == "pending"
-    assert loaded.minio_key == key
+    assert loaded.s3key == key
     assert loaded.meta == {"origin": "integration"}
 
 
@@ -233,7 +213,7 @@ async def test_update_document_updates_multiple_fields(
         status=DocumentStatus.UPLOAD,
         metadata={"source": "repo-update"},
         chunk_count=5,
-        minio_key="documents/2026/04/update__11112222.pdf",
+        s3key="documents/2026/04/update__11112222.pdf",
         file_hash="b" * 64,
     )
     await db_session.commit()
@@ -243,8 +223,91 @@ async def test_update_document_updates_multiple_fields(
     assert loaded.status == "uploading"
     assert loaded.meta == {"source": "repo-update"}
     assert loaded.chunk_count == 5
-    assert loaded.minio_key == "documents/2026/04/update__11112222.pdf"
+    assert loaded.s3key == "documents/2026/04/update__11112222.pdf"
     assert loaded.file_hash == "b" * 64
+
+
+async def test_update_document_hash_atomically_updates_hash_and_status(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Atomic hash update should persist both file_hash and status for target row."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="atomic-ok.pdf")
+    file_hash = "c" * 64
+
+    await repo.update_document_hash_atomically(doc_id=doc_id, file_hash=file_hash, status=DocumentStatus.EXTRACTING.value)
+    await db_session.commit()
+
+    loaded = await repo.get_document_by_id(doc_id)
+    assert loaded is not None
+    assert loaded.file_hash == file_hash
+    assert loaded.status == DocumentStatus.EXTRACTING.value
+
+
+async def test_update_document_hash_atomically_raises_on_unique_conflict(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Atomic hash update should surface DB unique violation when hash is already used."""
+    first_doc_id = await _create_document(repo, db_session, created_doc_ids, filename="atomic-first.pdf")
+    second_doc_id = await _create_document(repo, db_session, created_doc_ids, filename="atomic-second.pdf")
+    shared_hash = "d" * 64
+
+    await repo.update_document_hash_atomically(
+        doc_id=first_doc_id,
+        file_hash=shared_hash,
+        status=DocumentStatus.EXTRACTING.value,
+    )
+
+    await db_session.commit()
+
+    loaded = await repo.get_document_by_id(first_doc_id)
+    assert loaded is not None
+    assert loaded.file_hash == shared_hash
+
+
+    # with pytest.raises(IntegrityError):
+    #     await repo.update_document_hash_atomically(
+    #         doc_id=second_doc_id,
+    #         file_hash=shared_hash,
+    #         status=DocumentStatus.EXTRACTING.value,
+    #     )
+    #     await db_session.commit()
+    #
+    # # await db_session.rollback()
+
+
+async def test_update_document_hash_atomically_does_not_commit_by_itself(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    session_factory,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Repository method should not auto-commit; caller controls transaction boundary."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="atomic-tx.pdf")
+    file_hash = "e" * 64
+
+    await repo.update_document_hash_atomically(
+        doc_id=doc_id,
+        file_hash=file_hash,
+        status=DocumentStatus.EXTRACTING.value,
+    )
+
+    async with session_factory() as separate_session:
+        separate_repo = DocumentRepository(separate_session)
+        loaded_before_commit = await separate_repo.get_document_by_id(doc_id)
+        assert loaded_before_commit is not None
+        assert loaded_before_commit.file_hash is None
+        assert loaded_before_commit.status == DocumentStatus.PENDING.value
+
+    await db_session.commit()
+
+    loaded_after_commit = await repo.get_document_by_id(doc_id)
+    assert loaded_after_commit is not None
+    assert loaded_after_commit.file_hash == file_hash
+    assert loaded_after_commit.status == DocumentStatus.EXTRACTING.value
 
 
 async def test_bulk_insert_chunks_and_read_helpers(

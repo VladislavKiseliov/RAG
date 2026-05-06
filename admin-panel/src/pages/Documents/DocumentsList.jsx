@@ -80,8 +80,11 @@ export default function DocumentsList() {
   };
 
   const onBulkDelete = async () => {
-    await bulkDeleteDocuments(selected);
-    toast.success(`Удалено: ${selected.length}`);
+    const result = await bulkDeleteDocuments(selected);
+    const deleted = result?.deleted?.length || 0;
+    const notFound = result?.not_found?.length || 0;
+    const failed = result?.failed?.length || 0;
+    toast.success(`Удалено: ${deleted}. Не найдено: ${notFound}. Ошибок: ${failed}`);
     setSelected([]);
     setBulkDeleteOpen(false);
     await load(meta.page, { silent: false });

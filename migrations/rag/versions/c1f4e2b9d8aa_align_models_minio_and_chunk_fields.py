@@ -1,4 +1,4 @@
-﻿"""Align rag models: add minio_key, relax chunk_count, remove parent_id/text."""
+﻿"""Align rag models: add s3key, relax chunk_count, remove parent_id/text."""
 
 from typing import Sequence, Union
 
@@ -16,7 +16,7 @@ def upgrade() -> None:
     """Apply schema changes to match current ORM models."""
     op.add_column(
         "documents",
-        sa.Column("minio_key", sa.String(length=1024), nullable=True),
+        sa.Column("s3key", sa.String(length=1024), nullable=True),
         schema="rag_kernel",
     )
 
@@ -57,4 +57,4 @@ def downgrade() -> None:
         schema="rag_kernel",
     )
 
-    op.drop_column("documents", "minio_key", schema="rag_kernel")
+    op.drop_column("documents", "s3key", schema="rag_kernel")

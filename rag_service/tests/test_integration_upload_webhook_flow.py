@@ -221,6 +221,6 @@ async def test_upload_link_put_and_webhook_acceptance(
             print("db document id:", document.id)
             print("db document filename:", document.filename)
             print("db document status:", document.status)
-            print("db document minio_key:", document.minio_key)
+            print("db document s3key:", document.s3key)
         assert document is not None
         assert document.filename == filename

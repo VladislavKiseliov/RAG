@@ -14,6 +14,7 @@ class DocumentStatus(str, enum.Enum):
     PROCESSING = "processing"  # Общий статус (уже есть у тебя)
     EXTRACTING = "extracting"  # Идет парсинг текста из PDF/файла
     INDEXING = "indexing"  # Идет генерация эмбеддингов и запись в Qdrant
+    DUPLICATE  = "duplicate" # Дупликат документа
 
     # 3. Финалы
     COMPLETED = "completed"  # Все готово, можно искать по документу
@@ -57,7 +58,7 @@ class DocumentSummaryResponse(BaseModel):
 
 class DocumentDetailResponse(DocumentSummaryResponse):
     file_hash: str
-    minio_key: str | None = None
+    s3key: str | None = None
     meta: dict[str, Any] | None = None
 
 
@@ -72,7 +73,7 @@ class DocumentStatusResponse(BaseModel):
 class UploadedFileInfo(BaseModel):
     doc_id: str
     filename: str
-    minio_key: str
+    s3key: str
     size: int
     status: str
 
@@ -94,6 +95,21 @@ class UploadDocumentResponse(BaseModel):
 class DeleteDocumentResponse(BaseModel):
     status: Literal["deleted"]
     doc_id: str
+
+
+class BatchDeleteErrorItem(BaseModel):
+    doc_id: str
+    reason: str
+
+
+class BatchDeleteDocumentsRequest(BaseModel):
+    doc_ids: list[str] = Field(..., min_length=1)
+
+
+class BatchDeleteDocumentsResponse(BaseModel):
+    deleted: list[str] = Field(default_factory=list)
+    not_found: list[str] = Field(default_factory=list)
+    failed: list[BatchDeleteErrorItem] = Field(default_factory=list)
 
 
 class PlaceholderActionResponse(BaseModel):

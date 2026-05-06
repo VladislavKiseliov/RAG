@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.models import FilterSelector
 from qdrant_client.models import (
     Distance,
     FieldCondition,
@@ -229,7 +230,7 @@ class QdrantVectorStorage():
             print(f"{exc=}")
             raise VectorSearchError(f"Failed to execute vector search in Qdrant {exc=}") from exc
 
-    async def delete(self, doc_id: uuid.UUID) -> None:
+    async def delete_points(self, doc_id: uuid.UUID) -> None:
         """Delete every vector point that belongs to one document.
 
         Document ownership is resolved by payload field `doc_id`.
@@ -237,8 +238,15 @@ class QdrantVectorStorage():
         try:
             await self._client.delete(
                 collection_name=self._collection,
-                points_selector=Filter(
-                    must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
+                points_selector=FilterSelector(
+                    filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key="doc_id",
+                                match=MatchValue(value=str(doc_id)),
+                            ),
+                        ],
+                    )
                 ),
                 wait=True,
             )

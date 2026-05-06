@@ -1,8 +1,14 @@
-from rag_service.domain.errors.base import AppError, UploadValidationError
+from rag_service.domain.errors.base import (
+    AppError,
+    InvalidDocumentIdError,
+    UploadValidationError,
+    WebhookAuthorizationError,
+)
 from rag_service.domain.errors.postgres import (
     ChunkInsertError,
     DeadlockRetryExceeded,
     DocumentAlreadyExists,
+    DocumentByStorageKeyNotFound,
     DocumentCreateError,
     DocumentDeleteError,
     DocumentNotFound,
@@ -29,8 +35,11 @@ from rag_service.domain.errors.vector import (
 __all__ = [
     "AppError",
     "UploadValidationError",
+    "WebhookAuthorizationError",
+    "InvalidDocumentIdError",
     "PostgresError",
     "DocumentAlreadyExists",
+    "DocumentByStorageKeyNotFound",
     "DocumentNotFound",
     "DocumentRepositoryError",
     "DocumentReadError",

@@ -30,6 +30,57 @@ class DocumentRepository:
         """
         self._session = session
 
+    async def update_document_hash_atomically(self, doc_id: uuid.UUID, file_hash: str, status: str) -> bool:
+        """
+            Executes an atomic SQL UPDATE to set the file hash and status.
+
+            This method does not handle transaction commits or integrity exceptions;
+            it relies on the database-level UNIQUE constraint ('uq_documents_file_hash')
+            to prevent duplicate files.
+
+            Args:
+                doc_id: The unique identifier of the document to update.
+                file_hash: SHA-256 hash of the document content.
+                status: The new status to set (e.g., 'extracting').
+
+            Raises:
+                sqlalchemy.exc.SQLAlchemyError: If the database operation fails.
+            """
+
+        stmt = (
+            update(DocumentListItemDTO)
+            .where(DocumentListItemDTO.id == doc_id)
+            .values(file_hash=file_hash, status=status)
+        )
+        await self._session.execute(stmt)
+
+
+
+    async def _get_one(self, where_clause: Any) -> DocumentListItemDTO | None:
+        """Return a single document row for the provided SQLAlchemy predicate.
+
+        Args:
+            where_clause: SQLAlchemy boolean expression for `WHERE`.
+
+        Returns:
+            Matching document row or `None` when no row matches.
+        """
+        result = await self._session.execute(
+            select(DocumentListItemDTO).where(where_clause)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_document_by_s3key(self, s3key: str) -> DocumentListItemDTO | None:
+        """Return a single document by its storage key.
+
+        Args:
+            s3key: Object key from storage (`documents.s3key`).
+
+        Returns:
+            Document row if found, otherwise `None`.
+        """
+        return await self._get_one(DocumentListItemDTO.s3key == s3key)
+
     async def get_document_by_hash(self, file_hash: str) -> DocumentListItemDTO | None:
         """Return a single document by its file hash.
 
@@ -39,10 +90,7 @@ class DocumentRepository:
         Returns:
             Document row if found, otherwise `None`.
         """
-        result = await self._session.execute(
-            select(DocumentListItemDTO).where(DocumentListItemDTO.file_hash == file_hash)
-        )
-        return result.scalar_one_or_none()
+        return await self._get_one(DocumentListItemDTO.file_hash == file_hash)
 
     async def get_document_by_id(self, doc_id: uuid.UUID) -> DocumentListItemDTO | None:
         """Return a single document by its primary key.
@@ -53,10 +101,7 @@ class DocumentRepository:
         Returns:
             Document row if found, otherwise `None`.
         """
-        result = await self._session.execute(
-            select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id)
-        )
-        return result.scalar_one_or_none()
+        return await self._get_one(DocumentListItemDTO.id == doc_id)
 
     async def list_documents(
             self,
@@ -101,7 +146,7 @@ class DocumentRepository:
             self,
             filename: str,
             metadata: dict | None,
-            minio_key: str | None,
+            s3key: str | None,
             doc_status: DocumentStatus,
             doc_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
@@ -110,7 +155,7 @@ class DocumentRepository:
         Args:
             filename: Stored filename.
             metadata: JSON metadata to persist in `meta`.
-            minio_key: Object storage key for the uploaded file.
+            s3key: Object storage key for the uploaded file.
             doc_status: Initial document status.
             doc_id: Optional explicit UUID. If omitted, model default is used.
 
@@ -121,7 +166,7 @@ class DocumentRepository:
             id=doc_id,
             filename=filename,
             meta=metadata,
-            minio_key=minio_key,
+            s3key=s3key,
             status=doc_status,
         )
 
@@ -159,7 +204,7 @@ class DocumentRepository:
             status: str | DocumentStatus | None = None,
             metadata: dict | None = None,
             chunk_count: int | None = None,
-            minio_key: str | None = None,
+            s3key: str | None = None,
             file_hash: str | None = None,
     ) -> None:
         """Partially update selected document fields by id.
@@ -169,7 +214,7 @@ class DocumentRepository:
             status: Optional status value.
             metadata: Optional metadata replacement for `meta`.
             chunk_count: Optional chunk count replacement.
-            minio_key: Optional object key replacement.
+            s3key: Optional object key replacement.
             file_hash: Optional file hash replacement.
 
         Notes:
@@ -183,8 +228,8 @@ class DocumentRepository:
             values["meta"] = metadata
         if chunk_count is not None:
             values["chunk_count"] = chunk_count
-        if minio_key is not None:
-            values["minio_key"] = minio_key
+        if s3key is not None:
+            values["s3key"] = s3key
         if file_hash is not None:
             values["file_hash"] = file_hash
 

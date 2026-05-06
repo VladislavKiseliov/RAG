@@ -52,7 +52,7 @@ class VectorStorageProvider(Protocol):
         """
         ...
 
-    async def delete(self, doc_id: uuid.UUID) -> None:
+    async def delete_points(self, doc_id: uuid.UUID) -> None:
         """
         Removes all vector points associated with a specific document.
 

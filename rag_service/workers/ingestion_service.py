@@ -13,7 +13,7 @@ from rag_service.application.document_service import DataBaseDocumentService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.providers.s3_storage_provider import S3StorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
-from rag_service.models import DocumentStatus
+from rag_service.models import DocumentStatus, DocumentListItemDTO
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ class IngestionService:
         self._vector_timeout_seconds = vector_timeout_seconds
         self._chunker = DocumentChunkingPipeline()
 
-    async def process_document(self, doc_id: uuid.UUID, minio_key: str) -> IngestionResult:
+    async def process_document(self, doc_id: uuid.UUID, s3key: str) -> IngestionResult:
         """
         Executes the full ingestion pipeline for a single document.
 
@@ -75,7 +75,7 @@ class IngestionService:
 
         Args:
             doc_id: Unique identifier for the document.
-            minio_key: The key (path) of the file in the S3 bucket.
+            s3key: The key (path) of the file in the S3 bucket.
 
         Returns:
             IngestionResult: The final state and ID of the processed document.
@@ -83,42 +83,55 @@ class IngestionService:
         Raises:
             Exception: If any stage fails, updates document status to 'error' and re-raises.
         """
-        path_obj = Path(minio_key)
+        path_obj = Path(s3key)
         file_name = path_obj.name
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir) / file_name
+        try:
+            # 1. Скачивание (S3 -> Memory)
+            # Мы сначала качаем файл, чтобы вычислить его хеш
+            file_bytes = await self.s3_storage.get_file(s3key)
+            file_hash = self._compute_hash(file_bytes)
 
-            try:
-                # 1. Download file
-                file_bytes = await self.s3_storage.get_file(minio_key)
+            # 2. АТОМАРНАЯ ПРОВЕРКА И ОБНОВЛЕНИЕ
+            success = await self._document_service.update_document_hash_atomically(
+                doc_id=doc_id,
+                file_hash=file_hash,
+                status=DocumentStatus.EXTRACTING
+            )
 
-                # 2. Register (Status: PROCESSING)
-                await self._register_document(
-                    file_bytes=file_bytes,
-                    doc_id=doc_id,
-                    file_name=file_name
-                )
+            if not success:
+                print(12234)
+                # Логика для дубликата:
+                # Ставим статус DUPLICATE и удаляем временный файл из S3 (экономя место)
+                await self._document_service.delete_document(doc_id=doc_id)
+                await self.s3_storage.delete_file(s3key)
 
+                return IngestionResult(doc_id=doc_id, status=DocumentStatus.DUPLICATE)
+
+            # 3. ЕСЛИ НЕ ДУБЛИКАТ — ПРОДОЛЖАЕМ
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = Path(tmp_dir) / file_name
+
+                # Сохраняем байты во временный файл для парсинга
                 with open(tmp_path, "wb") as f:
                     f.write(file_bytes)
 
-                # 3. Parsing (SQL Storage)
+                # 4. Извлечение текста и сохранение чанков в SQL
                 children = await self.extract_and_store_chunks(doc_id, str(tmp_path))
 
-                # 4. Indexing (Status: INDEXING)
+                # 5. Обновляем статус: Переходим к векторизации
                 await self._document_service.update_document(
                     doc_id,
                     status=DocumentStatus.INDEXING,
                 )
 
-                # 5. Vectorization
+                # 6. Генерация эмбеддингов
                 vectors = await self.index_vectors(children)
 
-                # 6. Vector Storage (Qdrant)
+                # 7. Сохранение в векторную БД (Qdrant)
                 await self.vector_storage.upsert_vectors(doc_id, children, vectors)
 
-                # 7. Success (Status: COMPLETED)
+                # 8. Финализация: Успех
                 await self._document_service.update_document(
                     doc_id,
                     status=DocumentStatus.COMPLETED,
@@ -127,12 +140,14 @@ class IngestionService:
 
                 return IngestionResult(doc_id=doc_id, status=DocumentStatus.COMPLETED)
 
-            except Exception as e:
-                await self._document_service.update_document(
-                    doc_id,
-                    status=DocumentStatus.ERROR,
-                )
-                raise e
+        except Exception as e:
+            # В случае любой системной ошибки (база, сеть, память) ставим ERROR
+            # Это позволит Celery сделать retry, если ошибка временная
+            await self._document_service.update_document(
+                doc_id,
+                status=DocumentStatus.ERROR,
+            )
+            raise e
 
     async def index_vectors(self, childs: List[Dict[str, Any]]) -> List[List[float]]:
         """
@@ -146,22 +161,6 @@ class IngestionService:
         """
         texts = [str(child["text"]) for child in childs]
         return await self.vector_indexing_service.get_embeddings(texts)
-
-    async def _register_document(
-            self,
-            file_bytes: bytes,
-            doc_id: uuid.UUID,
-            file_name: str,
-            meta: Optional[Dict] = None
-    ):
-        """Checks for duplicates and creates a preliminary SQL record."""
-        file_hash = self._compute_hash(file_bytes)
-
-        existing = await self._document_service.get_document_by_hash(file_hash)
-        if existing:
-            raise ValueError(f"Document with hash {file_hash} already exists.")
-        print(f"{file_hash=}")
-        await self._document_service.update_document(doc_id = doc_id,file_hash = file_hash)
 
 
     async def extract_and_store_chunks(self, doc_id: uuid.UUID, file_path: str) -> List[Dict]:

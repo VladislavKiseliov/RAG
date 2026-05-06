@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any, Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Header, Response, Request
+from fastapi import APIRouter, Depends, status, Query, Header, Response, Request
 from rag_service.api.schemas import (
+    BatchDeleteDocumentsRequest,
+    BatchDeleteDocumentsResponse,
     DeleteDocumentResponse,
     DocumentDetailResponse,
     DocumentStatusResponse,
@@ -21,7 +23,12 @@ from rag_service.api.schemas import (
 # Импорты сервисов (предполагаем наличие соответствующих провайдеров)
 from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.task_dispatcher_service import TaskDispatcherService
-from rag_service.domain.errors import UploadValidationError
+from rag_service.domain.errors import (
+    DocumentNotFound,
+    InvalidDocumentIdError,
+    UploadValidationError,
+    WebhookAuthorizationError,
+)
 from rag_service.workers.ingestion_service import IngestionService
 from rag_service.dependencies import DocumentOrchestratorDep, RetrieveServiceDep, TaskDispatcherServiceDep, DocServiceDep
 from rag_service.utils.logger_config import setup_logger
@@ -69,43 +76,26 @@ async def generate_link_upload_file(
     """Шаг 1: Регистрация файла и получение Presigned URL для MinIO"""
     try:
         response = await upload_service.get_upload_link(filename, file_size)
-        print("ok")
 
         return response
     except UploadValidationError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
+        raise
 
 
 @router.post("/documents/ingest/webhook")
-async def handle_minio_webhook(
-        event: MinioWebhookEvent,
-        task_dispatcher :TaskDispatcherServiceDep,
-        database: DocServiceDep,
-        authorization: Annotated[str | None, Header(alias="authorization")] = None,
+async def handle_webhook(
+    event: MinioWebhookEvent,
+    dispatcher: TaskDispatcherServiceDep,
+    authorization: Annotated[str | None, Header(alias="authorization")] = None,
 ):
-
-    """Шаг 2: Сигнал от MinIO о завершении загрузки. Инициирует задачу в Celery."""
-    print("веб хук пришел")
     token = authorization.removeprefix("Bearer ").strip() if authorization else None
-    print(f"{token=}")
-    print(f"{os.getenv("MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1")=}")
-    # WEBHOOK_TOKEN должен быть в конфиге
     if token != os.getenv("MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1"):
-        raise HTTPException(status_code=401, detail="Invalid notification token")
-    print("OK_webhook")
+        raise WebhookAuthorizationError()
+
     for record in event.records:
-        key = record.s3.object.key
-        miniokey = unquote(key)
-        try:
-            parts = miniokey.split("/")
-            id, exc = os.path.splitext(parts[3])
-            doc_id = uuid.UUID(id)
-            print(1)
-            await database.update_document(doc_id=doc_id, status=DocumentStatus.UPLOAD)
-            print(2)
-            await task_dispatcher.dispatch_ingestion(doc_id=doc_id, minio_key=miniokey)
-        except (ValueError, IndexError):
-            logger.warning(f"Could not extract UUID from key: {key}")
+        raw_key = record.s3.object.key
+        s3key = unquote(raw_key)
+        await dispatcher.dispatch_ingestion(s3key=s3key)
 
     return {"status": "accepted"}
 
@@ -149,7 +139,6 @@ async def list_documents(
         limit=limit,
         offset=offset,
     )
-    print(f"{docs=}")
     return [
         {
             "doc_id": str(d.id),
@@ -157,7 +146,7 @@ async def list_documents(
             "status": d.status.value if hasattr(d.status, "value") else str(d.status),
             "created_at": d.created_at.isoformat(),
             "chunk_count": d.chunk_count,
-            "minio_key": d.minio_key,
+            "s3key": d.s3key
         }
         for d in docs
     ]
@@ -170,16 +159,46 @@ async def delete_document(
 ):
     """Delete a document from storage, vector DB, and Postgres."""
     try:
-        uuid.UUID(doc_id)
+        doc_id = uuid.UUID(doc_id)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid doc_id format") from exc
+        raise InvalidDocumentIdError() from exc
 
     try:
         await upload_service.delete_document(doc_id=doc_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise DocumentNotFound(doc_id) from exc
 
-    return DeleteDocumentResponse(status="deleted", doc_id=doc_id)
+    return DeleteDocumentResponse(status="deleted", doc_id=str(doc_id))
+
+@router.post("/documents/batch-delete", response_model=BatchDeleteDocumentsResponse)
+async def batch_delete_documents(
+    body: BatchDeleteDocumentsRequest,
+    upload_service: DocumentOrchestratorDep,
+):
+    deleted: list[str] = []
+    not_found: list[str] = []
+    failed: list[dict[str, str]] = []
+
+    for raw_doc_id in body.doc_ids:
+        try:
+            parsed_doc_id = uuid.UUID(raw_doc_id)
+        except ValueError:
+            failed.append({"doc_id": raw_doc_id, "reason": "invalid_doc_id"})
+            continue
+
+        try:
+            await upload_service.delete_document(doc_id=parsed_doc_id)
+            deleted.append(str(parsed_doc_id))
+        except ValueError:
+            not_found.append(str(parsed_doc_id))
+        except Exception as exc:
+            failed.append({"doc_id": str(parsed_doc_id), "reason": str(exc)})
+
+    return BatchDeleteDocumentsResponse(
+        deleted=deleted,
+        not_found=not_found,
+        failed=failed,
+    )
 
 
 #

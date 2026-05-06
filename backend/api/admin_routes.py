@@ -1,6 +1,8 @@
 ﻿from __future__ import annotations
 
+import asyncio
 import os
+import time
 import uuid
 from typing import Any
 
@@ -28,6 +30,38 @@ class AdminUserCreateRequest(BaseModel):
 class AdminUserUpdateRequest(BaseModel):
     login: str
     password: str
+
+
+class BatchDeleteDocumentsRequest(BaseModel):
+    doc_ids: list[str]
+
+
+async def _measure_http(url: str, timeout_seconds: float = 3.0) -> tuple[str, int | None]:
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds, connect=timeout_seconds), trust_env=False) as client:
+            response = await client.get(url)
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        if response.status_code >= 500:
+            return "offline", latency_ms
+        if response.status_code >= 400:
+            return "degraded", latency_ms
+        return ("degraded" if latency_ms > 500 else "online"), latency_ms
+    except Exception:
+        return "offline", None
+
+
+async def _measure_tcp(host: str, port: int, timeout_seconds: float = 3.0) -> tuple[str, int | None]:
+    started = time.perf_counter()
+    try:
+        conn = asyncio.open_connection(host=host, port=port)
+        _, writer = await asyncio.wait_for(conn, timeout=timeout_seconds)
+        writer.close()
+        await writer.wait_closed()
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return ("degraded" if latency_ms > 500 else "online"), latency_ms
+    except Exception:
+        return "offline", None
 
 
 async def _proxy_rag_request(
@@ -180,6 +214,28 @@ async def admin_documents_list(
     return await _proxy_rag_request("GET", "/documents", params=clean_params)
 
 
+@router.get("/system/health")
+async def admin_system_health() -> Any:
+    """Return real-time health and response latency for core services."""
+    rag_status, rag_latency = await _measure_http(f"{RAG_SERVICE_URL}/openapi.json")
+    qdrant_status, qdrant_latency = await _measure_http("http://qdrant:6333")
+    minio_status, minio_latency = await _measure_http("http://minio:9000/minio/health/live")
+    postgres_status, postgres_latency = await _measure_tcp("postgres", 5432)
+    redis_status, redis_latency = await _measure_tcp("redis", 6379)
+
+    return {
+        "services": [
+            {"name": "backend", "status": "online", "latency_ms": 0},
+            {"name": "rag", "status": rag_status, "latency_ms": rag_latency},
+            {"name": "minio", "status": minio_status, "latency_ms": minio_latency},
+            {"name": "qdrant", "status": qdrant_status, "latency_ms": qdrant_latency},
+            {"name": "postgres", "status": postgres_status, "latency_ms": postgres_latency},
+            {"name": "redis", "status": redis_status, "latency_ms": redis_latency},
+        ],
+        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
 @router.post("/documents/upload-link")
 async def admin_document_upload_link(
     filename: str = Query(..., min_length=1),
@@ -198,6 +254,16 @@ async def admin_document_upload_link(
         "POST",
         "/documents/ingest/upload-link",
         params={"filename": filename, "file_size": file_size},
+    )
+
+
+@router.post("/documents/batch-delete")
+async def admin_documents_batch_delete(payload: BatchDeleteDocumentsRequest) -> Any:
+    """Batch delete documents in RAG domain."""
+    return await _proxy_rag_request(
+        "POST",
+        "/documents/batch-delete",
+        json_body={"doc_ids": payload.doc_ids},
     )
 
 
@@ -231,7 +297,7 @@ async def admin_document_download(doc_id: str) -> Response:
 
     Flow:
     1. Request document details in RAG service.
-    2. Extract object key (`minio_key`).
+    2. Extract object key (`s3key`).
     3. Request file content by key from RAG storage endpoint.
     4. Return binary response to client.
 
@@ -240,14 +306,14 @@ async def admin_document_download(doc_id: str) -> Response:
         HTTPException: 503 when upstream RAG service is unavailable.
     """
     detail = await _proxy_rag_request("GET", f"/documents/{doc_id}")
-    minio_key = detail.get("minio_key") if isinstance(detail, dict) else None
-    if not minio_key:
-        raise HTTPException(status_code=404, detail="Document minio_key not found")
+    s3key = detail.get("s3key") if isinstance(detail, dict) else None
+    if not s3key:
+        raise HTTPException(status_code=404, detail="Document s3key not found")
 
     url = f"{RAG_SERVICE_URL}/documents/storage/files/content"
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
         try:
-            res = await client.get(url, params={"key": minio_key})
+            res = await client.get(url, params={"key": s3key})
             res.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text or "RAG download error") from exc

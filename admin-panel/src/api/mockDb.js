@@ -15,7 +15,7 @@ const sampleDocs = Array.from({ length: 73 }).map((_, idx) => {
     chunk_count: status === 'completed' ? 40 + (idx % 160) : null,
     uploaded_at: daysAgo(Math.floor(idx / 4), idx * 11),
     size_mb: Number((1 + (idx % 20) * 0.7).toFixed(1)),
-    minio_key: `documents/${idx + 1}/document_${idx + 1}.pdf`,
+    s3key: `documents/${idx + 1}/document_${idx + 1}.pdf`,
     file_hash: `sha256:${crypto.randomUUID().replaceAll('-', '')}`,
     embedding_model: 'BAAI/bge-m3',
     collection: 'rag_documents_collection',

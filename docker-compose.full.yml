@@ -141,6 +141,26 @@
     networks:
       - rag_network
 
+  flower:
+    build:
+      context: .
+      dockerfile: rag_service/Dockerfile
+    container_name: rag_flower
+    env_file:
+      - rag_service/.env
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_started
+      rag-worker:
+        condition: service_started
+    networks:
+      - rag_network
+    restart: unless-stopped
+
+
   llm-service:
     build:
       context: .

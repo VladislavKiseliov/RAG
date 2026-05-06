@@ -21,7 +21,7 @@ class DocumentListItemDTO(TypedDict):
     filename: str
     status: str
     size: int | None
-    minio_key: str | None
+    s3key: str | None
     created_at: str
 
 

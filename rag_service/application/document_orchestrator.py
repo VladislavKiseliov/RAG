@@ -38,8 +38,7 @@ class DocumentOrchestrator:
         await self.database.create_doc(
             doc_id=doc_id,
             filename=filename,
-            metadata={"minio_key": key},
-            minio_key=key,
+            s3key=key,
         )
 
         # 4. Получаем ссылку для ПРЯМОЙ загрузки (Client -> MinIO)
@@ -50,14 +49,13 @@ class DocumentOrchestrator:
             presigned_url=presigned_url
         )
 
-    async def delete_document(self, doc_id: str, key: str | None = None):
+    async def delete_document(self, doc_id: uuid.UUID, key: str | None = None):
         """Шаг 3: Полная очистка"""
-        parsed_doc_id = uuid.UUID(doc_id)
-        document = await self.database.get_document_by_id(parsed_doc_id)
+        document = await self.database.get_document_by_id(doc_id)
         if document is None:
             raise ValueError(f"Document '{doc_id}' not found")
 
-        object_key = key or document.minio_key
+        object_key = key or document.s3key
         if not object_key:
             raise ValueError(f"Storage key for document '{doc_id}' is empty")
 
@@ -67,17 +65,17 @@ class DocumentOrchestrator:
             raise ValueError(f"File '{object_key}' not found in storage") from exc
 
         await self.s3_storage.delete_file(object_key)
-        await self.vector_storage.delete_vectors_by_id(doc_id)
-        await self.database.delete_document(parsed_doc_id)
+        await self.vector_storage.delete_points(doc_id)
+        await self.database.delete_document(doc_id)
 
     async def get_list_document(self) -> list[dict[str, Any]]:
         documents = await self.database.list_documents(limit=10_000, offset=0)
         result: list[dict[str, Any]] = []
 
         for document in documents:
-            key = document.minio_key
+            key = document.s3key
             if not key and isinstance(document.meta, dict):
-                key = document.meta.get("minio_key")
+                key = document.meta.get("s3key")
 
             size: int | None = None
             if key:
@@ -93,7 +91,7 @@ class DocumentOrchestrator:
                     "filename": document.filename,
                     "status": getattr(document.status, "value", str(document.status)),
                     "size": size,
-                    "minio_key": key,
+                    "s3key": key,
                 }
             )
 

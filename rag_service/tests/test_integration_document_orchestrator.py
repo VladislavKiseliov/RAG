@@ -159,13 +159,13 @@ async def test_get_upload_link_persists_document_and_returns_presigned_url(
 
     assert document is not None
     assert document.filename == filename
-    assert document.minio_key is not None
+    assert document.s3key is not None
     assert re.match(
         r"^documents/\d{4}/\d{2}/[a-z0-9._-]+__[a-f0-9]{8}\.[a-z0-9]+$",
-        document.minio_key,
+        document.s3key,
     )
     assert isinstance(document.meta, dict)
-    assert document.meta.get("minio_key") == document.minio_key
+    assert document.meta.get("s3key") == document.s3key
 
 async def test_get_file_reads_real_object_from_minio(
     orchestrator: DocumentOrchestrator,
@@ -206,9 +206,9 @@ async def test_get_list_document_returns_size_and_status(
     async with session_factory() as session:
         result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         document = result.scalar_one()
-    assert document.minio_key is not None
+    assert document.s3key is not None
 
-    await s3_repository.upload_file(content=content, key=document.minio_key, content_type="application/pdf")
+    await s3_repository.upload_file(content=content, key=document.s3key, content_type="application/pdf")
 
     items = await orchestrator.get_list_document()
     row = next((x for x in items if x["doc_id"] == str(doc_id)), None)
@@ -216,7 +216,7 @@ async def test_get_list_document_returns_size_and_status(
     assert row["filename"] == filename
     assert row["status"] in {"pending", "processing"}
     assert row["size"] == len(content)
-    assert row["minio_key"] == document.minio_key
+    assert row["s3key"] == document.s3key
 
 
 async def test_delete_document_removes_file_vectors_and_db_record(
@@ -241,13 +241,13 @@ async def test_delete_document_removes_file_vectors_and_db_record(
     async with session_factory() as session:
         result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         document = result.scalar_one()
-    assert document.minio_key is not None
+    assert document.s3key is not None
 
-    await s3_repository.upload_file(content=content, key=document.minio_key, content_type="application/pdf")
+    await s3_repository.upload_file(content=content, key=document.s3key, content_type="application/pdf")
     await orchestrator.delete_document(str(doc_id))
 
     with pytest.raises(Exception):
-        await s3_repository.stat(document.minio_key)
+        await s3_repository.stat(document.s3key)
 
     async with session_factory() as session:
         result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
@@ -270,9 +270,9 @@ async def test_get_document_info_returns_full_postgres_payload(
     assert info["doc_id"] == str(doc_id)
     assert info["filename"] == filename
     assert info["status"] in {"pending", "processing"}
-    assert info["minio_key"] is not None
+    assert info["s3key"] is not None
     assert isinstance(info["meta"], dict)
-    assert info["meta"].get("minio_key") == info["minio_key"]
+    assert info["meta"].get("s3key") == info["s3key"]
     assert "created_at" in info
     assert "updated_at" in info
     assert "chunk_count" in info

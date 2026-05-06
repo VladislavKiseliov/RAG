@@ -28,6 +28,15 @@ class DocumentNotFound(PostgresError):
         self.status_code = status.HTTP_404_NOT_FOUND
 
 
+class DocumentByStorageKeyNotFound(PostgresError):
+    """Raised when a document cannot be found by storage key."""
+
+    def __init__(self, s3key: str):
+        self.s3key = s3key
+        super().__init__(message=f"Document with storage key '{s3key}' not found")
+        self.status_code = status.HTTP_404_NOT_FOUND
+
+
 class DocumentRepositoryError(PostgresError):
     """Generic repository failure in document persistence."""
 

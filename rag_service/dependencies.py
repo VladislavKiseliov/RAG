@@ -59,9 +59,9 @@ async def get_retrieval_service(
         v_indexing_service=v_indexing
     )
 
-async def get_task_dispatcher_service() -> TaskDispatcherService:
+async def get_task_dispatcher_service(db_doc_service: Annotated[DataBaseDocumentService, Depends(get_db_doc_service)]) -> TaskDispatcherService:
     """Сервис постановки задач в Celery."""
-    return TaskDispatcherService()
+    return TaskDispatcherService(database=db_doc_service)
 
 async def get_document_orchestrator(
     db_doc_service: Annotated[DataBaseDocumentService, Depends(get_db_doc_service)],

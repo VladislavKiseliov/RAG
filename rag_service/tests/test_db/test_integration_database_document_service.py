@@ -28,7 +28,7 @@ SEEDED_DOCUMENTS = [
         "filename": "seed-pending.pdf",
         "status": "pending",
         "file_hash": None,
-        "minio_key": "documents/2026/04/seed-pending__aaaa1111.pdf",
+        "s3key": "documents/2026/04/seed-pending__aaaa1111.pdf",
         "meta": {"source": "seed", "tag": "pending"},
         "chunk_count": 0,
     },
@@ -37,7 +37,7 @@ SEEDED_DOCUMENTS = [
         "filename": "seed-processing.pdf",
         "status": "processing",
         "file_hash": "f" * 64,
-        "minio_key": "documents/2026/04/seed-processing__bbbb2222.pdf",
+        "s3key": "documents/2026/04/seed-processing__bbbb2222.pdf",
         "meta": {"source": "seed", "tag": "processing"},
         "chunk_count": None,
     },
@@ -46,7 +46,7 @@ SEEDED_DOCUMENTS = [
         "filename": "seed-completed.pdf",
         "status": "completed",
         "file_hash": "e" * 64,
-        "minio_key": "documents/2026/04/seed-completed__cccc3333.pdf",
+        "s3key": "documents/2026/04/seed-completed__cccc3333.pdf",
         "meta": {"source": "seed", "tag": "completed"},
         "chunk_count": 3,
     },
@@ -106,7 +106,7 @@ async def seeded_data(session_factory):
                     filename=item["filename"],
                     file_hash=item["file_hash"],
                     status=item["status"],
-                    minio_key=item["minio_key"],
+                    s3key=item["s3key"],
                     meta=item["meta"],
                     chunk_count=item["chunk_count"],
                 )
@@ -175,25 +175,25 @@ async def test_get_document_full_info_returns_chunk_counters(service: DataBaseDo
     assert info["doc_id"] == str(target["id"])
     assert info["filename"] == target["filename"]
     assert info["status"] == "processing"
-    assert info["minio_key"] == target["minio_key"]
+    assert info["s3key"] == target["s3key"]
     assert info["meta"]["tag"] == "processing"
     assert info["chunk_count"] is None
     assert isinstance(info["created_at"], datetime)
 
 
-async def test_create_doc_persists_minio_key_and_meta(
+async def test_create_doc_persists_s3key_and_meta(
     service: DataBaseDocumentService,
     session_factory,
 ) -> None:
     """Create a new document and verify minio key + metadata persistence."""
     new_doc_id = uuid.uuid4()
     filename = "created-from-service.pdf"
-    minio_key = "documents/2026/04/created-from-service__dddd4444.pdf"
+    s3key = "documents/2026/04/created-from-service__dddd4444.pdf"
     await service.create_doc(
         doc_id=new_doc_id,
         filename=filename,
         metadata={"source": "test-create"},
-        minio_key=minio_key,
+        s3key=s3key,
     )
 
     async with session_factory() as session:
@@ -201,7 +201,7 @@ async def test_create_doc_persists_minio_key_and_meta(
         created = result.scalar_one_or_none()
         assert created is not None
         assert created.filename == filename
-        assert created.minio_key == minio_key
+        assert created.s3key == s3key
         assert created.meta == {"source": "test-create"}
         assert created.status == DocumentStatus.PENDING
 
@@ -239,7 +239,7 @@ async def test_update_document_updates_selected_fields(
         status=DocumentStatus.UPLOAD,
         metadata=new_meta,
         chunk_count=9,
-        minio_key=new_key,
+        s3key=new_key,
         file_hash=new_hash,
     )
 
@@ -249,7 +249,7 @@ async def test_update_document_updates_selected_fields(
         assert doc.status == "uploading"
         assert doc.meta == new_meta
         assert doc.chunk_count == 9
-        assert doc.minio_key == new_key
+        assert doc.s3key == new_key
         assert doc.file_hash == new_hash
 
 
@@ -260,7 +260,7 @@ async def test_delete_document_removes_row(service: DataBaseDocumentService, ses
         doc_id=temp_id,
         filename="to-delete.pdf",
         metadata={"tmp": True},
-        minio_key="documents/2026/04/to-delete__eeee5555.pdf",
+        s3key="documents/2026/04/to-delete__eeee5555.pdf",
     )
     await service.delete_document(temp_id)
 

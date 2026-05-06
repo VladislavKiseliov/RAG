@@ -62,8 +62,8 @@ export default function DocumentDetail() {
           <p>Загружен: <span className="font-medium">{formatDateTime(doc.uploaded_at)}</span></p>
           <p className="mono">doc_id: {doc.doc_id}</p>
           <Button variant="secondary" className="w-fit" onClick={() => copyValue(doc.doc_id)}>Копировать</Button>
-          <p className="mono">minio_key: {doc.minio_key}</p>
-          <Button variant="secondary" className="w-fit" onClick={() => copyValue(doc.minio_key)}>Копировать</Button>
+          <p className="mono">s3key: {doc.s3key}</p>
+          <Button variant="secondary" className="w-fit" onClick={() => copyValue(doc.s3key)}>Копировать</Button>
           <p className="mono">hash: {doc.file_hash}</p>
           <Button variant="secondary" className="w-fit" onClick={() => copyValue(doc.file_hash)}>Копировать</Button>
         </div>

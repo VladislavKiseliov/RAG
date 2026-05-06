@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.exc import IntegrityError
 
 from rag_service.domain.errors.postgres import DocumentAlreadyExists
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
@@ -41,6 +42,57 @@ class DataBaseDocumentService:
             finally:
                 await session.close()
 
+    async def get_document_by_s3key(self, s3key: str) -> DocumentListItemDTO | None:
+        """Return one document by storage key.
+
+        Args:
+            s3key: Object key stored in `documents.s3key`.
+
+        Returns:
+            Matching document row or `None`.
+        """
+        async with self.session_scope() as (_, repo):
+            return await repo.get_document_by_s3key(s3key)
+
+    async def update_document_hash_atomically(self, doc_id: uuid.UUID, file_hash: str, status: str) -> bool:
+        """
+            Attempts to link a file hash to a document record while ensuring uniqueness.
+
+            The method wraps the repository call in a transaction and catches 
+            IntegrityErrors specifically related to the file hash unique constraint.
+            This prevents 'race conditions' where two workers might try to process 
+            identical files simultaneously.
+
+            Args:
+                doc_id: The UUID of the document record created during upload.
+                file_hash: Computed SHA-256 hash of the uploaded file.
+                status: Transition status to set if unique (e.g., DocumentStatus.EXTRACTING).
+
+            Returns:
+                bool: True if the hash was successfully linked (unique file).
+                      False if a duplicate hash was detected (file already exists in system).
+
+            Raises:
+                IntegrityError: For any database integrity violations other than the hash constraint.
+                Exception: For general service or connection failures.
+        """
+        try:
+
+            async with self.session_scope() as (session, repo):
+                print(f"{file_hash=}")
+                await repo.update_document_hash_atomically(
+                    doc_id=doc_id,
+                    file_hash=file_hash,
+                    status=status
+                )
+                await session.commit()
+            return True
+        except IntegrityError as e:
+            if "uq_documents_file_hash" in str(e.orig):
+                return False
+            raise e
+
+
     async def get_document_by_hash(self, file_hash: str) -> DocumentListItemDTO | None:
         async with self.session_scope() as (_, repo):
             return await repo.get_document_by_hash(file_hash)
@@ -64,8 +116,8 @@ class DataBaseDocumentService:
             self,
             doc_id: uuid.UUID,
             filename: str,
-            metadata: dict[str, Any],
-            minio_key: str | None = None,
+            metadata: dict[str, Any]| None = None,
+            s3key: str | None = None,
 
     ) -> uuid.UUID:
         safe_name = _sanitize_filename(filename)
@@ -78,7 +130,7 @@ class DataBaseDocumentService:
 
             new_id = await repo.create_document(filename=safe_name,
                                                 metadata=metadata,
-                                                minio_key=minio_key,
+                                                s3key=s3key,
                                                 doc_status=DocumentStatus.PENDING,
                                                 doc_id=doc_id)
             await session.commit()
@@ -123,7 +175,7 @@ class DataBaseDocumentService:
             status: str | DocumentStatus | None = None,
             metadata: dict[str, Any] | None = None,
             chunk_count: int | None = None,
-            minio_key: str | None = None,
+            s3key: str | None = None,
             file_hash: str | None = None,
     ) -> None:
         """Update selected document fields and commit transaction."""
@@ -133,7 +185,7 @@ class DataBaseDocumentService:
                 status=status,
                 metadata=metadata,
                 chunk_count=chunk_count,
-                minio_key=minio_key,
+                s3key=s3key,
                 file_hash=file_hash,
             )
             await session.commit()
@@ -157,7 +209,7 @@ class DataBaseDocumentService:
                 "doc_id": str(document.id),
                 "filename": document.filename,
                 "status": getattr(document.status, "value", str(document.status)),
-                "minio_key": document.minio_key,
+                "s3key": document.s3key,
                 "meta": document.meta or {},
                 "created_at": document.created_at,
                 # Documents model currently has no updated_at column.
@@ -188,7 +240,7 @@ class DocumentQueryService:
         **filters
     ) -> list[DocumentListItemDTO]:
         async with self.session_scope() as (_, repo):
-            return await repo.list_documents(limit=limit, offset=offset, database=DocServiceDep, **filters)
+            return await repo.list_documents(limit=limit, offset=offset, **filters)
 
     async def get_parent_chunks(
         self,
