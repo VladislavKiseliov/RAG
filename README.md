@@ -21,11 +21,11 @@ Important:
 ## Project Overview
 
 Monorepo with a multi-service RAG platform:
-- `backend` вЂ” application API (auth, chat, admin-proxy);
-- `rag_service` вЂ” ingestion/retrieval, document handling, MinIO/Qdrant/Postgres;
-- `llm_service` вЂ” answer generation from retrieved context;
-- `frontend` вЂ” end-user chat UI;
-- `admin-panel` вЂ” admin UI for documents and users.
+- `backend` - application API (auth, chat, admin-proxy);
+- `rag_service` - ingestion/retrieval, document handling, MinIO/Qdrant/Postgres;
+- `llm_service` - answer generation from retrieved context;
+- `frontend` - end-user chat UI;
+- `admin-panel` - admin UI for documents and users.
 
 ## Architecture
 
@@ -146,14 +146,14 @@ sequenceDiagram
 
 ## Responsibility Boundaries
 
-1. `backend` вЂ” external app API, auth/chat/admin orchestration.
-2. `rag_service` API вЂ” document management, retrieval, webhook receiver.
-3. `rag-worker` вЂ” asynchronous document processing and indexing.
-4. `llm_service` вЂ” answer generation using RAG context.
-5. `MinIO` вЂ” source file storage and webhook events.
-6. `PostgreSQL` вЂ” metadata, document statuses, chats, users.
-7. `Qdrant` вЂ” vector index for semantic retrieval.
-8. `Redis` вЂ” task broker between API and worker.
+1. `backend` - external app API, auth/chat/admin orchestration.
+2. `rag_service` API - document management, retrieval, webhook receiver.
+3. `rag-worker` - asynchronous document processing and indexing.
+4. `llm_service` - answer generation using RAG context.
+5. `MinIO` - source file storage and webhook events.
+6. `PostgreSQL` - metadata, document statuses, chats, users.
+7. `Qdrant` - vector index for semantic retrieval.
+8. `Redis` - task broker between API and worker.
 
 ## Main Components
 
@@ -201,16 +201,16 @@ docker ps
 
 ## Default Ports
 
-- `backend` вЂ” `8000`
-- `rag_service` вЂ” `8001`
-- `llm_service` вЂ” `8002`
-- `frontend` вЂ” `5173`
-- `admin-panel` вЂ” `5174`
-- `minio api` вЂ” `9000`
-- `minio console` вЂ” `9001`
-- `qdrant` вЂ” `6333`
-- `postgres` вЂ” `5432`
-- `redis` вЂ” `6379`
+- `backend` - `8000`
+- `rag_service` - `8001`
+- `llm_service` - `8002`
+- `frontend` - `5173`
+- `admin-panel` - `5174`
+- `minio api` - `9000`
+- `minio console` - `9001`
+- `qdrant` - `6333`
+- `postgres` - `5432`
+- `redis` - `6379`
 
 ## Ingestion Flow (Presigned URL)
 
