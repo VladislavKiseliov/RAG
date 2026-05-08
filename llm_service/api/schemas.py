@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List, Dict
 
 from pydantic import BaseModel, Field, field_validator
 
 
 class AskRequest(BaseModel):
     query: str = Field(..., min_length=1)
+    history_massage: List[Dict]
+    summary: str
     doc_id: str | None = None
     include_context: bool = False
 

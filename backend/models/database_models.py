@@ -61,6 +61,8 @@ class Chats(Base):
         onupdate=lambda: datetime.now(timezone.utc)
     )
 
+    summary: Mapped[str] = mapped_column(Text,nullable=True)
+
     user: Mapped["Users"] = relationship(back_populates="chats")
 
 

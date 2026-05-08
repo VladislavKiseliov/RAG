@@ -12,13 +12,10 @@ class RagClient:
         self._base_url = base_url.rstrip('/')
         self._timeout = timeout
 
-    async def retrieve(self, *, query: str, doc_id: str | None) -> dict:
+    async def retrieve(self, *, query: str) -> dict:
         payload = {"query": query}
-        if doc_id is not None:
-            payload["doc_id"] = doc_id
-
         url = f"{self._base_url}/documents/retrieve"
-        logger.info("RAG request", extra={"url": url, "doc_id": doc_id})
+        logger.info("RAG request", extra={"url": url,})
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:

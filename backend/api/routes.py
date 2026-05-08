@@ -159,7 +159,7 @@ async def delete_chat(
     """
     Удаляет запись чата, если она принадлежит текущему пользователю.
     """
-    await service.delete_chat(current_user, chat_id)
+    await service.delete_chat(current_user.id, chat_id)
     return {"status": "success", "message": "Чат успешно удален"}
 
 

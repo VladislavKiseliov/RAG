@@ -41,10 +41,10 @@ class OpenAICompatLLMProvider:
     def __init__(
         self,
         *,
-        api_key: str,
         base_url: str,
         model: str = "openai/gpt-4o-mini",
     ):
+        api_key = "sk-dfea793c333ed53c07df26180dde47b902956bbe2ec158f3b283af42cf963233"
         if not api_key:
             raise ValueError("LLM API key is empty (Gate_LLM_KEY / GATE_LLM_KEY / LLM_API_KEY / OPENAI_API_KEY)")
         from openai import AsyncOpenAI
@@ -66,15 +66,17 @@ class OpenAICompatLLMProvider:
         )
         return response.choices[0].message.content or ""
 
-    async def generate_general(self, *, query: str) -> str:
+    async def generate_general(self, *, query: str,context: str) -> str:
+        print(f"Перед вставкой{context=}")
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[
                 {"role": "system", "content": GENERAL_SYSTEM_PROMPT},
-                {"role": "user", "content": query},
+                {"role": "user", "content": USER_TEMPLATE.format(context=context, question=query)},
             ],
             temperature=0.4,
         )
+        print(f"{response=}")
         return response.choices[0].message.content or ""
 
 

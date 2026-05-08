@@ -1,4 +1,6 @@
-﻿import httpx
+﻿from typing import List, Dict
+
+import httpx
 import os
 from fastapi import HTTPException
 from backend.utils.logger_config import setup_logger
@@ -9,7 +11,7 @@ logger = setup_logger("backend.llm_client")
 LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "http://llm-service:8002")
 
 
-async def get_llm_answer(question: str) -> dict:
+async def get_llm_answer(question: str,history_massage:List[Dict],summary:str) -> dict:
     """
     Отправляет запрос в LLM-сервис.
     LLM-сервис сам сходит в RAG, сформирует контекст и вернет готовый ответ.
@@ -20,7 +22,7 @@ async def get_llm_answer(question: str) -> dict:
 
     # Формируем чистый URL к эндпоинту LLM
     url = f"{LLM_SERVICE_URL.rstrip('/')}/llm/answer"
-    payload = {"query": question}
+    payload = {"query": question,"history_massage":history_massage,"summary":summary}
 
     # Используем AsyncClient с увеличенным таймаутом
     # (LLM + RAG запрос может занимать много времени)

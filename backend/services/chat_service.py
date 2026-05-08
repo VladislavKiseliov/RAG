@@ -2,6 +2,8 @@ import uuid6
 from uuid import UUID
 from typing import List, Dict, Any
 
+from pyexpat.errors import messages
+
 from backend.services.llm_client import get_llm_answer
 from backend.utils.exceptions import UserNotFoundError, AuthDatabaseError
 # Обрати внимание на импорты, теперь мы передаем репозитории в конструктор
@@ -49,7 +51,7 @@ class ChatService:
 
     async def delete_chat(self, user_id: UUID, chat_id: UUID) -> bool:
         """Удаляет чат со всей историей (если настроено каскадное удаление)."""
-        deleted = await self.chat_repo.delete_chat(chat_id, user_id)
+        deleted = await self.chat_repo.delete_chat(chat_id = chat_id, user_id =user_id)
         if not deleted:
             raise UserNotFoundError("Не удалось удалить чат")
         return True
@@ -71,12 +73,20 @@ class ChatService:
         2. Получение ответа от ИИ (база в это время свободна).
         3. Сохранение ответа.
         """
+        messages = await self.get_history(chat_id)
+
+        short_messages = [{"role": message["role"], "content": message["content"]} for message in messages ]
+        # summary = await self.message_repo.get_summary(chat_id=chat_id)
+        summary = "пока пусто"
+        print(f"{messages=}, {summary=}")
 
         # 1. Сохраняем сообщение пользователя (Транзакция 1: зашли-вышли)
         await self.message_repo.add_message(chat_id, role="user", content=content)
 
+
         # 2. Вызываем LLM (Тут может быть долгое ожидание, БД не занята!)
-        rag_result = await get_llm_answer(content)
+        rag_result = await get_llm_answer(question=content,history_massage = short_messages,summary = summary)
+
         assistant_response = rag_result["answer"]
         sources = rag_result.get("sources", [])
         print(rag_result)

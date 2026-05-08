@@ -190,7 +190,7 @@ class ChatRepository(BaseRepository):
         """Удаление чата (доступно только владельцу)."""
         async with self.session_factory() as session:
             async with session.begin():
-                stmt = delete(Chats).where(Chats.chat_id == chat_id, Chats.user_id == user_id)
+                stmt = delete(Chats).where(Chats.chat_id == chat_id)
                 result = await session.execute(stmt)
                 return result.rowcount > 0
 
@@ -230,6 +230,14 @@ class MessageRepository(BaseRepository):
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
+    async def get_summary(self, chat_id: uuid.UUID) -> str | None:
+        async with self.session_factory() as session:
+            stmt = (
+                select(Chats.summary)
+                .where(Chats.chat_id == chat_id)
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
 
 
 class DocumentRepository(BaseRepository):
