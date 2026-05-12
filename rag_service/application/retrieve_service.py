@@ -122,6 +122,82 @@ class RetrieveService:
             "total": len(items),
         }
 
+    async def batch_search(
+            self,
+            *,
+            queries: list[str],
+            top_k: int = 5,
+    ) -> dict:
+        """Execute a multi-query retrieval pipeline using a single Qdrant batch request.
+
+        Embeds all queries in one model call, sends a single batch request to
+        Qdrant, then deduplicates results by (doc_id, parent_id) keeping the
+        highest-scoring child hit per parent block.
+
+        Each result item contains a child chunk (focused hit) and its parent
+        chunk text (context window) loaded from Postgres.
+
+        Args:
+            queries: List of natural language search queries.
+            top_k: Number of child hits to request per query from Qdrant.
+
+        Returns:
+            Dict with 'items' (deduplicated focus-parent blocks) and 'total'.
+        """
+        # Все эмбеддинги за один вызов модели
+        query_vectors = await self.v_indexing_service.get_embeddings(queries)
+
+        # Один батч-запрос к Qdrant вместо N последовательных
+        batch_hits = await self.vector_storage.batch_search(
+            query_vectors=query_vectors,
+            top_k=top_k,
+        )
+
+        # Flatten + дедупликация по (doc_id, parent_id), оставляем лучший score
+        seen: dict[tuple[str, str], dict] = {}
+        for hits in batch_hits:
+            group_hits = group_hits_by_parent(hits)
+            for key, group in group_hits.items():
+                existing = seen.get(key)
+                children = group.get("children", [])
+                top_score = max((c["score"] for c in children), default=0.0)
+                if existing is None or top_score > max(
+                    (c["score"] for c in existing.get("children", [])), default=0.0
+                ):
+                    seen[key] = group
+
+        if not seen:
+            return {"items": [], "total": 0}
+
+        requested_parent_ids = [key[1] for key in seen.keys()]
+        parent_chunks = await self._document_service.get_parent_chunks(requested_parent_ids)
+
+        items = build_retrieved_items(group_hits=seen, rows=parent_chunks)
+        return {"items": items, "total": len(items)}
+
+    async def retrieve(
+            self,
+            *,
+            queries: list[str],
+            top_k: int = 5,
+    ) -> dict:
+        """Entry point for all retrieval requests.
+
+        Routes to `search` for a single query (avoids batch overhead) or
+        to `batch_search` for multiple expanded queries.
+
+        Args:
+            queries: One or more search queries.
+            top_k: Number of hits to retrieve per query.
+
+        Returns:
+            Dict with 'items' and 'total'.
+        """
+        if len(queries) == 1:
+            return await self.search(query=queries[0], top_k=top_k)
+        return await self.batch_search(queries=queries, top_k=top_k)
+
+
 # --- Helpers for data transformation ---
 
 def group_hits_by_parent(

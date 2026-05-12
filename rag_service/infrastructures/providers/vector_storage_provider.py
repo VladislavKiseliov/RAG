@@ -52,6 +52,28 @@ class VectorStorageProvider(Protocol):
         """
         ...
 
+    async def batch_search(
+            self,
+            query_vectors: List[List[float]],
+            *,
+            top_k: int = 5,
+            doc_id: Optional[uuid.UUID] = None,
+            score_threshold: Optional[float] = None,
+    ) -> List[List[Dict[str, Any]]]:
+        """
+        Performs similarity search for multiple query vectors in a single request.
+
+        Args:
+            query_vectors: List of embedding vectors to search with.
+            top_k: Maximum number of hits per query vector.
+            doc_id: Optional filter to restrict search to a specific document.
+            score_threshold: Minimum similarity score threshold (0.0 to 1.0).
+
+        Returns:
+            List of hit lists — one inner list per query vector.
+        """
+        ...
+
     async def delete_points(self, doc_id: uuid.UUID) -> None:
         """
         Removes all vector points associated with a specific document.

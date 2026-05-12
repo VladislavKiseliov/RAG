@@ -22,15 +22,16 @@ class DocumentStatus(str, enum.Enum):
 
 
 class RetrieveRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="Search query")
+    queries: list[str] = Field(..., min_length=1, description="One or more search queries")
     top_k: int = Field(default=5, ge=1, le=50)
 
-    @field_validator("query")
+    @field_validator("queries")
     @classmethod
-    def validate_query(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("Query cannot be empty")
-        return value
+    def validate_queries(cls, values: list[str]) -> list[str]:
+        result = [v.strip() for v in values if v.strip()]
+        if not result:
+            raise ValueError("queries cannot be empty")
+        return result
 
 
 class RetrievedChunk(BaseModel):
@@ -43,7 +44,6 @@ class RetrievedChunk(BaseModel):
 
 
 class RetrieveResponse(BaseModel):
-    query: str
     items: list[RetrievedChunk]
     total: int
 
@@ -135,3 +135,5 @@ class MinioRecord(BaseModel):
 class MinioWebhookEvent(BaseModel):
     # MinIO присылает список записей в поле "Records"
     records: list[MinioRecord] = Field(..., alias="Records")
+
+
