@@ -39,6 +39,7 @@ class DocumentRepositoryProvider(Protocol):
             metadata: dict | None,
             doc_status: Any,  # DocumentStatus enum
             doc_id: uuid.UUID | None = None,
+            file_size: int | None = None,
     ) -> uuid.UUID:
         """Создать новую запись о документе."""
         ...

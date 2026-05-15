@@ -82,7 +82,7 @@ class RetrieveService:
 
         # 1. Трансформируем текст в вектор
         query_vector = await self._get_vector_query(clean_query)
-
+        print(f"{query_vector=}")
         # 2. Ищем похожие чанки в векторном хранилище по вектору
         hits = await self.vector_storage.search(
             query_vector=query_vector,  # Передаем вектор, а не текст
@@ -90,9 +90,10 @@ class RetrieveService:
             doc_id=doc_id,
             score_threshold=score_threshold,
         )
-
+        print(f"{hits=}")
         # 3. Группируем результаты (несколько детей могут принадлежать одному родителю)
         group_hits = group_hits_by_parent(hits=hits)
+        print(f"{group_hits=}")
 
         if not group_hits:
             return {
@@ -103,19 +104,19 @@ class RetrieveService:
 
         # 4. Извлекаем ID родительских чанков для загрузки из БД
         requested_parent_ids = [key[1] for key in group_hits.keys()]
-
+        print(f"{requested_parent_ids=}")
         # 5. Загружаем полные данные родителей (текст запроса, заголовки и т.д.)
         parent_chunks = await self._document_service.get_parent_chunks(
             requested_parent_ids,
             doc_id=doc_id,
         )
-
+        print(f"{parent_chunks=}")
         # 6. Формируем финальный объект ответа
         items = build_retrieved_items(
             group_hits=group_hits,
             rows=parent_chunks,
         )
-
+        print(f"{items=}")
         return {
             "query": clean_query,
             "items": items,
@@ -194,6 +195,8 @@ class RetrieveService:
             Dict with 'items' and 'total'.
         """
         if len(queries) == 1:
+            print(1)
+            print(queries[0])
             return await self.search(query=queries[0], top_k=top_k)
         return await self.batch_search(queries=queries, top_k=top_k)
 

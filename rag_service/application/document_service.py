@@ -116,9 +116,9 @@ class DataBaseDocumentService:
             self,
             doc_id: uuid.UUID,
             filename: str,
-            metadata: dict[str, Any]| None = None,
+            metadata: dict[str, Any] | None = None,
             s3key: str | None = None,
-
+            file_size: int | None = None,
     ) -> uuid.UUID:
         safe_name = _sanitize_filename(filename)
 
@@ -132,7 +132,8 @@ class DataBaseDocumentService:
                                                 metadata=metadata,
                                                 s3key=s3key,
                                                 doc_status=DocumentStatus.PENDING,
-                                                doc_id=doc_id)
+                                                doc_id=doc_id,
+                                                file_size=file_size)
             await session.commit()
             return new_id
 

@@ -39,6 +39,7 @@ class DocumentOrchestrator:
             doc_id=doc_id,
             filename=filename,
             s3key=key,
+            file_size=file_size,
         )
 
         # 4. Получаем ссылку для ПРЯМОЙ загрузки (Client -> MinIO)

@@ -34,3 +34,4 @@ class AskResponse(BaseModel):
     sources: list[SourceItem]
     context: str | None = None
     total: int
+

@@ -149,6 +149,7 @@ class DocumentRepository:
             s3key: str | None,
             doc_status: DocumentStatus,
             doc_id: uuid.UUID | None = None,
+            file_size: int | None = None,
     ) -> uuid.UUID:
         """Insert a new document row.
 
@@ -168,6 +169,7 @@ class DocumentRepository:
             meta=metadata,
             s3key=s3key,
             status=doc_status,
+            file_size=file_size,
         )
 
         self._session.add(doc)

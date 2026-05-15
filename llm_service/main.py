@@ -1,20 +1,34 @@
-﻿from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
-from llm_service.api.agent_routes import router as llm_router
-from llm_service.infrastructure import build_answer_service
+from llm_service.api.agent_routers import router as llm_router
+from llm_service.exceptions import LLMServiceError
+from llm_service.infrastructure import build_container
 from llm_service.utils.logger_config import setup_logger
 
-setup_logger("llm_service")
+logger = setup_logger("llm_service")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    container = build_answer_service()
-    app.state.container = container
+    app.state.container = build_container()
     yield
-    await container.engine.dispose()
+
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(llm_router)
+
+
+@app.exception_handler(LLMServiceError)
+async def llm_error_handler(request: Request, exc: LLMServiceError):
+    logger.warning(f"LLMServiceError: {exc.__class__.__name__} - {exc.message}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": "error",
+            "code": exc.__class__.__name__,
+            "message": exc.message,
+        },
+    )

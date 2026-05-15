@@ -20,6 +20,12 @@ Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, sim
 3. Surgical Changes
 Touch only what you must. Clean up only your own mess.
 
+Before any file edit:
+1. Read the current file first — always. The user may have edited it since last read.
+2. Propose the change and explain what exactly will be added/removed.
+3. Wait for explicit approval before writing anything.
+Never rewrite a file the user is actively editing. If "file modified since read" error appears — stop, re-read, and re-propose.
+
 When editing existing code:
 
 Don't "improve" adjacent code, comments, or formatting.

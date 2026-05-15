@@ -13,6 +13,7 @@ from qdrant_client.models import (
     MatchValue,
     OptimizersConfigDiff,
     PointStruct,
+    QueryRequest,
     VectorParams,
     WalConfigDiff,
 )
@@ -205,9 +206,8 @@ class QdrantVectorStorage():
             query_filter = Filter(
                 must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
             )
-        print(f"Querying Qdrant with {query_vector=}")
-        try:
 
+        try:
             results = await self._client.query_points(
                 collection_name=self._collection,
                 query=query_vector,
@@ -227,8 +227,70 @@ class QdrantVectorStorage():
                 for r in results.points
             ]
         except Exception as exc:
-            print(f"{exc=}")
             raise VectorSearchError(f"Failed to execute vector search in Qdrant {exc=}") from exc
+
+    async def batch_search(
+        self,
+        query_vectors: list[list[float]],
+        *,
+        top_k: int = 5,
+        doc_id: uuid.UUID | None = None,
+        score_threshold: float | None = None,
+    ) -> list[list[dict]]:
+        """Execute a similarity search for multiple query vectors in a single Qdrant request.
+
+        Each vector in `query_vectors` produces an independent ranked hit list.
+        Results are returned in the same order as the input vectors.
+
+        Args:
+            query_vectors: Pre-computed embedding vectors to search with.
+            top_k: Maximum number of hits per query vector.
+            doc_id: Optional filter to restrict search to a specific document's chunks.
+            score_threshold: Minimum similarity score (0.0–1.0) to filter weak hits.
+
+        Returns:
+            List of hit lists — one inner list per input vector. Each hit contains
+            'id', 'score', and 'payload' (doc_id, parent_id, text, headers).
+        """
+        if not query_vectors:
+            return []
+
+        query_filter = None
+        if doc_id is not None:
+            query_filter = Filter(
+                must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
+            )
+
+        requests = [
+            QueryRequest(
+                query=vector,
+                filter=query_filter,
+                limit=max(1, top_k),
+                score_threshold=score_threshold,
+                with_payload=True,
+            )
+            for vector in query_vectors
+        ]
+
+        try:
+            batch_results = await self._client.query_batch_points(
+                collection_name=self._collection,
+                requests=requests,
+            )
+
+            return [
+                [
+                    {
+                        "id": r.id,
+                        "score": float(r.score),
+                        "payload": r.payload or {},
+                    }
+                    for r in result.points
+                ]
+                for result in batch_results
+            ]
+        except Exception as exc:
+            raise VectorSearchError(f"Failed to execute batch vector search in Qdrant {exc=}") from exc
 
     async def delete_points(self, doc_id: uuid.UUID) -> None:
         """Delete every vector point that belongs to one document.

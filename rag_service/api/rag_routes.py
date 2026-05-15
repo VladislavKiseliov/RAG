@@ -59,6 +59,7 @@ async def retrieve(
 ):
     result = await retrieve_service.retrieve(queries=body.queries, top_k=body.top_k)
     logger.info("Retrieve", extra={"queries_count": len(body.queries), "total": result.get("total")})
+    print(f"{result=}")
     return result
 
 

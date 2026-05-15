@@ -1,41 +1,61 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
-from llm_service.application.agent_service import LlmLangGraphAgent
-from llm_service.application.answer_service import AnswerService
-from llm_service.application.rag_client import RagClient
-from llm_service.LLM_provider import LLMProvider, OpenAICompatLLMProvider, _get_api_key
 
-
+from llm_service.application.lean_rag_agent import LeanRagAgent
+from llm_service.application.lean_rag_models import QueryRouterProtocol
+from llm_service.application.services.retrieval_service import RetrievalService
+from llm_service.LLM_provider import GroqLLMProvider, LLMProvider, OpenAICompatLLMProvider
+from llm_service.settings import settings
 
 
 @dataclass(frozen=True)
 class LLMContainer:
-    """Контейнер для основного API приложения."""
-    answer_service: AnswerService
+    agent: LeanRagAgent
 
+
+def _build_query_router() -> QueryRouterProtocol:
+    model_path = settings.ML_ROUTER_MODEL_PATH
+    import joblib
+    from sentence_transformers import SentenceTransformer
+
+    from llm_service.ml_router.router import MLQueryRouter
+
+    clf = joblib.load(model_path)
+    embedder = SentenceTransformer("intfloat/multilingual-e5-large")
+    return MLQueryRouter(
+        clf=clf,
+        embedder=embedder,
+        confidence_threshold=settings.ML_ROUTER_CONFIDENCE_THRESHOLD,
+    )
 
 
 def _build_llm_provider() -> LLMProvider:
-    base_url = os.getenv("LLM_BASE_URL", "https://gatellm.ru/v1")
-    model = os.getenv("LLM_MODEL", "openai/gpt-4o-mini")
-    return OpenAICompatLLMProvider(base_url=base_url, model=model)
+    if settings.LLM_PROVIDER == "groq":
+        return GroqLLMProvider(
+            api_key=settings.HF_TOKEN,
+            model=settings.LLM_MODEL,
+        )
+    return OpenAICompatLLMProvider(
+        api_key=settings.LLM_API_KEY,
+        base_url=settings.LLM_BASE_URL,
+        model=settings.LLM_MODEL,
+    )
 
 
-def build_answer_service() -> AnswerService:
-    rag_url = os.getenv("RAG_SERVICE_URL", "http://rag_service:8001")
-    timeout = float(os.getenv("LLM_RAG_TIMEOUT", "30"))
-    max_context_chars = int(os.getenv("LLM_MAX_CONTEXT_CHARS", "12000"))
+def build_rag_client() -> RetrievalService:
+    return RetrievalService(
+        base_url=settings.RAG_SERVICE_URL,
+        timeout=settings.LLM_RAG_TIMEOUT,
+    )
 
-    rag_client = RagClient(base_url=rag_url, timeout=timeout)
+
+def build_container() -> LLMContainer:
+    retrieve_service = build_rag_client()
     llm_provider = _build_llm_provider()
-    answer_service = AnswerService(
-        rag_client=rag_client,
-        llm_provider=llm_provider,
-        max_context_chars=max_context_chars,
-    )
-    return LLMContainer(
-        answer_service=answer_service
-    )
+    agent = LeanRagAgent(llm_provider = llm_provider,
+                        query_router=_build_query_router(),
+                        retrieval_service=retrieve_service,
+                        )
+    return LLMContainer(agent=agent)
