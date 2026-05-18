@@ -4,14 +4,23 @@ from typing import Protocol
 
 from llm_service.application.lean_rag_models import FinalPromptData
 
-SYSTEM_PROMPT = """Ты — профессиональный ассистент, специализирующийся на технической документации.
-Твоя задача — извлечь ответ на заданный вопрос из предоставленного ниже контекста.
+SYSTEM_PROMPT_RAG = """Ты — профессиональный технический ассистент лаборатории.
+Твоя задача — ответить на вопрос, строго опираясь на предоставленный КОНТЕКСТ ИЗ ДОКУМЕНТАЦИИ.
 
 Правила:
-1) Язык ответа: всегда отвечай по-русски.
-2) Строгость: используй только информацию из контекста.
-3) Если ответа нет: ответь только фразой: "В предоставленном контексте ответа нет."
-4) Формат: выведи только текст ответа, без вступлений."""
+1) Используй только информацию из блока КОНТЕКСТ ИЗ ДОКУМЕНТАЦИИ.
+2) ИСТОРИЮ ДИАЛОГА и РЕЗЮМЕ используй только для понимания того, о каких деталях шла речь ранее (например, модель прибора или настройки ШИМ), если они не указаны в самом вопросе.
+3) Если в КОНТЕКСТЕ ИЗ ДОКУМЕНТАЦИИ нет прямого ответа на вопрос, ответь ровно одной фразой: "В предоставленном контексте ответа нет."
+4) Не придумывай факты от себя. Выводи только текст ответа, без вступлений и приветствий."""
+
+
+SYSTEM_PROMPT_CHAT = """Ты — профессиональный инженер-консультант. 
+Сейчас идет свободное обсуждение задачи, поиск по базе документации не производился.
+
+Правила:
+1) Отвечай на вопрос, опираясь на ИСТОРИЮ ДИАЛОГА, РЕЗЮМЕ ПРЕДЫДУЩЕЙ БЕСЕДЫ и свои технические знания.
+2) Будь лаконичен, точен и вежлив.
+3) Выводи только текст ответа, без дежурных вступлений."""
 
 USER_TEMPLATE = """РЕЗЮМЕ ДИАЛОГА:
 {summary}
@@ -31,7 +40,7 @@ GENERAL_SYSTEM_PROMPT = """Ты — полезный ассистент. Отв�
 
 
 class LLMProvider(Protocol):
-    async def generate(self, *, summary: str, chat_history: str, context: str, current_query: str) -> str: ...
+    async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str: ...
     async def generate_general(self, *, query: str, context: str) -> str: ...
 
 
@@ -50,16 +59,22 @@ class OpenAICompatLLMProvider:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
         self._model = model
 
-    async def generate(self, *, current_query:str, data_prompt: FinalPromptData) -> str:
+    async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+        if data_prompt.route == "domain_rag":
+            system = SYSTEM_PROMPT_RAG
+            context = data_prompt.context
+        else:
+            system = SYSTEM_PROMPT_CHAT
+            context = "Поиск в базе знаний не производился за ненадобностью."
 
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user", "content": USER_TEMPLATE.format(
                     summary=data_prompt.summary,
                     chat_history=data_prompt.chat_history,
-                    context=data_prompt.context,
+                    context=context,
                     current_query=current_query,
                 )},
             ],
@@ -68,9 +83,7 @@ class OpenAICompatLLMProvider:
         return response.choices[0].message.content or ""
 
     async def generate_general(self, *, query: str, context: str) -> str:
-        print(1)
         content = f"{context}\n\n{query}" if context.strip() else query
-        print(2)
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[
@@ -96,14 +109,21 @@ class GroqLLMProvider:
         self._model = model
 
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+        if data_prompt.route == "domain_rag":
+            system = SYSTEM_PROMPT_RAG
+            context = data_prompt.context
+        else:
+            system = SYSTEM_PROMPT_CHAT
+            context = "Поиск в базе знаний не производился за ненадобностью."
+
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user", "content": USER_TEMPLATE.format(
                     summary=data_prompt.summary,
                     chat_history=data_prompt.chat_history,
-                    context=data_prompt.context,
+                    context=context,
                     current_query=current_query,
                 )},
             ],

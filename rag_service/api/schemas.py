@@ -34,17 +34,30 @@ class RetrieveRequest(BaseModel):
         return result
 
 
-class RetrievedChunk(BaseModel):
+class RetrieveItemMetadata(BaseModel):
+    """Document reference metadata: source document, page, and search score."""
     doc_id: str
     parent_id: str
     page_num: str | None = None
     score: float
-    text: str
     headers: dict[str, Any] = Field(default_factory=dict)
 
 
+class ChildChunk(BaseModel):
+    """A single child chunk from Qdrant — relevant text fragment with its similarity score."""
+    text: str
+    score: float
+
+
+class RetrieveItem(BaseModel):
+    """One RAG search result: matched child chunks, full parent text, and document metadata."""
+    child_chunks: list[ChildChunk]
+    parent_chunk: str
+    metadata: RetrieveItemMetadata
+
+
 class RetrieveResponse(BaseModel):
-    items: list[RetrievedChunk]
+    items: list[RetrieveItem]
     total: int
 
 

@@ -41,6 +41,7 @@ class RetrievalResult(BaseModel):
 
 class FinalPromptData(BaseModel):
     """All data required to build the LLM prompt: context, chat history, summary, and current query."""
+    route : str
     context: str
     chat_history: str
     summary: str

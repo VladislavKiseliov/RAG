@@ -3,7 +3,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.graph import END, StateGraph
 
 
@@ -141,6 +140,7 @@ class LeanRagAgent:
         )
 
         final_context = FinalPromptData(context=context_str,
+                                        route=state.route,
                                         chat_history=history_str,
                                         summary=state.summary,
                                         current_query=state.query
