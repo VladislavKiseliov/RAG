@@ -26,6 +26,7 @@ class SourceItem(BaseModel):
     page_num: str | None = None
     score: float
     text: str
+    child_chunks: list[str] = Field(default_factory=list)
     headers: dict[str, Any] = Field(default_factory=dict)
 
 

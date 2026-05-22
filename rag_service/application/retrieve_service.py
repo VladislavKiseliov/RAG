@@ -3,9 +3,11 @@
 import uuid
 from typing import Any
 
+from rag_service.api.schemas import RetrieveResponse, RetrieveItem
 from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.providers.vector_storage_provider import  VectorStorageProvider
+from rag_service.models import ParentChunks
 
 
 class RetrieveService:
@@ -87,7 +89,6 @@ class RetrieveService:
         hits = await self.vector_storage.search(
             query_vector=query_vector,  # Передаем вектор, а не текст
             top_k=max(1, top_k),
-            doc_id=doc_id,
             score_threshold=score_threshold,
         )
         print(f"{hits=}")
@@ -103,9 +104,9 @@ class RetrieveService:
             }
 
         # 4. Извлекаем ID родительских чанков для загрузки из БД
-        requested_parent_ids = [key[1] for key in group_hits.keys()]
-        print(f"{requested_parent_ids=}")
-        # 5. Загружаем полные данные родителей (текст запроса, заголовки и т.д.)
+        requested_parent_ids = [key for key in group_hits.keys()]
+
+        # 5. Загружаем полные данные родителей
         parent_chunks = await self._document_service.get_parent_chunks(
             requested_parent_ids,
             doc_id=doc_id,
@@ -114,14 +115,10 @@ class RetrieveService:
         # 6. Формируем финальный объект ответа
         items = build_retrieved_items(
             group_hits=group_hits,
-            rows=parent_chunks,
+            parent_chunks=parent_chunks,
         )
         print(f"{items=}")
-        return {
-            "query": clean_query,
-            "items": items,
-            "total": len(items),
-        }
+        return items
 
     async def batch_search(
             self,
@@ -153,6 +150,7 @@ class RetrieveService:
             query_vectors=query_vectors,
             top_k=top_k,
         )
+        print(f"{batch_hits=}")
 
         # Flatten + дедупликация по (doc_id, parent_id), оставляем лучший score
         seen: dict[tuple[str, str], dict] = {}
@@ -166,15 +164,14 @@ class RetrieveService:
                     (c["score"] for c in existing.get("children", [])), default=0.0
                 ):
                     seen[key] = group
-
+        print(f"{seen=}")
         if not seen:
             return {"items": [], "total": 0}
 
-        requested_parent_ids = [key[1] for key in seen.keys()]
+        requested_parent_ids = list(seen.keys())
         parent_chunks = await self._document_service.get_parent_chunks(requested_parent_ids)
 
-        items = build_retrieved_items(group_hits=seen, rows=parent_chunks)
-        return {"items": items, "total": len(items)}
+        return build_retrieved_items(group_hits=seen, parent_chunks=parent_chunks)
 
     async def retrieve(
             self,
@@ -195,9 +192,8 @@ class RetrieveService:
             Dict with 'items' and 'total'.
         """
         if len(queries) == 1:
-            print(1)
-            print(queries[0])
             return await self.search(query=queries[0], top_k=top_k)
+
         return await self.batch_search(queries=queries, top_k=top_k)
 
 
@@ -205,19 +201,19 @@ class RetrieveService:
 
 def group_hits_by_parent(
         hits: list[Any],
-) -> dict[tuple[str, str], dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """
     Groups vector search hits by their parent chunk identity.
 
     This ensures that if multiple 'child' snippets belong to the same
     paragraph/page, they are combined into a single context item.
     """
-    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    grouped: dict[str, dict[str, Any]] = {}
 
     for hit in hits:
         # Учитываем, что hit может быть объектом (ScoredPoint) или словарем
         payload = getattr(hit, "payload", hit.get("payload") if isinstance(hit, dict) else {}) or {}
-        score = getattr(hit, "score", hit.get("score") if isinstance(hit, dict) else 0.0)
+        score = float(getattr(hit, "score", hit.get("score") if isinstance(hit, dict) else 0.0))
 
         doc_id = str(payload.get("doc_id") or "").strip()
         parent_id = str(payload.get("parent_id") or "").strip()
@@ -225,42 +221,50 @@ def group_hits_by_parent(
         if not doc_id or not parent_id:
             continue
 
-        key = (doc_id, parent_id)
+        key = parent_id
 
         if key not in grouped:
             grouped[key] = {
-                "doc_id": doc_id,
-                "parent_id": parent_id,
-                "page_num": payload.get("page_num"),
-                "headers": payload.get("headers") or {},
+                "metadata":
+                    {
+                    "doc_id": doc_id,
+                    "parent_id": parent_id,
+                    "page_num": payload.get("page_num"),
+                    "score": score,
+                    "headers": payload.get("headers") or {},
+                    },
                 "children": [],
             }
 
+        child_text = payload.get("text") or payload.get("child_text") or ""
+
         grouped[key]["children"].append(
             {
-                "score": float(score or 0.0),
-                "payload": payload,
+                "score": score,
+                "text": child_text,
             }
         )
+        if score > grouped[key]["metadata"]["score"]:
+            grouped[key]["metadata"]["score"] = score
 
     return grouped
 
 
 def build_retrieved_items(
         *,
-        group_hits: dict[tuple[str, str], dict[str, Any]],
-        rows: list[Any],
-) -> list[dict[str, Any]]:
+        group_hits: dict[str, dict[str, Any]],
+        parent_chunks:  list[ParentChunks],
+) -> RetrieveResponse:
     """
     Merges grouped vector hits with full text content from the database.
     """
     # Создаем мапу для быстрого поиска строк из БД
-    row_by_key = {(str(row.doc_id), str(row.id)): row for row in rows}
+    parent_key = {str(parent.id): parent for parent in parent_chunks}
 
-    items: list[dict[str, Any]] = []
-
+    items: list[RetrieveItem] = []
+    total = len(parent_key)
     for key, group in group_hits.items():
-        row = row_by_key.get(key)
+        row = parent_key.get(key)
         if row is None:
             continue
 
@@ -272,20 +276,17 @@ def build_retrieved_items(
             reverse=True,
         )
 
-        top_score = children[0]["score"] if children else 0.0
-        payload = children[0]["payload"] if children else {}
-
         items.append(
             {
-                "doc_id": str(row.doc_id),
-                "parent_id": str(row.id),
-                "page_num": str(payload.get("page_num") or getattr(row, "page_num", "N/A")),
-                "headers": payload.get("headers") or getattr(row, "headers", {}),
-                "text": getattr(row, "content", ""),  # Предполагаем, что в БД колонка content
-                "score": round(float(top_score), 6),
-                "children": children,
+                "child_chunks":children,
+                "parent_chunk": getattr(row, "content", ""),
+                "metadata":group.get("metadata", []),
+
             }
         )
-
     # Итоговая сортировка всех результатов по максимальному скору
-    return sorted(items, key=lambda x: x["score"], reverse=True)
+    items = sorted(items, key=lambda x: x["metadata"]["score"], reverse=True)
+
+    result = {"items": items, "total": total}
+
+    return result

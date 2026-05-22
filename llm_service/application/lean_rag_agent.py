@@ -158,7 +158,7 @@ class LeanRagAgent:
     async def generate_node(self, state: LeanAgentState) -> dict[str, str]:
         """Генерирует финальный ответ с учётом route, контекста и истории диалога."""
         started = time.perf_counter()
-
+        print(f"{state.final_context=}")
         answer = await self.llm_provider.generate(current_query=state.query,
                                                   data_prompt=state.final_context)
 

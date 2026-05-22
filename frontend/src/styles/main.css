@@ -946,6 +946,13 @@ html, body {
     text-overflow: ellipsis;
 }
 
+.source-highlight {
+    background: rgba(250, 204, 21, 0.35);
+    border-radius: 2px;
+    padding: 0 1px;
+    color: inherit;
+}
+
 .source-tooltip-text {
     padding: 12px 14px;
     font-size: 13px;

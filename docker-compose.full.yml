@@ -1,4 +1,4 @@
-﻿services:
+services:
   postgres:
     image: postgres:16
     container_name: myapp_db
@@ -35,51 +35,48 @@
     networks:
       - rag_network
 
-
   minio:
-      image: minio/minio:latest
-      container_name: minio
-      command: server /data --console-address ":9001"
-      environment:
-        MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-        MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-        MINIO_NOTIFY_WEBHOOK_ENABLE_1: ${MINIO_NOTIFY_WEBHOOK_ENABLE_1:-on}
-        MINIO_NOTIFY_WEBHOOK_ENDPOINT_1: ${MINIO_NOTIFY_WEBHOOK_ENDPOINT_1:-http://host.docker.internal:8001/documents/ingest/webhook}
-        MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1: ${MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1:-my_token}
-      ports:
-        - "${MINIO_PORT:-9000}:9000"
-        - "${MINIO_CONSOLE_PORT:-9001}:9001"
-      volumes:
-        - minio_data:/data
-      restart: unless-stopped
-      healthcheck:
-        test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-      networks:
-        - rag_network
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    env_file:
+      - .env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_NOTIFY_WEBHOOK_ENABLE_1: ${MINIO_NOTIFY_WEBHOOK_ENABLE_1:-on}
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_1: ${MINIO_NOTIFY_WEBHOOK_ENDPOINT_1:-http://host.docker.internal:8001/documents/ingest/webhook}
+      MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1: ${MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1:-my_token}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_network
 
   minio-init:
-      image: minio/mc
-      depends_on:
-        minio:
-          condition: service_healthy # Ждем именно прохождения хелсчека
-      networks:
-        - rag_network
-      entrypoint: >
-        /bin/sh -c "
-        until (/usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin}) do 
-          echo 'Waiting for MinIO...' && sleep 2; 
-        done;
-
-        /usr/bin/mc mb --ignore-existing myminio/documents;
-
-        # Привязка события (важно: имя после arn должно совпадать с индексом notify_webhook)
-        /usr/bin/mc event add myminio/documents arn:minio:sqs::1:webhook --event put;
-
-        echo 'MinIO Webhook configured successfully!';
-        "
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - rag_network
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin}) do
+        echo 'Waiting for MinIO...' && sleep 2;
+      done;
+      /usr/bin/mc mb --ignore-existing myminio/documents;
+      /usr/bin/mc event add myminio/documents arn:minio:sqs::1:webhook --event put;
+      echo 'MinIO Webhook configured successfully!';
+      "
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -99,7 +96,7 @@
       dockerfile: rag_service/Dockerfile
     container_name: rag_service
     env_file:
-      - rag_service/.env
+      - .env
     volumes:
       - ./rag_service:/app/rag_service
     command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001 --reload
@@ -124,7 +121,7 @@
       dockerfile: rag_service/Dockerfile
     container_name: rag_worker
     env_file:
-      - rag_service/.env
+      - .env
     volumes:
       - ./rag_service:/app/rag_service
     command: celery -A rag_service.celery_app worker -l INFO
@@ -147,10 +144,10 @@
       dockerfile: rag_service/Dockerfile
     container_name: rag_flower
     env_file:
-      - rag_service/.env
-    command: celery --broker=redis://redis:6379/0 flower --port=5555
+      - .env
+    command: celery --broker=${REDIS_URL:-redis://redis:6379/0} flower --port=5555
     ports:
-      - "5555:5555"
+      - "${FLOWER_PORT:-5555}:5555"
     depends_on:
       redis:
         condition: service_started
@@ -160,16 +157,13 @@
       - rag_network
     restart: unless-stopped
 
-
   llm-service:
     build:
       context: .
       dockerfile: llm_service/Dockerfile
     container_name: llm_service
     env_file:
-      - llm_service/.env
-    environment:
-      RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
+      - .env
     volumes:
       - ./llm_service:/app/llm_service
     command: uvicorn llm_service.main:app --host 0.0.0.0 --port 8002
@@ -188,10 +182,7 @@
       dockerfile: backend/Dockerfile
     container_name: rag_backend
     env_file:
-      - backend/.env
-    environment:
-      RAG_SERVICE_URL: ${RAG_SERVICE_URL_DOCKER:-http://rag-service:8001}
-      LLM_SERVICE_URL: ${LLM_SERVICE_URL_DOCKER:-http://llm-service:8002}
+      - .env
     volumes:
       - ./backend:/app/backend
       - ./ServiceDataBase:/app/ServiceDataBase
@@ -217,6 +208,7 @@
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       WATCHPACK_POLLING_INTERVAL: "1000"
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     volumes:
       - ./frontend:/app
       - /app/node_modules

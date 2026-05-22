@@ -65,12 +65,42 @@ function SourcesBlock({ sources }) {
         return `Фрагмент ${unique.indexOf(s) + 1}`;
     };
 
+    const highlightChunks = (parentText, childChunks) => {
+        if (!childChunks || childChunks.length === 0) return [{ text: parentText, highlight: false }];
+
+        const parts = [];
+        let remaining = parentText;
+        let offset = 0;
+
+        // Сортируем child chunks по позиции в parent тексте
+        const positions = childChunks
+            .map((chunk) => {
+                // Ищем по первым 60 символам chunk для устойчивости к нормализации
+                const probe = chunk.slice(0, 60).trim();
+                const idx = remaining.indexOf(probe, offset);
+                return idx !== -1 ? { start: idx, end: idx + chunk.length, chunk } : null;
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.start - b.start);
+
+        let cursor = 0;
+        for (const { start, end } of positions) {
+            if (start > cursor) parts.push({ text: parentText.slice(cursor, start), highlight: false });
+            parts.push({ text: parentText.slice(start, Math.min(end, parentText.length)), highlight: true });
+            cursor = Math.min(end, parentText.length);
+        }
+        if (cursor < parentText.length) parts.push({ text: parentText.slice(cursor), highlight: false });
+
+        return parts;
+    };
+
     const handleMouseEnter = (e, s) => {
         if (!s.text) return;
         clearCloseTimer();
         const rect = e.currentTarget.getBoundingClientRect();
         setTooltip({
             text: s.text,
+            childChunks: s.child_chunks || [],
             name: formatName(s),
             top: rect.top + window.scrollY,
             left: rect.left + window.scrollX,
@@ -135,7 +165,13 @@ function SourcesBlock({ sources }) {
                     onMouseLeave={scheduleCloseTooltip}
                 >
                     <div className="source-tooltip-header">{tooltip.name}</div>
-                    <div className="source-tooltip-text">{tooltip.text}</div>
+                    <div className="source-tooltip-text">
+                        {highlightChunks(tooltip.text, tooltip.childChunks).map((part, i) =>
+                            part.highlight
+                                ? <mark key={i} className="source-highlight">{part.text}</mark>
+                                : <span key={i}>{part.text}</span>
+                        )}
+                    </div>
                 </div>
             )}
         </>

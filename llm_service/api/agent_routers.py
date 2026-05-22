@@ -31,14 +31,26 @@ async def answer_question(
         raise HTTPException(status_code=502, detail=f"LLM pipeline failed: {exc}")
 
     answer_text = final_state["response_model"]
-    context_text =  final_state.get("final_context")
+    retrieval_data = final_state.get("retrieval_data", [])
 
+    sources = [
+        {
+            "doc_id": item.metadata.doc_id,
+            "parent_id": item.metadata.parent_id,
+            "page_num": item.metadata.page_num,
+            "score": item.metadata.score,
+            "text": item.parent_chunk,
+            "child_chunks": [c.text for c in item.child_chunks],
+            "headers": item.metadata.headers,
+        }
+        for item in retrieval_data
+    ]
 
     result = {
         "answer": answer_text,
-        "sources": [],
-        "context": context_text if request.include_context else None,
-        "total":0,
+        "sources": sources,
+        "context": None,
+        "total": len(sources),
     }
 
     return AskResponse(**result)

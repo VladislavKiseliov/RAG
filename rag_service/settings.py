@@ -82,4 +82,4 @@ class RagSettings(BaseSettings):
     redis_url:str
 
 
-settings = RagSettings(env_file="rag_service/.env")
+settings = RagSettings()
