@@ -3,6 +3,7 @@ from sqlalchemy import String, ForeignKey, DateTime, UUID, Text, Boolean, Intege
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime, timezone
 import uuid
+import uuid6
 
 
 class Base(DeclarativeBase):
@@ -35,6 +36,11 @@ class Users(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc)
     )
+    first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    patronymic: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    job_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
 
 
 class Chats(Base):
@@ -44,7 +50,7 @@ class Chats(Base):
     chat_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        default=uuid.uuid4
+        default=uuid6.uuid7
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -62,6 +68,8 @@ class Chats(Base):
     )
 
     summary: Mapped[str] = mapped_column(Text,nullable=True)
+    summary_link: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True),nullable=True)
+    summary_count: Mapped[int] = mapped_column(Integer,nullable=True)
 
     user: Mapped["Users"] = relationship(back_populates="chats")
 
@@ -78,7 +86,12 @@ class Messages(Base):
     __tablename__ = "messages"
     __table_args__ = ({"schema": "users_shema"},)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid6.uuid7
+    )
+
     chat_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         # ГЛАВНОЕ ИЗМЕНЕНИЕ: ondelete="CASCADE"

@@ -1,67 +1,75 @@
-// src/pages/AuthPage.jsx
-
 import React, { useState } from 'react';
-import { BASE_API_URL, ENDPOINTS } from '../config/api'; // <-- Импорт констант
+import { BASE_API_URL, ENDPOINTS } from '../config/api';
 
-// Компонент-заглушка для экрана входа/регистрации
 function AuthPage({ onLoginSuccess }) {
     const [isRegistering, setIsRegistering] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState(null); // <-- НОВОЕ: Для отображения ошибок
-    const [isLoading, setIsLoading] = useState(false); // <-- НОВОЕ: Для кнопки
+    const [passwordConfirm, setPasswordConfirm] = useState('');
+    const [error, setError] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = async (e) => { // <-- Сделаем функцию АСИНХРОННОЙ
+    const switchMode = () => {
+        setIsRegistering(!isRegistering);
+        setError(null);
+        setPassword('');
+        setPasswordConfirm('');
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
         setIsLoading(true);
 
-        // 1. Собираем полный URL для LOGIN
-        const API_URL = BASE_API_URL + ENDPOINTS.LOGIN;
-
-        // Пока обрабатываем только вход, игнорируем регистрацию для простоты
-        if (isRegistering) {
-            setError("Функционал регистрации пока не реализован.");
-            setIsLoading(false);
-            return;
-        }
-
         try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                // 2. Отправляем данные в формате JSON, как ждет FastAPI
-                body: JSON.stringify({
-                    username: username,
-                    password: password,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.access_token && data.refresh_token) {
-                // 3. Успех: сохраняем токен и переключаем страницу
-                localStorage.setItem('accessToken', data.access_token);
-                localStorage.setItem('refreshToken', data.refresh_token);
-                onLoginSuccess({
-                    accessToken: data.access_token,
-                    refreshToken: data.refresh_token,
+            if (isRegistering) {
+                const res = await fetch(BASE_API_URL + ENDPOINTS.REGISTER, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username,
+                        password,
+                        password_confirm: passwordConfirm,
+                    }),
                 });
-            } else {
-                // 4. Ошибка (например, 401 Unauthorized от FastAPI)
-                // data.detail содержит сообщение об ошибке, отправленное FastAPI
-                const errorMessage = data.detail || `Login failed with status: ${response.status}`;
-                console.error("Login error:", errorMessage);
-                setError(errorMessage);
-            }
+                const data = await res.json();
 
-        } catch (fetchError) {
-            console.error("Network error when connecting to API:", fetchError);
-            setError("Network error when connecting to server. Please check your connection and ensure the backend is running.");
+                if (res.ok) {
+                    setIsRegistering(false);
+                    setError(null);
+                    setPassword('');
+                    setPasswordConfirm('');
+                } else {
+                    const detail = data.detail;
+                    if (Array.isArray(detail)) {
+                        setError(detail.map(d => d.msg).join('. '));
+                    } else {
+                        setError(detail || `Ошибка регистрации (${res.status})`);
+                    }
+                }
+            } else {
+                const res = await fetch(BASE_API_URL + ENDPOINTS.LOGIN, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+                const data = await res.json();
+
+                if (res.ok && data.access_token && data.refresh_token) {
+                    localStorage.setItem('accessToken', data.access_token);
+                    localStorage.setItem('refreshToken', data.refresh_token);
+                    onLoginSuccess({
+                        accessToken: data.access_token,
+                        refreshToken: data.refresh_token,
+                    });
+                } else {
+                    setError(data.detail || `Ошибка входа (${res.status})`);
+                }
+            }
+        } catch {
+            setError('Нет соединения с сервером. Проверьте подключение.');
         } finally {
-            setIsLoading(false); // Снимаем состояние загрузки в любом случае
+            setIsLoading(false);
         }
     };
 
@@ -70,7 +78,6 @@ function AuthPage({ onLoginSuccess }) {
             <div className="auth-box">
                 <h2>{isRegistering ? 'Регистрация' : 'Вход'} в RAG Chat Pro</h2>
                 <form onSubmit={handleSubmit}>
-                    {/* НОВОЕ: Вывод сообщения об ошибке */}
                     {error && <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>}
 
                     <input
@@ -87,16 +94,22 @@ function AuthPage({ onLoginSuccess }) {
                         onChange={(e) => setPassword(e.target.value)}
                         required
                     />
+                    {isRegistering && (
+                        <input
+                            type="password"
+                            placeholder="Повторите пароль"
+                            value={passwordConfirm}
+                            onChange={(e) => setPasswordConfirm(e.target.value)}
+                            required
+                        />
+                    )}
                     <button type="submit" disabled={isLoading}>
                         {isLoading
                             ? 'Загрузка...'
-                            : (isRegistering ? 'Зарегистрироваться' : 'Войти')}
+                            : isRegistering ? 'Зарегистрироваться' : 'Войти'}
                     </button>
                 </form>
-                <button
-                    className="toggle-auth"
-                    onClick={() => setIsRegistering(!isRegistering)}
-                >
+                <button className="toggle-auth" onClick={switchMode}>
                     {isRegistering ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
                 </button>
             </div>

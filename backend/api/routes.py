@@ -10,7 +10,7 @@ from starlette import status
 
 from backend.services.chat_service import ChatService
 from backend.dependencies import get_auth_service, get_current_user_from_token, get_chat_service
-from backend.api.schemas import LoginRequest, RefreshRequest, LogoutRequest, Message, ChatUpdate
+from backend.api.schemas import LoginRequest, RegisterRequest, RefreshRequest, LogoutRequest, Message, ChatUpdate
 from backend.services.auth_service import AuthService
 from backend.models.database_models import Users
 
@@ -22,7 +22,7 @@ router = APIRouter()
 
 @router.post("/auth/register", status_code=201, response_model=Dict[str, Any])
 async def register(
-        user_data: LoginRequest,
+        user_data: RegisterRequest,
         service: AuthService = Depends(get_auth_service)
 ):
     """
@@ -165,10 +165,7 @@ async def delete_chat(
 
 # --- ИСТОРИЯ СООБЩЕНИЙ ---
 
-@router.get(
-    "/api/conversations/{conversation_id}",
-    summary="Получить историю сообщений"
-)
+@router.get("/api/conversations/{conversation_id}", summary="Получить историю сообщений")
 async def get_conversation_history(
     conversation_id: uuid.UUID, # Авто-валидация UUID
     current_user: str = Depends(get_current_user_from_token),

@@ -14,6 +14,23 @@ from backend.models.database_models import Base, Chats, Messages, RefreshTokens,
 from backend.repository.repository import AuthRepository, ChatRepository, MessageRepository, UserRepository
 
 
+class _SessionPerCallRepo:
+    """Opens a fresh session+transaction per method call. Keeps tests self-contained."""
+    def __init__(self, repo_cls, session_factory):
+        self._cls = repo_cls
+        self._sf = session_factory
+
+    def __getattr__(self, name):
+        sf, cls = self._sf, self._cls
+
+        async def _call(*args, **kwargs):
+            async with sf() as session:
+                async with session.begin():
+                    return await getattr(cls(session), name)(*args, **kwargs)
+
+        return _call
+
+
 def _read_mock_json(filename: str) -> list[dict]:
     with open(f"backend/tests/{filename}", encoding="utf-8") as file:
         return json.load(file)
@@ -64,22 +81,22 @@ async def session_factory(engine):
 
 @pytest_asyncio.fixture
 async def auth_repository(session_factory) -> AuthRepository:
-    return AuthRepository(session_factory)
+    return _SessionPerCallRepo(AuthRepository, session_factory)
 
 
 @pytest_asyncio.fixture
 async def user_repository(session_factory) -> UserRepository:
-    return UserRepository(session_factory)
+    return _SessionPerCallRepo(UserRepository, session_factory)
 
 
 @pytest_asyncio.fixture
 async def chat_repository(session_factory) -> ChatRepository:
-    return ChatRepository(session_factory)
+    return _SessionPerCallRepo(ChatRepository, session_factory)
 
 
 @pytest_asyncio.fixture
 async def message_repository(session_factory) -> MessageRepository:
-    return MessageRepository(session_factory)
+    return _SessionPerCallRepo(MessageRepository, session_factory)
 
 
 @pytest_asyncio.fixture
