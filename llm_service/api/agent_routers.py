@@ -4,7 +4,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from llm_service.api.schemas import AskRequest, AskResponse
+from llm_service.api.schemas import AskRequest, AskResponse, SummaryRequest, SummaryResponse
 from llm_service.application.lean_rag_agent import LeanRagAgent
 from llm_service.dependencies import get_lean_rag_agent
 from llm_service.utils.logger_config import setup_logger
@@ -54,3 +54,20 @@ async def answer_question(
     }
 
     return AskResponse(**result)
+
+
+@router.post("/summary", response_model=SummaryResponse)
+async def summarize_messages(
+    request: SummaryRequest,
+    agent: LeanRagAgent = Depends(get_lean_rag_agent),
+) -> SummaryResponse:
+    try:
+        summary = await agent.llm_provider.generate_summary(
+            messages=request.messages,
+            existing_summary=request.existing_summary,
+        )
+    except Exception as exc:
+        logger.exception("Summary generation failed")
+        raise HTTPException(status_code=502, detail=f"Summary generation failed: {exc}")
+
+    return SummaryResponse(summary=summary)

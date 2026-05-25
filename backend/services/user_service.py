@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.repository.repository import UserRepository
+from backend.utils.exceptions import UserAlreadyExistsError
 
 
 class UserService:
@@ -40,7 +41,7 @@ class UserService:
             existing = await UserRepository(session).get_user_by_login(login)
 
         if existing is not None:
-            raise ValueError("User with this login already exists")
+            raise UserAlreadyExistsError()
 
         async with self._sf() as session:
             async with session.begin():
@@ -52,7 +53,7 @@ class UserService:
             existing = await UserRepository(session).get_user_by_login(login)
 
         if existing is not None and existing.id != user_id:
-            raise ValueError("User with this login already exists")
+            raise UserAlreadyExistsError()
 
         async with self._sf() as session:
             async with session.begin():

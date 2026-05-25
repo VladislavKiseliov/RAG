@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from backend.models.database_models import Users
 from backend.services.auth_service import AuthService
 from backend.services.chat_service import ChatService
+from backend.services.ConversationService import ConversationService
 from backend.services.user_service import UserService
 from backend.infrastructure import BackendContainer
 
@@ -27,6 +28,10 @@ async def get_current_user_from_token(
 
 def get_chat_service(container: BackendContainer = Depends(get_container)) -> ChatService:
     return ChatService(session_factory=container.session_factory)
+
+
+def get_conversation_service(container: BackendContainer = Depends(get_container)) -> ConversationService:
+    return ConversationService(session_factory=container.session_factory)
 
 
 def get_user_service(container: BackendContainer = Depends(get_container)) -> UserService:

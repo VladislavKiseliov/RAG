@@ -38,10 +38,25 @@ USER_TEMPLATE = """РЕЗЮМЕ ДИАЛОГА:
 GENERAL_SYSTEM_PROMPT = """Ты — полезный ассистент. Отвечай кратко и по делу.
 Если не уверен — честно скажи, что информации недостаточно."""
 
+SUMMARY_SYSTEM_PROMPT = """Ты — ассистент, который сжимает историю диалога в короткое резюме.
+Правила:
+1) Сохрани все важные факты: названия, числа, технические детали, договорённости.
+2) Если передано существующее резюме — объедини его с новыми сообщениями в единый связный текст.
+3) Выводи только текст резюме без вступлений и пояснений."""
+
+SUMMARY_USER_TEMPLATE = """СУЩЕСТВУЮЩЕЕ РЕЗЮМЕ:
+{existing_summary}
+
+НОВЫЕ СООБЩЕНИЯ:
+{history}
+
+Напиши обновлённое резюме."""
+
 
 class LLMProvider(Protocol):
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str: ...
     async def generate_general(self, *, query: str, context: str) -> str: ...
+    async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str: ...
 
 
 class OpenAICompatLLMProvider:
@@ -94,6 +109,21 @@ class OpenAICompatLLMProvider:
         )
         return response.choices[0].message.content or ""
 
+    async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str:
+        history = "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                {"role": "user", "content": SUMMARY_USER_TEMPLATE.format(
+                    existing_summary=existing_summary or "отсутствует",
+                    history=history,
+                )},
+            ],
+            temperature=0.2,
+        )
+        return response.choices[0].message.content or ""
+
 
 class GroqLLMProvider:
     def __init__(self, *, api_key: str, model: str = "openai/gpt-oss-120b:groq"):
@@ -140,6 +170,21 @@ class GroqLLMProvider:
                 {"role": "user", "content": content},
             ],
             temperature=0.4,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str:
+        history = "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                {"role": "user", "content": SUMMARY_USER_TEMPLATE.format(
+                    existing_summary=existing_summary or "отсутствует",
+                    history=history,
+                )},
+            ],
+            temperature=0.2,
         )
         return response.choices[0].message.content or ""
 

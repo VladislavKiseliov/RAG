@@ -57,3 +57,18 @@ class AuthDatabaseError(AppError):
 class TokenExpiredError(AppError):
     def __init__(self, message: str = "Токен истек"):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class ChatNotFoundError(AppError):
+    def __init__(self, message: str = "Chat not found"):
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class LLMUnavailableError(AppError):
+    def __init__(self, message: str = "LLM service is unavailable"):
+        super().__init__(message, status.HTTP_502_BAD_GATEWAY)
+
+
+class LLMError(AppError):
+    def __init__(self, message: str = "LLM service returned an error"):
+        super().__init__(message, status.HTTP_502_BAD_GATEWAY)

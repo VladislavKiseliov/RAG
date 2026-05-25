@@ -1,13 +1,9 @@
-from idlelib import window
-
 import uuid6
 from uuid import UUID
 from typing import List, Dict, Any
 
-from openai.resources.chat.completions import messages
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from backend.services.llm_client import get_llm_answer
 from backend.utils.exceptions import UserNotFoundError, AuthDatabaseError
 from backend.repository.repository import ChatRepository, MessageRepository
 

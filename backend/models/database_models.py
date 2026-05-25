@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, DateTime, UUID, Text, Boolean, Integer
+from sqlalchemy import String, ForeignKey, DateTime, UUID, Text, Boolean, Integer, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime, timezone
 import uuid
@@ -84,7 +84,10 @@ class Chats(Base):
 
 class Messages(Base):
     __tablename__ = "messages"
-    __table_args__ = ({"schema": "users_shema"},)
+    __table_args__ = (
+        Index("ix_messages_chat_id_id", "chat_id", "id"),
+        {"schema": "users_shema"},
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

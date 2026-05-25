@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends
 from starlette import status
 
 from backend.services.chat_service import ChatService
-from backend.dependencies import get_auth_service, get_current_user_from_token, get_chat_service
+from backend.services.ConversationService import ConversationService
+from backend.dependencies import get_auth_service, get_current_user_from_token, get_chat_service, get_conversation_service
 from backend.api.schemas import LoginRequest, RegisterRequest, RefreshRequest, LogoutRequest, Message, ChatUpdate
 from backend.services.auth_service import AuthService
 from backend.models.database_models import Users
@@ -184,7 +185,7 @@ async def chat_endpoint(
     conversation_id: uuid.UUID,
     message: Message,
     current_user: str = Depends(get_current_user_from_token),
-    service: ChatService = Depends(get_chat_service)
+    service: ConversationService = Depends(get_conversation_service)
 ):
     """
     Обрабатывает новое сообщение:
@@ -192,7 +193,6 @@ async def chat_endpoint(
     2. Получает ответ от RAG.
     3. Сохраняет ответ ассистента.
     """
-    # Вызываем логику в сервисе
     result = await service.process_message(
         user_id=current_user,
         chat_id=conversation_id,

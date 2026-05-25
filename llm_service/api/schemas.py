@@ -36,3 +36,12 @@ class AskResponse(BaseModel):
     context: str | None = None
     total: int
 
+
+class SummaryRequest(BaseModel):
+    messages: List[Dict]
+    existing_summary: str = ""
+
+
+class SummaryResponse(BaseModel):
+    summary: str
+

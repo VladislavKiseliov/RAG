@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 
-from sqlalchemy import select, update, delete, Select
+from sqlalchemy import select, update, delete, Select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -152,15 +152,6 @@ class ChatRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return result.rowcount > 0
 
-    async def update_summary_count(self, chat_id: uuid.UUID) -> bool:
-        stmt = (
-            update(Chats)
-            .where(Chats.chat_id == chat_id, Chats.user_id == user_id)
-            .values(title=new_title, updated_at=datetime.now())
-        )
-        result = await self._session.execute(stmt)
-        return result.rowcount > 0
-
     async def get_chat(self,chat_id: uuid.UUID) -> Chats:
         stmt = select(Chats).where(Chats.chat_id == chat_id)
         result = await self._session.execute(stmt)
@@ -181,24 +172,38 @@ class MessageRepository(BaseRepository):
         stmt = (
             select(Messages)
             .where(Messages.chat_id == chat_id)
-            .order_by(Messages.created_at.asc())
+            .order_by(Messages.id.asc())
             .limit(limit)
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_recent(self, chat_id: uuid.UUID, limit: int = 10) -> List[Messages]:
+        stmt = (
+            select(Messages)
+            .where(Messages.chat_id == chat_id)
+            .order_by(Messages.id.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
+        rows.reverse()
+        return rows
 
-    async def get_messages_after(self, chat_id:uuid.UUID, after_id:uuid.UUID, summary_batch_size=10):
-          anchor_ts = select(Messages.created_at).where(Messages.id == after_id)
+    async def count_after(self, chat_id: uuid.UUID, after_id: uuid.UUID | None = None) -> int:
+        stmt = select(func.count()).where(Messages.chat_id == chat_id)
+        if after_id is not None:
+            stmt = stmt.where(Messages.id > after_id)
+        result = await self._session.execute(stmt)
+        return result.scalar_one()
 
-          stmt = (
-              select(Messages)
-              .where(Messages.chat_id == chat_id, Messages.created_at > anchor_ts.scalar_subquery())
-              .order_by(Messages.created_at.asc())
-              .limit(summary_batch_size)
-          )
-          result = await self._session.execute(stmt)
-          return list(result.scalars().all())
+    async def get_messages_after(self, chat_id: uuid.UUID, after_id: uuid.UUID | None = None, limit: int = 10) -> List[Messages]:
+        stmt = select(Messages).where(Messages.chat_id == chat_id)
+        if after_id is not None:
+            stmt = stmt.where(Messages.id > after_id)
+        stmt = stmt.order_by(Messages.id.asc()).limit(limit)
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
 
 
 class DocumentRepository(BaseRepository):
