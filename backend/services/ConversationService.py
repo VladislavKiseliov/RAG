@@ -85,7 +85,7 @@ class ConversationService:
 
         rag_result = await get_llm_answer(
             question=content,
-            history_massage=short_messages,
+            history_messages=short_messages,
             summary=summary_chat or "",
         )
 

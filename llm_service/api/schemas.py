@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class AskRequest(BaseModel):
     query: str = Field(..., min_length=1)
-    history_massage: List[Dict]
+    history_messages: List[Dict]
     summary: str
     doc_id: str | None = None
     include_context: bool = False

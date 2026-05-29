@@ -1,13 +1,13 @@
 from typing import List, Dict
 
 import httpx
-import os
+from backend.settings import settings
 from backend.utils.exceptions import LLMError, LLMUnavailableError
 from backend.utils.logger_config import setup_logger
 
 logger = setup_logger("backend.llm_client")
 
-LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "http://llm-service:8002")
+LLM_SERVICE_URL = settings.LLM_SERVICE_URL
 
 
 async def get_llm_summary(messages: List[Dict], existing_summary: str = "") -> str:
@@ -27,9 +27,9 @@ async def get_llm_summary(messages: List[Dict], existing_summary: str = "") -> s
             raise LLMUnavailableError()
 
 
-async def get_llm_answer(question: str, history_massage: List[Dict], summary: str) -> dict:
+async def get_llm_answer(question: str, history_messages: List[Dict], summary: str) -> dict:
     url = f"{LLM_SERVICE_URL.rstrip('/')}/llm/answer"
-    payload = {"query": question, "history_massage": history_massage, "summary": summary}
+    payload = {"query": question, "history_messages": history_messages, "summary": summary}
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=5.0)) as client:
         logger.info(f"Запрос к LLM сервису: {url}", extra={"query": question})

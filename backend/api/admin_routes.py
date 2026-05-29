@@ -1,7 +1,6 @@
 ﻿from __future__ import annotations
 
 import asyncio
-import os
 import time
 import uuid
 from typing import Any
@@ -13,9 +12,11 @@ from pydantic import BaseModel
 from backend.dependencies import get_current_user_from_token, get_user_service
 from backend.models.database_models import Users
 from backend.services.user_service import UserService
+from backend.settings import settings
+from backend.utils.exceptions import UserAlreadyExistsError
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://rag-service:8001").rstrip("/")
+RAG_SERVICE_URL = settings.RAG_SERVICE_URL.rstrip("/")
 
 
 class BlockUserRequest(BaseModel):
@@ -148,7 +149,7 @@ async def admin_user_repo_create(
     try:
         return await user_service.create_user_repo(login=payload.login, password=payload.password)
     except ValueError:
-        raise HTTPException(status_code=409, detail="User with this login already exists")
+        raise UserAlreadyExistsError()
 
 
 @router.put("/users/repo/{user_id}")
@@ -170,7 +171,7 @@ async def admin_user_repo_update(
             password=payload.password,
         )
     except ValueError:
-        raise HTTPException(status_code=409, detail="User with this login already exists")
+        raise UserAlreadyExistsError()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user

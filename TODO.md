@@ -6,17 +6,18 @@
 |---|---|---|---|---|
 | 1 | Один `.env` файл — убрать сервисные env, один корневой | все | Высокий | ✅ Готово |
 | 2 | Логи — убрать `print()`, настроить structured JSON logging | все | Высокий | 🔄 Частично |
-| 3 | Ошибки — разделить 502/504/500 в llm_service и backend | llm, backend | Высокий | ⬜ Не начато |
-| 4 | Summary — реализовать суммаризацию истории чата (сейчас хардкод `"пока пусто"`) | backend, llm | Высокий | ⬜ Не начато |
+| 3 | Ошибки — кастомные исключения (ChatNotFoundError, LLMError, LLMUnavailableError), убрать HTTPException из сервисов | llm, backend | Высокий | ✅ Готово |
+| 4 | Summary — ConversationService, count_after по БД, POST /llm/summary, generate_summary() | backend, llm | Высокий | ✅ Готово |
 | 5 | Регистрация — валидация, роли (user/admin) | backend | Средний | 🔄 Частично |
 | 6 | Профиль пользователя — расширить модель (имя, роль, аватар, дата) | backend, frontend | Средний | ⬜ Не начато |
-| 7 | `GET /health` для llm_service | llm | Средний | ⬜ Не начато |
-| 8 | Переименовать `history_massage` → `history_messages` | llm, backend | Низкий | ⬜ Не начато |
+| 7 | `GET /health` для llm_service | llm | Средний | ✅ Готово |
+| 8 | Переименовать `history_massage` → `history_messages` | llm, backend | Низкий | ✅ Готово |
 | 9 | Убрать мёртвый код — `agent_service.py`, `answer_service.py`, старый `context_builder.py`, `promt/promts.py` | llm | Низкий | ⬜ Не начато |
 | 10 | Вынести параметры в settings — `top_k`, `chunk_size`, `max_context_chars` | rag, llm | Низкий | ⬜ Не начато |
 | 11 | PDF склейка — `_fix_merged_prepositions` в `TextCleaner` | rag | Низкий | ⬜ Не начато |
 | 12 | Тесты — прогнать все после изменений | все | Низкий | ⬜ Не начато |
-| 13 | Merge `mvp` → `main` | — | — | ⬜ Не начато |
+| 13 | Конфиг — перейти на `config.toml` (URL, порты, таймауты, модели); секреты остаются в `.env` | все | Низкий | ⬜ Не начато |
+| 14 | Merge `mvp` → `main` | — | — | ⬜ Не начато |
 
 ---
 

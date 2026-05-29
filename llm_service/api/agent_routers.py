@@ -13,6 +13,10 @@ logger = setup_logger("llm_service.api")
 
 router = APIRouter(prefix="/llm", tags=["llm"])
 
+@router.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 @router.post("/answer", response_model=AskResponse)
 async def answer_question(
     request: AskRequest,
@@ -22,7 +26,7 @@ async def answer_question(
         logger.info("LLM request", extra={"query": json.dumps(request.query), "doc_id": request.doc_id})
         final_state = await agent.run(
             query=request.query,
-            history_messages_db=request.history_massage,
+            history_messages_db=request.history_messages,
             summary=request.summary,
 
         )

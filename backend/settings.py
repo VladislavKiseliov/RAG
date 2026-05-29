@@ -54,5 +54,9 @@ class BackendSettings(BaseSettings):
     MINIO_BUCKET: str
     MINIO_SECURE: bool
 
+    # Internal services
+    LLM_SERVICE_URL: str = "http://llm-service:8002"
+    RAG_SERVICE_URL: str = "http://rag-service:8001"
+
 
 settings = BackendSettings()
