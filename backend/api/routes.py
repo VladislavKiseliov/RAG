@@ -131,7 +131,7 @@ async def get_all_conversations(
 async def update_title_chat(
         chat_id: uuid.UUID,
         title_data: ChatUpdate,
-        current_user: str = Depends(get_current_user_from_token),
+        current_user: Users = Depends(get_current_user_from_token),
         service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -141,7 +141,7 @@ async def update_title_chat(
         chat_id: UUID чата (автоматически валидируется FastAPI).
         title_data: Pydantic-модель с новым заголовком.
     """
-    await service.rename_chat(current_user, chat_id, title_data.title)
+    await service.rename_chat(user_id=current_user.id, chat_id = chat_id, new_title= title_data.title)
     return {
         "status": "success",
         "message": "Chat title updated successfully"

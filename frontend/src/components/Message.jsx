@@ -1,6 +1,7 @@
 ﻿// src/components/Message.jsx
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 function TypingIndicator() {
     return (
@@ -198,7 +199,7 @@ function Message({ content, role, sources, isTyping }) {
                         <span className="message-text">{content}</span>
                     ) : (
                         <div className="message-markdown">
-                            <ReactMarkdown>{content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
                         </div>
                     )}
                 </div>

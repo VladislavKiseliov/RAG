@@ -85,16 +85,12 @@ class LeanRagAgent:
     async def expand_queries_node(self, state: LeanAgentState) -> dict[str, list[str]]:
         """Генерирует альтернативные формулировки запроса через LLM для улучшения recall."""
         started = time.perf_counter()
-        print(f"{state.query=}")
-        print(f"{state.messages=}")
         raw_expansion = (await self.llm_provider.generate_general(query=QUERY_EXPANSION_PROMPT.format(summary= state.summary,
                                                                                                       recent_history = state.messages,
                                                                                                       query = state.query),
                                                                   context="")).strip()
-        print(f"{raw_expansion=}")
         expanded_pack = await QueryExpansionService.expand(original_query=state.query,
                                                            row_query=raw_expansion)
-        print(f"{expanded_pack=}")
         logger.info(
             "Expand queries finished",
             extra={
@@ -158,7 +154,6 @@ class LeanRagAgent:
     async def generate_node(self, state: LeanAgentState) -> dict[str, str]:
         """Генерирует финальный ответ с учётом route, контекста и истории диалога."""
         started = time.perf_counter()
-        print(f"{state.final_context=}")
         answer = await self.llm_provider.generate(current_query=state.query,
                                                   data_prompt=state.final_context)
 

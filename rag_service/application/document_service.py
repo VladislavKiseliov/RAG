@@ -79,7 +79,6 @@ class DataBaseDocumentService:
         try:
 
             async with self.session_scope() as (session, repo):
-                print(f"{file_hash=}")
                 await repo.update_document_hash_atomically(
                     doc_id=doc_id,
                     file_hash=file_hash,

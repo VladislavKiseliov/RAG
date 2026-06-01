@@ -84,17 +84,15 @@ class RetrieveService:
 
         # 1. Трансформируем текст в вектор
         query_vector = await self._get_vector_query(clean_query)
-        print(f"{query_vector=}")
         # 2. Ищем похожие чанки в векторном хранилище по вектору
         hits = await self.vector_storage.search(
-            query_vector=query_vector,  # Передаем вектор, а не текст
+            query_vector=query_vector,
+            query_text= clean_query,
             top_k=max(1, top_k),
             score_threshold=score_threshold,
         )
-        print(f"{hits=}")
         # 3. Группируем результаты (несколько детей могут принадлежать одному родителю)
         group_hits = group_hits_by_parent(hits=hits)
-        print(f"{group_hits=}")
 
         if not group_hits:
             return {
@@ -111,14 +109,10 @@ class RetrieveService:
             requested_parent_ids,
             doc_id=doc_id,
         )
-        print(f"{parent_chunks=}")
-        # 6. Формируем финальный объект ответа
-        items = build_retrieved_items(
+        return build_retrieved_items(
             group_hits=group_hits,
             parent_chunks=parent_chunks,
         )
-        print(f"{items=}")
-        return items
 
     async def batch_search(
             self,
@@ -148,9 +142,9 @@ class RetrieveService:
         # Один батч-запрос к Qdrant вместо N последовательных
         batch_hits = await self.vector_storage.batch_search(
             query_vectors=query_vectors,
+            query_texts=queries,
             top_k=top_k,
         )
-        print(f"{batch_hits=}")
 
         # Flatten + дедупликация по (doc_id, parent_id), оставляем лучший score
         seen: dict[tuple[str, str], dict] = {}
@@ -164,7 +158,6 @@ class RetrieveService:
                     (c["score"] for c in existing.get("children", [])), default=0.0
                 ):
                     seen[key] = group
-        print(f"{seen=}")
         if not seen:
             return {"items": [], "total": 0}
 

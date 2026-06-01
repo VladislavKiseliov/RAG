@@ -4,14 +4,10 @@ import uuid
 
 @runtime_checkable
 class VectorStorageProvider(Protocol):
-    """
-    Protocol for vector storage operations.
+    """Contract for hybrid vector storage operations.
 
-    Defines a clean interface for persisting embeddings, performing
-    geometric similarity searches, and managing document-scoped data.
-
-    This interface is model-agnostic: it accepts pre-computed vectors
-    rather than raw text strings.
+    Accepts pre-computed dense vectors and raw query text for sparse search.
+    Implementations are responsible for fusing dense and sparse results.
     """
 
     async def upsert_vectors(
@@ -20,65 +16,68 @@ class VectorStorageProvider(Protocol):
             childs: List[Dict[str, Any]],
             vectors: List[List[float]]
     ) -> None:
-        """
-        Persists pre-computed vectors and their associated metadata.
+        """Persist pre-computed dense vectors with associated chunk metadata.
 
         Args:
-            doc_id: Unique identifier of the source document.
-            childs: List of chunk data (metadata, text, etc.) from the application.
-            vectors: List of corresponding embedding vectors.
+            doc_id: Source document identifier.
+            childs: Chunk dicts with keys: id, text, parent_id, headers, source.
+            vectors: Dense embedding vectors aligned with childs (same order and length).
         """
         ...
 
     async def search(
             self,
             query_vector: List[float],
+            query_text: str,
             *,
             top_k: int = 5,
             doc_id: Optional[uuid.UUID] = None,
-            score_threshold: Optional[float] = None
+            score_threshold: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Performs a similarity search using a pre-computed vector.
+        """Hybrid similarity search for a single query.
 
         Args:
-            query_vector: A single embedding vector representing the search query.
-            top_k: Maximum number of similar points to return.
-            doc_id: Optional filter to restrict search to a specific document.
-            score_threshold: Minimum similarity score threshold (0.0 to 1.0).
+            query_vector: Pre-computed dense embedding of the query.
+            query_text: Raw query text used for sparse (BM25) search.
+            top_k: Maximum number of results to return.
+            doc_id: Optional filter to restrict search to one document.
+            score_threshold: Minimum score threshold applied to dense candidates.
 
         Returns:
-            List[Dict[str, Any]]: Search hits containing 'id', 'score', and 'payload'.
+            List of hits ordered by relevance. Each hit: {id, score, payload}.
         """
         ...
 
     async def batch_search(
             self,
             query_vectors: List[List[float]],
+            query_texts: List[str],
             *,
             top_k: int = 5,
             doc_id: Optional[uuid.UUID] = None,
             score_threshold: Optional[float] = None,
     ) -> List[List[Dict[str, Any]]]:
-        """
-        Performs similarity search for multiple query vectors in a single request.
+        """Hybrid search for multiple queries in a single round-trip.
 
         Args:
-            query_vectors: List of embedding vectors to search with.
-            top_k: Maximum number of hits per query vector.
-            doc_id: Optional filter to restrict search to a specific document.
-            score_threshold: Minimum similarity score threshold (0.0 to 1.0).
+            query_vectors: Dense embeddings, one per query.
+            query_texts: Raw query texts for sparse search. Must match query_vectors length.
+            top_k: Maximum hits per query.
+            doc_id: Optional filter to restrict search to one document.
+            score_threshold: Minimum score threshold applied to dense candidates.
 
         Returns:
-            List of hit lists — one inner list per query vector.
+            List of hit lists, one per input query, in the same order.
+
+        Raises:
+            VectorSearchInputError: If query_vectors and query_texts have different lengths.
         """
         ...
 
     async def delete_points(self, doc_id: uuid.UUID) -> None:
-        """
-        Removes all vector points associated with a specific document.
+        """Remove all vector points belonging to a document.
 
         Args:
-            doc_id: UUID of the document whose vectors should be deleted.
+            doc_id: Document whose points should be deleted.
         """
         ...

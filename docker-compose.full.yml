@@ -99,6 +99,7 @@ services:
       - .env
     volumes:
       - ./rag_service:/app/rag_service
+      - hf_cache:/root/.cache/huggingface
     command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001 --reload
     ports:
       - "${RAG_SERVICE_PORT:-8001}:8001"
@@ -124,6 +125,7 @@ services:
       - .env
     volumes:
       - ./rag_service:/app/rag_service
+      - hf_cache:/root/.cache/huggingface
     command: celery -A rag_service.celery_app worker -l INFO
     restart: unless-stopped
     depends_on:
@@ -250,5 +252,6 @@ volumes:
   postgres_data:
   minio_data:
   qdrant_data:
+  hf_cache:
   ragprogramm_redis_data:
     external: true

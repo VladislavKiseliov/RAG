@@ -45,7 +45,7 @@ class RagSettings(BaseSettings):
     # Qdrant
     # ──────────────────────────────────────────
     qdrant_url: str                          # QDRANT_URL
-    collection_name: str = "rag_documents_collection"  # COLLECTION_NAME
+    collection_name: str = "rag_documents_collection_with_sparse_vector"  # COLLECTION_NAME
 
     qdrant_upsert_batch_size: int = 64
     qdrant_hnsw_m: int | None = None
@@ -59,7 +59,7 @@ class RagSettings(BaseSettings):
     # Embeddings
     # ──────────────────────────────────────────
     hf_token: str = ""                       # HF_TOKEN
-    embedding_model_name: str = "BAAI/bge-m3"  # EMBEDDING_MODEL_NAME
+    embedding_model_name: str
     embedding_batch_size: int = 64           # EMBEDDING_BATCH_SIZE
 
     # ──────────────────────────────────────────

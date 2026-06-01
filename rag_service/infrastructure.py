@@ -14,7 +14,7 @@ from rag_service.infrastructures.providers.vector_storage_provider import Vector
 from rag_service.workers.ingestion_service import IngestionService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.infrastructures.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
+from rag_service.infrastructures.providers.local_embedding_provider import LocalEmbeddingProvider
 from rag_service.settings import settings
 
 
@@ -73,9 +73,8 @@ v_indexing_service: Optional[VectorIndexingService] = None
 def get_v_indexing_service() -> VectorIndexingService:
     global v_indexing_service
     if v_indexing_service is None:
-        emb_provider = HuggingFaceEmbeddingProvider(
+        emb_provider = LocalEmbeddingProvider(
             model=settings.embedding_model_name,
-            token=settings.hf_token,
         )
         v_indexing_service = VectorIndexingService(
             embedding_provider=emb_provider,

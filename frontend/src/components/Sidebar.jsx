@@ -324,6 +324,10 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                                         value={newTitle}
                                         onChange={(e) => setNewTitle(e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') { e.stopPropagation(); saveTitle(chat.id); }
+                                            if (e.key === 'Escape') { e.stopPropagation(); cancelEditing(); }
+                                        }}
                                         autoFocus
                                     />
                                     <div className="edit-actions">

@@ -20,9 +20,9 @@
   Маппить из final_state["retrieval_data"] → SourceItem.
   total = len(sources).
 
-  ### 4. Дебажные print()
-  - lean_rag_agent.py — 3 штуки в expand_queries_node
-  - retrieve_service.py — 5 штук в search() и retrieve()
+  ### 4. ~~Дебажные print()~~ ✅
+  - lean_rag_agent.py — убраны
+  - retrieve_service.py — убраны
 
   ## Мелкие
 

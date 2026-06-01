@@ -36,3 +36,10 @@ class VectorCollectionError(VectorStoreError):
 
     def __init__(self, message: str = "Failed to ensure vector collection"):
         super().__init__(message=message)
+
+
+class VectorSearchInputError(VectorStoreError):
+    """Raised when search input is invalid (e.g. mismatched vectors and texts)."""
+
+    def __init__(self, message: str = "Invalid search input"):
+        super().__init__(message=message)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from qdrant_client import AsyncQdrantClient
+from qdrant_client import AsyncQdrantClient,models
 from qdrant_client.http.models import FilterSelector
 from qdrant_client.models import (
     Distance,
@@ -16,33 +16,24 @@ from qdrant_client.models import (
     QueryRequest,
     VectorParams,
     WalConfigDiff,
+    Document,
 )
 
 from rag_service.domain.errors.vector import (
     VectorCollectionError,
     VectorDeleteError,
     VectorSearchError,
+    VectorSearchInputError,
     VectorUpsertError,
 )
-from rag_service.infrastructures.providers.embedding_provider import EmbeddingProvider
 
 
 class QdrantVectorStorage():
     """Qdrant-backed vector storage adapter.
 
-    Responsibility boundary:
-    - stores already prepared vectors with payload,
-    - performs similarity search in Qdrant,
-    - deletes document-scoped points,
-    - ensures the target collection exists.
-
-    What this provider does not own anymore:
-    - embedding orchestration for ingestion batches,
-    - batching source texts for embedding generation,
-    - building application-level point payloads from document chunks.
-
-    Those responsibilities now belong to the application layer
-    (`VectorIndexingService`, `IngestionService`).
+    Implements VectorStorageProvider over AsyncQdrantClient.
+    Hybrid search (dense + BM25 sparse) with configurable fusion strategy.
+    Collection is created lazily on first upsert.
     """
 
     def __init__(
@@ -59,20 +50,19 @@ class QdrantVectorStorage():
         optimizers_indexing_threshold: int | None = None,
         wal_capacity_mb: int | None = None,
     ) -> None:
-        """Create a Qdrant storage adapter.
-
+        """
         Args:
             url: Qdrant base URL.
-            collection: Target Qdrant collection name.
-            Ingestion-time embeddings are prepared outside this class.
-            distance: Vector distance metric name understood by Qdrant.
-            upsert_batch_size: Maximum number of ready vector points sent per upsert call.
-            hnsw_m: Optional HNSW graph connectivity parameter.
-            hnsw_ef_construct: Optional HNSW build quality parameter.
-            optimizers_default_segment_number: Optional Qdrant optimizer setting.
-            optimizers_memmap_threshold: Optional Qdrant optimizer setting.
-            optimizers_indexing_threshold: Optional Qdrant optimizer setting.
-            wal_capacity_mb: Optional write-ahead log capacity.
+            collection: Target collection name.
+            fusion: Hybrid search fusion strategy (DBSF or RRF). Default: DBSF.
+            distance: Vector distance metric. Default: Cosine.
+            upsert_batch_size: Points per upsert batch.
+            hnsw_m: HNSW graph connectivity parameter.
+            hnsw_ef_construct: HNSW build quality parameter.
+            optimizers_default_segment_number: Qdrant optimizer setting.
+            optimizers_memmap_threshold: Qdrant optimizer setting.
+            optimizers_indexing_threshold: Qdrant optimizer setting.
+            wal_capacity_mb: Write-ahead log capacity.
         """
         if not url:
             raise RuntimeError("QDRANT_URL is not set")
@@ -81,6 +71,8 @@ class QdrantVectorStorage():
 
         self._client = AsyncQdrantClient(url=url)
         self._collection = collection
+        self._fusion = models.Fusion.DBSF
+        self.bm25_model = "qdrant/bm25"
         self._distance = Distance[distance.upper()]
         self._upsert_batch_size = max(1, upsert_batch_size)
         self._hnsw_m = hnsw_m
@@ -111,7 +103,7 @@ class QdrantVectorStorage():
         if not points:
             return
 
-        first_vector = points[0].get("vector")
+        first_vector = points[0].get("vector")["dense_vector"]
         if not first_vector:
             raise RuntimeError("Point vector is empty")
 
@@ -152,11 +144,18 @@ class QdrantVectorStorage():
             return []
 
         ready_points = []
+
         for child, vector in zip(childs, vectors, strict=True):
             ready_points.append(
                 {
                     "id": child.get("id") or str(uuid.uuid4()),
-                    "vector": vector,
+                    "vector": {
+                                "dense_vector": vector,
+                                "bm25_sparse_vector": Document(
+                                    text=child["text"],
+                                    model=self.bm25_model
+                                )
+                            },
                     "payload": {
                         "parent_id": child["parent_id"],
                         "headers": child.get("headers") or {},
@@ -169,55 +168,70 @@ class QdrantVectorStorage():
 
         return ready_points
 
+    def _build_prefetch(
+        self,
+        vector: list[float],
+        text: str,
+        *,
+        score_threshold: float | None,
+        limit: int,
+    ) -> list[models.Prefetch]:
+        """Build prefetch list for hybrid search.
+
+        Dense prefetch uses cosine similarity; sparse uses BM25 via qdrant/bm25 model.
+        score_threshold applies to dense candidates only (BM25 scale is not comparable).
+        """
+        return [
+            models.Prefetch(
+                query=vector,
+                using="dense_vector",
+                score_threshold=score_threshold,
+                limit=limit,
+            ),
+            models.Prefetch(
+                query=Document(text=text, model=self.bm25_model),
+                using="bm25_sparse_vector",
+                limit=limit,
+            ),
+        ]
+
+    def _build_filter(self, doc_id: uuid.UUID | None) -> Filter | None:
+        """Return a doc_id filter or None if no filtering is needed."""
+        if doc_id is None:
+            return None
+        return Filter(must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))])
 
     async def search(
         self,
         query_vector: list[float],
+        query_text: str,
         *,
         top_k: int = 5,
         doc_id: uuid.UUID | None = None,
         score_threshold: float | None = None,
     ) -> list[dict]:
-        """
-        Executes a vector similarity search in the Qdrant collection.
-
-        This method is "model-agnostic," meaning it only handles pre-computed
-        embeddings. It performs a geometric search to find the nearest
-        neighbors in the vector space.
-
-        Args:
-            query_vector: A single embedding vector representing the search query.
-            top_k: The maximum number of similar points to return. Defaults to 5.
-            doc_id: Optional UUID to restrict the search to a specific document's chunks.
-            score_threshold: Optional minimum similarity score (0.0 to 1.0)
-                to filter out irrelevant results.
-
-        Returns:
-            List[Dict[str, Any]]: A list of search hits, where each hit contains
-                the point 'id', similarity 'score', and the associated 'payload'.
-                Returns an empty list if no results are found or if the query_vector is empty.
-        """
-
+        """See VectorStorageProvider. Hybrid dense+BM25 search fused via self._fusion."""
         if not query_vector:
             return []
 
-        query_filter = None
-        if doc_id is not None:
-            query_filter = Filter(
-                must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
-            )
+        prefetch = self._build_prefetch(
+            vector=query_vector,
+            text=query_text,
+            score_threshold=None,
+            limit=top_k * 2,
+        )
+        query_filter = self._build_filter(doc_id)
 
         try:
             results = await self._client.query_points(
                 collection_name=self._collection,
-                query=query_vector,
+                prefetch=prefetch,
+                query=models.FusionQuery(fusion=self._fusion),
                 limit=max(1, top_k),
-                score_threshold=score_threshold,
                 query_filter=query_filter,
                 with_payload=True,
                 with_vectors=False,
             )
-
             return [
                 {
                     "id": r.id,
@@ -232,45 +246,40 @@ class QdrantVectorStorage():
     async def batch_search(
         self,
         query_vectors: list[list[float]],
+        query_texts: list[str],
         *,
         top_k: int = 5,
         doc_id: uuid.UUID | None = None,
         score_threshold: float | None = None,
     ) -> list[list[dict]]:
-        """Execute a similarity search for multiple query vectors in a single Qdrant request.
-
-        Each vector in `query_vectors` produces an independent ranked hit list.
-        Results are returned in the same order as the input vectors.
-
-        Args:
-            query_vectors: Pre-computed embedding vectors to search with.
-            top_k: Maximum number of hits per query vector.
-            doc_id: Optional filter to restrict search to a specific document's chunks.
-            score_threshold: Minimum similarity score (0.0–1.0) to filter weak hits.
-
-        Returns:
-            List of hit lists — one inner list per input vector. Each hit contains
-            'id', 'score', and 'payload' (doc_id, parent_id, text, headers).
-        """
+        """See VectorStorageProvider. Each request uses hybrid prefetch fused via self._fusion."""
         if not query_vectors:
             return []
 
-        query_filter = None
-        if doc_id is not None:
-            query_filter = Filter(
-                must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))]
-            )
+        query_filter = self._build_filter(doc_id)
 
-        requests = [
-            QueryRequest(
-                query=vector,
-                filter=query_filter,
-                limit=max(1, top_k),
-                score_threshold=score_threshold,
-                with_payload=True,
-            )
-            for vector in query_vectors
-        ]
+        try:
+            requests = [
+                QueryRequest(
+                    prefetch=self._build_prefetch(
+                        vector=query_vector,
+                        text=query_text,
+                        score_threshold=None,
+                        limit=top_k * 2,
+                    ),
+                    query=models.FusionQuery(fusion=self._fusion),
+                    filter=query_filter,
+                    limit=max(1, top_k),
+                    score_threshold=score_threshold,
+                    with_payload=True,
+                )
+                for query_vector, query_text in zip(query_vectors, query_texts, strict=True)
+            ]
+        except ValueError as exc:
+            raise VectorSearchInputError(
+                f"query_vectors and query_texts length mismatch: "
+                f"{len(query_vectors)} != {len(query_texts)}"
+            ) from exc
 
         try:
             batch_results = await self._client.query_batch_points(
@@ -351,10 +360,11 @@ class QdrantVectorStorage():
 
             await self._client.create_collection(
                 collection_name=self._collection,
-                vectors_config=VectorParams(size=vector_size, distance=self._distance),
+                vectors_config={"dense_vector":VectorParams(size=vector_size, distance=self._distance)},
+                sparse_vectors_config={"bm25_sparse_vector": models.SparseVectorParams(modifier=models.Modifier.IDF)},
                 hnsw_config=hnsw_config,
                 optimizers_config=optimizers_config,
-                wal_config=wal_config,
+                wal_config=wal_config
             )
         except Exception as exc:
             raise VectorCollectionError("Failed to ensure Qdrant collection") from exc

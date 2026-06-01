@@ -1,3 +1,5 @@
+import uuid
+
 import uuid6
 from uuid import UUID
 from typing import List, Dict, Any
@@ -31,7 +33,7 @@ class ChatService:
                 for chat in chats
             ]
 
-    async def rename_chat(self, user_id: UUID, chat_id: UUID, new_title: str) -> bool:
+    async def rename_chat(self, user_id: uuid.UUID, chat_id: uuid.UUID, new_title: str) -> bool:
         async with self._sf() as session:
             async with session.begin():
                 updated = await ChatRepository(session).update_chat_title(chat_id, user_id, new_title)

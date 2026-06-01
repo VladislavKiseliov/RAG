@@ -100,7 +100,6 @@ class IngestionService:
             )
 
             if not success:
-                print(12234)
                 # Логика для дубликата:
                 # Ставим статус DUPLICATE и удаляем временный файл из S3 (экономя место)
                 await self._document_service.delete_document(doc_id=doc_id)

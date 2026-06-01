@@ -35,12 +35,6 @@ from rag_service.utils.logger_config import setup_logger
 
 
 
-
-# import os
-# print("HTTP_PROXY", os.environ.get("HTTP_PROXY"))
-# print("HTTPS_PROXY", os.environ.get("HTTPS_PROXY"))
-# print("ALL_PROXY", os.environ.get("ALL_PROXY"))
-
 logger = setup_logger("rag_service.api")
 
 router = APIRouter(tags=["RAG Knowledge Engine"])
@@ -59,7 +53,6 @@ async def retrieve(
 ):
     result = await retrieve_service.retrieve(queries=body.queries, top_k=body.top_k)
     logger.info("Retrieve", extra={"queries_count": len(body.queries), "total": result.get("total")})
-    print(f"{result=}")
     return result
 
 
