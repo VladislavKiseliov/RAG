@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from backend.utils.exceptions import UserNotFoundError, AuthDatabaseError
+from backend.utils.exceptions import UserNotFoundError, AuthDatabaseError, ChatNotFoundError
 from backend.repository.repository import ChatRepository, MessageRepository
 
 
@@ -49,9 +49,13 @@ class ChatService:
             raise UserNotFoundError("Не удалось удалить чат")
         return True
 
-    async def get_history(self, chat_id: UUID) -> List[Dict]:
+    async def get_history(self, chat_id: uuid.UUID,user_id:uuid.UUID) -> List[Dict]:
         async with self._sf() as session:
-            messages = await MessageRepository(session).get_history(chat_id)
+            chat = await ChatRepository(session).get_chat(chat_id)
+            if chat is None or chat.user_id != user_id:
+                raise ChatNotFoundError()
+
+            messages = await MessageRepository(session).get_history(chat_id=chat_id)
             return [
                 {"role": msg.role, "content": msg.content, "sources": msg.sources, "created_at": msg.created_at}
                 for msg in messages

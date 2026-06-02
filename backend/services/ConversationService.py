@@ -4,7 +4,7 @@ from typing import Dict, Any
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.repository.repository import ChatRepository, MessageRepository
-from backend.services.llm_client import get_llm_answer, get_llm_summary
+from backend.services.llm_client import LLMClient
 from backend.utils.exceptions import ChatNotFoundError
 
 HISTORY_WINDOW = 10
@@ -12,8 +12,9 @@ SUMMARY_THRESHOLD = 20
 
 
 class ConversationService:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], llm_client: LLMClient):
         self._sf = session_factory
+        self._llm = llm_client
 
     async def _maybe_trigger_summary(self, chat_id: UUID, summary_link: UUID | None) -> None:
         async with self._sf() as session:
@@ -55,7 +56,7 @@ class ConversationService:
             if chat is None:
                 raise ChatNotFoundError()
 
-        result = await get_llm_summary(
+        result = await self._llm.get_summary(
             messages=messages_dicts,
             existing_summary=chat.summary or "",
         )
@@ -83,7 +84,7 @@ class ConversationService:
             async with session.begin():
                 await MessageRepository(session).add_message(chat_id, role="user", content=content)
 
-        rag_result = await get_llm_answer(
+        rag_result = await self._llm.get_answer(
             question=content,
             history_messages=short_messages,
             summary=summary_chat or "",

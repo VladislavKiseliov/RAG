@@ -32,26 +32,51 @@ class DocumentStatus(str, enum.Enum):
 
 
 class BaseRepository:
-    """Базовый класс репозитория. Сессия передаётся снаружи, транзакции управляются сервисом."""
+    """Base repository class. Session is injected externally; transactions are managed by the service layer."""
+
     def __init__(self, session: AsyncSession):
         self._session = session
 
 
 class AuthRepository(BaseRepository):
-    """Репозиторий для управления доступом и сессиями (Refresh-токены)."""
+    """Data access layer for authentication: user creation, lookup, and refresh token management."""
 
     async def create_user(self, login: str, hashed_password: str) -> Users:
-        new_user = Users(login=login, password=hashed_password)
+        """Insert a new user row and flush to obtain the generated UUID.
+
+        Args:
+            login: Unique login name.
+            hashed_password: bcrypt hash of the user's password.
+
+        Returns:
+            The newly created Users ORM object with id populated.
+        """
+        new_user = Users(login=login, password=hashed_password, is_active=True)
         self._session.add(new_user)
         await self._session.flush()
         return new_user
 
     async def get_user_by_login(self, login: str) -> Optional[Users]:
+        """Look up a user by their unique login name.
+
+        Args:
+            login: The login to search for.
+
+        Returns:
+            Users object if found, None otherwise.
+        """
         stmt = select(Users).where(Users.login == login)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def add_refresh_token(self, user_id: uuid.UUID, token: str, expires_at: datetime) -> None:
+        """Persist a new refresh token linked to the given user.
+
+        Args:
+            user_id: Owner's UUID.
+            token: Cryptographically random token string.
+            expires_at: UTC datetime when the token becomes invalid.
+        """
         refresh = RefreshTokens(
             user_id=user_id,
             token=token,
@@ -61,11 +86,27 @@ class AuthRepository(BaseRepository):
         self._session.add(refresh)
 
     async def get_refresh_token(self, token: str) -> Optional[RefreshTokens]:
+        """Fetch a refresh token row by its value.
+
+        Args:
+            token: The raw token string.
+
+        Returns:
+            RefreshTokens object if found, None otherwise.
+        """
         stmt = select(RefreshTokens).where(RefreshTokens.token == token)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def revoke_all_user_tokens(self, user_id: uuid.UUID) -> int:
+        """Mark all active refresh tokens for a user as revoked.
+
+        Args:
+            user_id: The user whose tokens should be invalidated.
+
+        Returns:
+            Number of tokens that were revoked.
+        """
         stmt = (
             update(RefreshTokens)
             .where(RefreshTokens.user_id == user_id, RefreshTokens.revoked == False)
@@ -75,53 +116,123 @@ class AuthRepository(BaseRepository):
         return result.rowcount
 
     async def revoke_refresh_token(self, token: str) -> bool:
+        """Mark a single refresh token as revoked.
+
+        Args:
+            token: The token to invalidate.
+
+        Returns:
+            True if a row was updated, False if the token was not found.
+        """
         stmt = update(RefreshTokens).where(RefreshTokens.token == token).values(revoked=True)
         result = await self._session.execute(stmt)
         return result.rowcount > 0
 
     async def get_user_id(self, user_id: uuid.UUID) -> Optional[Users]:
+        """Look up a user by their UUID primary key.
+
+        Args:
+            user_id: The user's UUID.
+
+        Returns:
+            Users object if found, None otherwise.
+        """
         stmt = select(Users).where(Users.id == user_id)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
 
 class UserRepository(BaseRepository):
-    """Управление данными профиля пользователя."""
+    """Data access layer for user profile management: CRUD operations on the Users table."""
 
     async def get_user_by_login(self, login: str) -> Optional[Users]:
+        """Look up a user by login name.
+
+        Args:
+            login: Unique login to search for.
+
+        Returns:
+            Users object if found, None otherwise.
+        """
         stmt = select(Users).where(Users.login == login)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_user_by_id(self, user_id: uuid.UUID) -> Optional[Users]:
+        """Look up a user by UUID primary key.
+
+        Args:
+            user_id: The user's UUID.
+
+        Returns:
+            Users object if found, None otherwise.
+        """
         stmt = select(Users).where(Users.id == user_id)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def delete_user(self, user_id: uuid.UUID) -> bool:
+        """Delete a user row by UUID.
+
+        Args:
+            user_id: The user to delete.
+
+        Returns:
+            True if the row was deleted, False if the user was not found.
+        """
         stmt = delete(Users).where(Users.id == user_id)
         result = await self._session.execute(stmt)
         return result.rowcount > 0
 
     async def get_users(self, page_size: int = 50) -> list[Users]:
+        """Fetch a page of users ordered by insertion (no cursor, simple LIMIT).
+
+        Args:
+            page_size: Maximum number of rows to return. Defaults to 50, max 500.
+
+        Returns:
+            List of Users ORM objects.
+        """
         stmt = select(Users).limit(page_size)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
     async def create_user(self, login: str, password: str) -> Users:
+        """Insert a new user row and flush to obtain the generated UUID.
+
+        Args:
+            login: Unique login name.
+            password: Pre-hashed password string.
+
+        Returns:
+            The newly created Users ORM object with id populated.
+        """
         user = Users(login=login, password=password)
         self._session.add(user)
         await self._session.flush()
         return user
 
-    async def update_user(self, user_id: uuid.UUID, new_login: str, new_password: str) -> bool:
-        stmt = (
-            update(Users)
-            .where(Users.id == user_id)
-            .values(login=new_login, password=new_password, updated_at=datetime.now(timezone.utc))
-        )
-        result = await self._session.execute(stmt)
-        return result.rowcount > 0
+    async def update_user(self, user_id: uuid.UUID, data: dict) -> Optional[Users]:
+        """Apply a partial update to a user's profile fields.
+
+        Fetches the user, sets only the fields present in data (via setattr),
+        and returns the modified object. SQLAlchemy's Unit of Work will generate
+        the UPDATE on commit.
+
+        Args:
+            user_id: UUID of the user to update.
+            data: Dict of field names to new values (typically from model_dump(exclude_unset=True)).
+
+        Returns:
+            Updated Users object, or None if the user was not found.
+        """
+        user = await self.get_user_by_id(user_id)
+        if user is None:
+            return None
+
+        for field, value in data.items():
+            setattr(user, field, value)
+        return user
 
 
 class ChatRepository(BaseRepository):
@@ -205,84 +316,3 @@ class MessageRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-
-class DocumentRepository(BaseRepository):
-
-    async def get_document_by_hash(self, file_hash: str) -> DocumentListItemDTO | None:
-        """Return a document by SHA-256 hash, or `None` if absent."""
-        result = await self._session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.file_hash == file_hash))
-        return result.scalar_one_or_none()
-
-    async def get_document_by_id(self, doc_id: uuid.UUID) -> DocumentListItemDTO | None:
-        """Return a document by UUID, or `None` if absent."""
-        result = await self._session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
-        return result.scalar_one_or_none()
-
-    async def list_documents(
-            self,
-            *,
-            limit: int,
-            offset: int,
-            status: str | None = None,
-            filename: str | None = None,
-            created_from: datetime | None = None,
-            created_to: datetime | None = None,
-    ) -> list[DocumentListItemDTO]:
-        """List documents with pagination and optional filters."""
-        query: Select = select(DocumentListItemDTO)
-
-        if status:
-            query = query.where(DocumentListItemDTO.status == status)
-        if filename:
-            query = query.where(DocumentListItemDTO.filename.ilike(f"%{filename}%"))
-        if created_from is not None:
-            query = query.where(DocumentListItemDTO.created_at >= created_from)
-        if created_to is not None:
-            query = query.where(DocumentListItemDTO.created_at <= created_to)
-
-        query = query.order_by(DocumentListItemDTO.created_at.desc()).limit(limit).offset(offset)
-
-        result = await self._session.execute(query)
-        return list(result.scalars().all())
-
-    async def create_document(
-            self,
-            filename: str,
-            file_hash: str,
-            meta: dict | None,
-            *,
-            doc_id: uuid.UUID | None = None,
-    ) -> uuid.UUID:
-        """Create a document in `processing` status and return its id."""
-        doc = DocumentListItemDTO(
-            id=doc_id or uuid.uuid4(),
-            filename=filename,
-            file_hash=file_hash,
-            meta=meta,
-            status=DocumentStatus.processing,
-        )
-        self._session.add(doc)
-        await self._session.flush()
-        return doc.id
-
-    async def set_status(
-            self,
-            doc_id: uuid.UUID,
-            status: DocumentStatus,
-            *,
-            chunk_count: int | None = None,
-    ) -> None:
-        """Update document status and optionally its processed child chunk count."""
-        values: dict[str, DocumentStatus | int] = {"status": status}
-        if chunk_count is not None:
-            values["chunk_count"] = chunk_count
-
-        await self._session.execute(
-            update(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id).values(**values)
-        )
-
-    async def delete_document(self, doc_id: uuid.UUID) -> None:
-        """Delete document row; linked parent chunks are removed by cascade."""
-        await self._session.execute(
-            delete(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id)
-        )

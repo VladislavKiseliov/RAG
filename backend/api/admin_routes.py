@@ -1,4 +1,5 @@
-﻿from __future__ import annotations
+﻿
+from __future__ import annotations
 
 import asyncio
 import time
@@ -9,9 +10,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 
-from backend.dependencies import get_current_user_from_token, get_user_service
-from backend.models.database_models import Users
-from backend.services.user_service import UserService
+from backend.dependencies import UserServiceDep
 from backend.settings import settings
 from backend.utils.exceptions import UserAlreadyExistsError
 
@@ -114,7 +113,7 @@ async def _proxy_rag_request(
 @router.get("/users/repo")
 async def admin_users_repo(
     page_size: int = Query(50, ge=1, le=500),
-    user_service: UserService = Depends(get_user_service),
+    user_service: UserServiceDep,
 ) -> dict[str, Any]:
     """Get paginated list of users from repository-backed service layer."""
     return await user_service.get_users_repo(page_size=page_size)
@@ -123,7 +122,7 @@ async def admin_users_repo(
 @router.get("/users/repo/{user_id}")
 async def admin_user_repo_detail(
     user_id: uuid.UUID,
-    user_service: UserService = Depends(get_user_service),
+    user_service: UserServiceDep,
 ) -> dict[str, Any]:
     """Get single user details by UUID.
 
@@ -139,7 +138,7 @@ async def admin_user_repo_detail(
 @router.post("/users/repo")
 async def admin_user_repo_create(
     payload: AdminUserCreateRequest,
-    user_service: UserService = Depends(get_user_service),
+    user_service: UserServiceDep,
 ) -> dict[str, Any]:
     """Create a new user.
 
@@ -156,7 +155,7 @@ async def admin_user_repo_create(
 async def admin_user_repo_update(
     user_id: uuid.UUID,
     payload: AdminUserUpdateRequest,
-    user_service: UserService = Depends(get_user_service),
+    user_service: UserServiceDep,
 ) -> dict[str, Any]:
     """Update user credentials by UUID.
 
@@ -164,23 +163,18 @@ async def admin_user_repo_update(
         HTTPException: 404 if user does not exist.
         HTTPException: 409 if login conflicts with an existing user.
     """
-    try:
-        user = await user_service.update_user_repo(
-            user_id=user_id,
-            login=payload.login,
-            password=payload.password,
-        )
-    except ValueError:
-        raise UserAlreadyExistsError()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await user_service.update_user_credentials(
+        user_id=user_id,
+        login=payload.login,
+        password=payload.password,
+    )
     return user
 
 
 @router.delete("/users/repo/{user_id}")
 async def admin_user_repo_delete(
     user_id: uuid.UUID,
-    user_service: UserService = Depends(get_user_service),
+    user_service: UserServiceDep,
 ) -> dict[str, Any]:
     """Delete user by UUID.
 
