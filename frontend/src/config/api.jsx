@@ -10,6 +10,7 @@ export const ENDPOINTS = {
     REGISTER: "/auth/register",
     REFRESH: "/auth/refresh",
     LOGOUT: "/auth/logout",
-    MESSAGES: (conversationId) => `/api/conversations/${conversationId}/messages`,
-    CONVERSATIONS: "/api/conversations",
+    MESSAGES: (chatId) => `/api/chats/${chatId}/messages`,
+    CONVERSATIONS: "/api/chats",
+    PROFILE: "/api/profile",
 };

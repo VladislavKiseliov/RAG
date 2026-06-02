@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { BASE_API_URL, ENDPOINTS } from '../config/api';
+import ProfileModal from './ProfileModal.jsx';
 
 function Sidebar({ currentConversationId, setCurrentConversationId, conversations, loadUserConversations, getAccessToken, onLogout, onToggleSidebar, isCollapsed, theme, onToggleTheme }) {
     // РЎРѕСЃС‚РѕСЏРЅРёСЏ РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ РјРµРЅСЋ РґРµР№СЃС‚РІРёР№ РЅР°Рґ С‡Р°С‚РѕРј
@@ -11,8 +12,9 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
     const [newTitle, setNewTitle] = useState(''); // РќРѕРІРѕРµ РЅР°Р·РІР°РЅРёРµ С‡Р°С‚Р° РїСЂРё СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРё
     const [error, setError] = useState(null); // РЎРѕСЃС‚РѕСЏРЅРёРµ РґР»СЏ РѕС‚РѕР±СЂР°Р¶РµРЅРёСЏ РѕС€РёР±РѕРє
     const [loading, setLoading] = useState(false); // РЎРѕСЃС‚РѕСЏРЅРёРµ Р·Р°РіСЂСѓР·РєРё
-    const [showUserMenu, setShowUserMenu] = useState(false); // РњРµРЅСЋ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
-    const menuButtonRef = useRef({}); // Р РµС„С‹ РґР»СЏ РєРЅРѕРїРѕРє РјРµРЅСЋ
+    const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
+    const menuButtonRef = useRef({});
 
     // Р¤СѓРЅРєС†РёСЏ РґР»СЏ Р·Р°РєСЂС‹С‚РёСЏ РјРµРЅСЋ РїСЂРё РєР»РёРєРµ РІРЅРµ РµРіРѕ РѕР±Р»Р°СЃС‚Рё
     useEffect(() => {
@@ -39,7 +41,8 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
     };
 
     const handleProfile = () => {
-        alert('Профиль: функционал в разработке.');
+        setShowUserMenu(false);
+        setShowProfile(true);
     };
 
     const handleHelp = () => {
@@ -393,6 +396,13 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
                 </div>
             )}
 
+            {showProfile && (
+                <ProfileModal
+                    getAccessToken={getAccessToken}
+                    onClose={() => setShowProfile(false)}
+                />
+            )}
+
             <div className="sidebar-footer">
                 <button
                     className="user-menu-button"
@@ -426,6 +436,7 @@ function Sidebar({ currentConversationId, setCurrentConversationId, conversation
     );
 }
 
+export { ProfileModal };
 export default Sidebar;
 
 

@@ -50,7 +50,7 @@ function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme 
         try {
             const token = await getAccessToken();
             if (!token) { showError('Сессия истекла. Войдите снова.'); return; }
-            const response = await fetch(`${BASE_API_URL}/api/conversations/${conversationId}`, {
+            const response = await fetch(`${BASE_API_URL}/api/chats/${conversationId}`, {
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             });
             if (response.ok) {
@@ -120,7 +120,7 @@ function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme 
             const token = await getAccessToken();
             if (!token) { setIsTyping(false); showError('Сессия истекла.'); return; }
 
-            const response = await fetch(`${BASE_API_URL}/api/conversations/${conversationId}/messages`, {
+            const response = await fetch(BASE_API_URL + ENDPOINTS.MESSAGES(conversationId), {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_message: text }),
