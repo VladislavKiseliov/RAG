@@ -1,10 +1,12 @@
+import uuid
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
+from backend.api.schemas import UserProfile, UserProfileUpdateRequest
 from backend.repository.repository import UserRepository
-from backend.utils.exceptions import UserAlreadyExistsError
+from backend.utils.exceptions import UserAlreadyExistsError, UserNotFoundError
 
 
 class UserService:
@@ -29,12 +31,12 @@ class UserService:
                 "page_size": page_size,
             }
 
-    async def get_user_repo_by_id(self, user_id: UUID) -> dict[str, Any] | None:
+    async def get_user_repo_by_id(self, user_id: UUID) -> UserProfile:
         async with self._sf() as session:
             user = await UserRepository(session).get_user_by_id(user_id)
             if user is None:
                 return None
-            return self._to_payload(user)
+            return UserProfile.model_validate(user)
 
     async def create_user_repo(self, login: str, password: str) -> dict[str, Any]:
         async with self._sf() as session:
@@ -48,7 +50,22 @@ class UserService:
                 user = await UserRepository(session).create_user(login=login, password=password)
             return self._to_payload(user)
 
-    async def update_user_repo(self, user_id: UUID, login: str, password: str) -> dict[str, Any] | None:
+    async def update_user_repo(self, user_id:uuid.UUID, user_profile:UserProfileUpdateRequest) -> UserProfile:
+
+        user_profile_update= user_profile.model_dump(exclude_unset=True)
+
+        async with self._sf() as session:
+            async with session.begin():
+                user = await UserRepository(session).update_user(user_id, user_profile_update)
+                if user is None:
+                    raise UserNotFoundError()
+            await session.refresh(user)
+
+        return UserProfile.model_validate(user)
+
+
+    async def update_user_credentials(self, user_id: uuid.UUID, login: str, password: str) -> dict[str, Any] | None:
+        """Admin-only: update login and password for a user."""
         async with self._sf() as session:
             existing = await UserRepository(session).get_user_by_login(login)
 
@@ -57,18 +74,10 @@ class UserService:
 
         async with self._sf() as session:
             async with session.begin():
-                updated = await UserRepository(session).update_user(
-                    user_id=user_id, new_login=login, new_password=password
-                )
-
-        if not updated:
-            return None
-
-        async with self._sf() as session:
-            user = await UserRepository(session).get_user_by_id(user_id)
-            if user is None:
-                return None
-            return self._to_payload(user)
+                user = await UserRepository(session).update_user(user_id, {"login": login, "password": password})
+                if user is None:
+                    raise UserNotFoundError()
+        return self._to_payload(user)
 
     async def delete_user_repo(self, user_id: UUID) -> bool:
         async with self._sf() as session:

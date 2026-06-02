@@ -41,6 +41,12 @@ class Users(Base):
     patronymic: Mapped[str | None] = mapped_column(String(100), nullable=True)
     job_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users_shema.departments.id"), nullable=True
+    )
+
 
 
 class Chats(Base):
@@ -130,4 +136,15 @@ class RefreshTokens(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class Department(Base):
+    __tablename__ = "departments"
+    __table_args__ = ({"schema": "users_shema"},)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users_shema.departments.id"), nullable=True
     )
