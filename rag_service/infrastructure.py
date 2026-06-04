@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import  Optional
 
-
+from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 # Импорты сервисов и провайдеров
@@ -47,9 +47,7 @@ def _create_db_factory(database_url: str, pool_size: int = 5):
     # Настраиваем движок с учетом пула соединений
     engine = create_async_engine(
         database_url,
-        pool_size=pool_size,
-        max_overflow=10,
-        pool_pre_ping=True,
+        poolclass=NullPool,
     )
     session_factory = async_sessionmaker(
         engine,
@@ -138,7 +136,6 @@ def build_worker_infrastructure() -> WorkerContainer:
         vector_storage=v_storage,
         vector_indexing_service=v_indexing_service,
         s3_storage=s3_store,
-        vector_timeout_seconds=settings.vector_timeout_seconds,
     )
 
     return WorkerContainer(
@@ -150,19 +147,3 @@ def build_worker_infrastructure() -> WorkerContainer:
         vector_storage=v_storage
     )
 
-
-# Глобальная переменная для кэширования контейнера внутри процесса воркера
-_worker_container: Optional[WorkerContainer] = None
-
-
-def get_worker_container() -> WorkerContainer:
-    """
-    Lazy initialization of the WorkerContainer.
-
-    Guarantees a Singleton pattern within a single worker process,
-    ensuring the heavy embedding model is loaded into RAM only once.
-    """
-    global _worker_container
-    if _worker_container is None:
-        _worker_container = build_worker_infrastructure()
-    return _worker_container

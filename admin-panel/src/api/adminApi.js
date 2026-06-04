@@ -173,24 +173,32 @@ export async function getDownloadUrl(docId) {
 
 export async function uploadDocuments(files) {
   const created = [];
+  const duplicates = [];
+
   for (const file of files) {
-    const { data } = await httpClient.post('/admin/documents/upload-link', null, {
-      params: { filename: file.name, file_size: file.size },
-    });
+    let data;
+    try {
+      const res = await httpClient.post('/admin/documents/upload-link', null, {
+        params: { filename: file.name, file_size: file.size },
+      });
+      data = res.data;
+    } catch (err) {
+      if (err.response?.status === 409) {
+        duplicates.push(file.name);
+        continue;
+      }
+      throw err;
+    }
 
     const presignedUrl = data?.presigned_url;
-    if (!presignedUrl) {
-      throw new Error('Upload link was not returned by backend');
-    }
+    if (!presignedUrl) throw new Error('Upload link was not returned by backend');
 
     const putRes = await fetch(presignedUrl, {
       method: 'PUT',
       headers: { 'Content-Type': file.type || 'application/octet-stream' },
       body: file,
     });
-    if (!putRes.ok) {
-      throw new Error(`Direct upload to storage failed: ${putRes.status}`);
-    }
+    if (!putRes.ok) throw new Error(`Direct upload to storage failed: ${putRes.status}`);
 
     const uploaded = data?.files?.[0];
     if (!uploaded) continue;
@@ -209,7 +217,7 @@ export async function uploadDocuments(files) {
       error_text: null,
     });
   }
-  return created;
+  return { created, duplicates };
 }
 
 export async function getUsers(params) {

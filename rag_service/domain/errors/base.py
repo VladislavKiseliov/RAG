@@ -29,3 +29,34 @@ class InvalidDocumentIdError(AppError):
 
     def __init__(self, message: str = "Invalid doc_id format"):
         super().__init__(message=message, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+class InvalidIngestionStateError(AppError):
+    """Raised when a document state transition is not allowed."""
+
+    def __init__(self, current: str, attempted: str):
+        super().__init__(
+            message=f"Cannot transition from '{current}' to '{attempted}'",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+class DuplicateFileError(AppError):
+    """Raised when a file with the same hash already exists in the system."""
+
+    def __init__(self, file_hash: str):
+        self.file_hash = file_hash
+        super().__init__(
+            message=f"File with hash '{file_hash}' already exists",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+class DuplicateFilenameError(AppError):
+    """Raised when an active document with the same filename already exists."""
+
+    def __init__(self, filename: str):
+        super().__init__(
+            message=f"Документ '{filename}' уже существует",
+            status_code=status.HTTP_409_CONFLICT,
+        )

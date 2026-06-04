@@ -217,6 +217,19 @@ class DataBaseDocumentService:
                 "chunk_count": document.chunk_count,
             }
 
+    async def get_document_by_filename(self, filename):
+        """Return one document by filename.
+
+            Args:
+                filename: filename
+
+            Returns:
+                Matching document row or `None`.
+            """
+        async with self.session_scope() as (_, repo):
+            return await repo.get_document_by_filename(filename)
+
+
 class DocumentQueryService:
     """Read-only queries over document metadata and chunks."""
 

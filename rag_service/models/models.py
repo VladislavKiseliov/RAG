@@ -43,7 +43,6 @@ class DocumentListItemDTO(Base):
         onupdate=func.now(),
     )
 
-    # new fields
     s3key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     chunk_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

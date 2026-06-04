@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+
+
 from rag_service.infrastructures.providers.embedding_provider import EmbeddingProvider
 
 
@@ -23,6 +26,7 @@ class VectorIndexingService:
         """
         self._embedding_provider = embedding_provider
         self._batch_size = max(1, batch_size)
+
 
     async def get_query_embedding(self, query: str) -> list[float]:
         """
@@ -69,6 +73,12 @@ class VectorIndexingService:
             all_vectors.extend(batch_vectors)
 
         return all_vectors
+    async def get_embeddings_parallel(self, texts: list[str]) -> list[list[float]]:
+        """Parallel — все батчи одновременно через asyncio.gather."""
+        if not texts:
+            return []
+
+        return await self._embedding_provider.embed(texts)
 
 
 

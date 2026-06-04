@@ -70,6 +70,10 @@ class DocumentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_document_by_filename(self,filename:str)-> DocumentListItemDTO | None:
+        return await self._get_one(DocumentListItemDTO.filename == filename)
+
+
     async def get_document_by_s3key(self, s3key: str) -> DocumentListItemDTO | None:
         """Return a single document by its storage key.
 

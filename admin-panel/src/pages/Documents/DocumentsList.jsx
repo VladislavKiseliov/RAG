@@ -67,8 +67,9 @@ export default function DocumentsList() {
   };
 
   const onUpload = async (files) => {
-    await uploadDocuments(files);
+    const result = await uploadDocuments(files);
     await load(1, { silent: false });
+    return result;
   };
 
   const onDelete = async () => {

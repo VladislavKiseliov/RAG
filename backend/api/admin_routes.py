@@ -9,7 +9,6 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-
 from backend.dependencies import UserServiceDep
 from backend.settings import settings
 from backend.utils.exceptions import UserAlreadyExistsError
@@ -112,8 +111,9 @@ async def _proxy_rag_request(
 
 @router.get("/users/repo")
 async def admin_users_repo(
-    page_size: int = Query(50, ge=1, le=500),
-    user_service: UserServiceDep,
+        user_service: UserServiceDep,
+        page_size: int = Query(50, ge=1, le=500),
+
 ) -> dict[str, Any]:
     """Get paginated list of users from repository-backed service layer."""
     return await user_service.get_users_repo(page_size=page_size)

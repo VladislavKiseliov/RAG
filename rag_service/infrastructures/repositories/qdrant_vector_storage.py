@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
+from functools import wraps
 from typing import Any
 
-from qdrant_client import AsyncQdrantClient,models
+from qdrant_client import AsyncQdrantClient, models, qdrant_client
 from qdrant_client.http.models import FilterSelector
 from qdrant_client.models import (
     Distance,
@@ -69,8 +71,9 @@ class QdrantVectorStorage():
         if not collection:
             raise RuntimeError("COLLECTION_NAME is not set")
 
-        self._client = AsyncQdrantClient(url=url)
+        self._client: AsyncQdrantClient = AsyncQdrantClient(url=url)
         self._collection = collection
+        self._collection_lock = asyncio.Lock()
         self._fusion = models.Fusion.DBSF
         self.bm25_model = "qdrant/bm25"
         self._distance = Distance[distance.upper()]
@@ -81,6 +84,7 @@ class QdrantVectorStorage():
         self._optimizers_memmap_threshold = optimizers_memmap_threshold
         self._optimizers_indexing_threshold = optimizers_indexing_threshold
         self._wal_capacity_mb = wal_capacity_mb
+
 
     async def upsert_vectors(self, doc_id: uuid.UUID, childs: list,vectors:list[list[float]]) -> None:
         """Persist already-vectorized points in Qdrant.
@@ -168,6 +172,7 @@ class QdrantVectorStorage():
 
         return ready_points
 
+
     def _build_prefetch(
         self,
         vector: list[float],
@@ -195,11 +200,13 @@ class QdrantVectorStorage():
             ),
         ]
 
+
     def _build_filter(self, doc_id: uuid.UUID | None) -> Filter | None:
         """Return a doc_id filter or None if no filtering is needed."""
         if doc_id is None:
             return None
         return Filter(must=[FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id)))])
+
 
     async def search(
         self,
@@ -242,6 +249,7 @@ class QdrantVectorStorage():
             ]
         except Exception as exc:
             raise VectorSearchError(f"Failed to execute vector search in Qdrant {exc=}") from exc
+
 
     async def batch_search(
         self,
@@ -301,6 +309,7 @@ class QdrantVectorStorage():
         except Exception as exc:
             raise VectorSearchError(f"Failed to execute batch vector search in Qdrant {exc=}") from exc
 
+
     async def delete_points(self, doc_id: uuid.UUID) -> None:
         """Delete every vector point that belongs to one document.
 
@@ -325,49 +334,51 @@ class QdrantVectorStorage():
             raise VectorDeleteError(f"Failed to delete vectors for doc_id={doc_id}") from exc
 
     async def _ensure_collection(self, vector_size: int) -> None:
-        """Create the target collection lazily if it does not exist yet.
+        async with self._collection_lock:
+            """Create the target collection lazily if it does not exist yet.
+    
+            The collection schema is derived from the first upserted vector size
+            and the configured distance/index optimizer settings.
+            """
+            try:
+                exists = await self._client.collection_exists(self._collection)
+                if exists:
+                    return
 
-        The collection schema is derived from the first upserted vector size
-        and the configured distance/index optimizer settings.
-        """
-        try:
-            exists = await self._client.collection_exists(self._collection)
-            if exists:
-                return
+                hnsw_config = None
+                if self._hnsw_m is not None or self._hnsw_ef_construct is not None:
+                    hnsw_config = HnswConfigDiff(
+                        m=self._hnsw_m,
+                        ef_construct=self._hnsw_ef_construct,
+                    )
 
-            hnsw_config = None
-            if self._hnsw_m is not None or self._hnsw_ef_construct is not None:
-                hnsw_config = HnswConfigDiff(
-                    m=self._hnsw_m,
-                    ef_construct=self._hnsw_ef_construct,
-                )
+                optimizers_config = None
+                if any(v is not None for v in [
+                    self._optimizers_default_segment_number,
+                    self._optimizers_memmap_threshold,
+                    self._optimizers_indexing_threshold,
+                ]):
+                    optimizers_config = OptimizersConfigDiff(
+                        default_segment_number=self._optimizers_default_segment_number,
+                        memmap_threshold=self._optimizers_memmap_threshold,
+                        indexing_threshold=self._optimizers_indexing_threshold,
+                    )
 
-            optimizers_config = None
-            if any(v is not None for v in [
-                self._optimizers_default_segment_number,
-                self._optimizers_memmap_threshold,
-                self._optimizers_indexing_threshold,
-            ]):
-                optimizers_config = OptimizersConfigDiff(
-                    default_segment_number=self._optimizers_default_segment_number,
-                    memmap_threshold=self._optimizers_memmap_threshold,
-                    indexing_threshold=self._optimizers_indexing_threshold,
-                )
+                wal_config = None
+                if self._wal_capacity_mb is not None:
+                    wal_config = WalConfigDiff(wal_capacity_mb=self._wal_capacity_mb)
 
-            wal_config = None
-            if self._wal_capacity_mb is not None:
-                wal_config = WalConfigDiff(wal_capacity_mb=self._wal_capacity_mb)
+                await self._client.create_collection(
+                    collection_name=self._collection,
+                    vectors_config={"dense_vector": VectorParams(size=vector_size, distance=self._distance)},
+                    sparse_vectors_config={"bm25_sparse_vector": models.SparseVectorParams(modifier=models.Modifier.IDF)},
+                    hnsw_config=hnsw_config,
+                    optimizers_config=optimizers_config,
+                    wal_config=wal_config,
+                    )
 
-            await self._client.create_collection(
-                collection_name=self._collection,
-                vectors_config={"dense_vector":VectorParams(size=vector_size, distance=self._distance)},
-                sparse_vectors_config={"bm25_sparse_vector": models.SparseVectorParams(modifier=models.Modifier.IDF)},
-                hnsw_config=hnsw_config,
-                optimizers_config=optimizers_config,
-                wal_config=wal_config
-            )
-        except Exception as exc:
-            raise VectorCollectionError("Failed to ensure Qdrant collection") from exc
+            except Exception as exc:
+                raise VectorCollectionError("Failed to ensure Qdrant collection") from exc
 
     @staticmethod
     def _normalize_point_id(raw_id: Any, *, fallback: str) -> str | int:
@@ -392,4 +403,5 @@ class QdrantVectorStorage():
                 return str(uuid.UUID(text))
             except ValueError:
                 return str(uuid.uuid5(uuid.NAMESPACE_URL, text))
+
         return str(uuid.uuid5(uuid.NAMESPACE_URL, str(candidate)))

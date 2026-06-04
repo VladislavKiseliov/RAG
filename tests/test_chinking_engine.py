@@ -15,7 +15,7 @@ def test_chinking_engine_produces_parents_and_children_payload():
         }
     ]
 
-    parents, children = engine.process_document(pages=pages, source="sample.pdf")
+    parents, children = engine.process_document(,
 
     assert len(parents) == 1
     assert len(children) >= 1

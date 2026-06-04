@@ -16,6 +16,8 @@ class DocumentStatus(str, enum.Enum):
     INDEXING = "indexing"  # Идет генерация эмбеддингов и запись в Qdrant
     DUPLICATE  = "duplicate" # Дупликат документа
 
+    RETRY = "retry"  # Временная ошибка, задача будет перезапущена Celery
+
     # 3. Финалы
     COMPLETED = "completed"  # Все готово, можно искать по документу
     ERROR = "error"  # Произошла ошибка

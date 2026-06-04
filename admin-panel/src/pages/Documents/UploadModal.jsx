@@ -37,9 +37,17 @@ export default function UploadModal({ open, onClose, onUpload }) {
       setFiles((prev) => prev.map((x, idx) => (idx === i ? { ...x, state: 'обработка' } : x)));
     }
 
-    await onUpload(valid);
-    setFiles((prev) => prev.map((x) => ({ ...x, state: x.error ? 'ошибка' : 'готов' })));
-    toast.success('Файлы отправлены');
+    const result = await onUpload(valid);
+    const duplicateSet = new Set(result?.duplicates || []);
+
+    setFiles((prev) => prev.map((x) => {
+      if (x.error) return x;
+      if (duplicateSet.has(x.file.name)) return { ...x, state: 'уже загружен', error: 'Файл с таким именем уже существует' };
+      return { ...x, state: 'готов' };
+    }));
+
+    if (result?.created?.length) toast.success('Документы загружены');
+    if (result?.duplicates?.length) toast.error(`Уже загружен: ${result.duplicates.join(', ')}`);
   };
 
   return (

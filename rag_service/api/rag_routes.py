@@ -25,8 +25,8 @@ from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.task_dispatcher_service import TaskDispatcherService
 from rag_service.domain.errors import (
     DocumentNotFound,
+    DuplicateFilenameError,
     InvalidDocumentIdError,
-    UploadValidationError,
     WebhookAuthorizationError,
 )
 from rag_service.workers.ingestion_service import IngestionService
@@ -67,12 +67,11 @@ async def generate_link_upload_file(
         upload_service: DocumentOrchestratorDep
 ):
     """Шаг 1: Регистрация файла и получение Presigned URL для MinIO"""
-    try:
-        response = await upload_service.get_upload_link(filename, file_size)
+    doc = await upload_service.database.get_document_by_filename(filename=filename)
+    if doc is not None:
+        raise DuplicateFilenameError(filename)
 
-        return response
-    except UploadValidationError as exc:
-        raise
+    return await upload_service.get_upload_link(filename, file_size)
 
 
 @router.post("/documents/ingest/webhook")
@@ -139,7 +138,8 @@ async def list_documents(
             "status": d.status.value if hasattr(d.status, "value") else str(d.status),
             "created_at": d.created_at.isoformat(),
             "chunk_count": d.chunk_count,
-            "s3key": d.s3key
+            "s3key": d.s3key,
+            "size": d.file_size
         }
         for d in docs
     ]
