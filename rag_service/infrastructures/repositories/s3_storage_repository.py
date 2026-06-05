@@ -10,6 +10,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from rag_service.domain.errors.storage import (
     StorageDeleteError,
     StorageMetadataError,
+    StorageNotFoundError,
     StorageReadError,
     StorageWriteError,
 )
@@ -155,7 +156,11 @@ class S3StorageRepository:
         try:
             async with self._get_client() as client:
                 head = await client.head_object(Bucket=self.bucket, Key=key)
-        except (ClientError, BotoCoreError) as exc:
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] in ("404", "NoSuchKey"):
+                raise StorageNotFoundError(f"Object '{key}' not found in storage") from exc
+            raise StorageMetadataError(f"Failed to read metadata for '{key}'") from exc
+        except BotoCoreError as exc:
             raise StorageMetadataError(f"Failed to read metadata for '{key}'") from exc
 
         return {

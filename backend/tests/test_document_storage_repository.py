@@ -34,7 +34,7 @@ async def test_upload_file_calls_provider(repository: DocumentStorageRepository,
 async def test_get_file_returns_provider_data(repository: DocumentStorageRepository, provider: AsyncMock) -> None:
     provider.download.return_value = b"file-bytes"
 
-    result = await repository.get_file("documents/1/file.pdf")
+    result = await repository.get_file_s3_by_s3key("documents/1/file.pdf")
 
     assert result == b"file-bytes"
     provider.download.assert_awaited_once_with("documents/1/file.pdf")

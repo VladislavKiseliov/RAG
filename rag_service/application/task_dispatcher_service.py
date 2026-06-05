@@ -8,8 +8,7 @@ from rag_service.domain.errors import DocumentByStorageKeyNotFound
 class TaskDispatcherService:
     """Сервис, отвечающий за делегирование тяжелых задач в очередь."""
 
-    def __init__(self, database:DataBaseDocumentService, broker_client=None):
-        self.broker = broker_client
+    def __init__(self, database:DataBaseDocumentService):
         self.database = database
 
     async def dispatch_ingestion(self, s3key: str) -> None:

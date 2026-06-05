@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 
-
+from rag_service.domain.models.vector_point import SparseVectorValue
 from rag_service.infrastructures.providers.embedding_provider import EmbeddingProvider
+from typing import List, Tuple
+
+from rag_service.infrastructures.repositories.bm25_embedding_service import BM25EmbeddingService
 
 
 class VectorIndexingService:
@@ -16,16 +19,18 @@ class VectorIndexingService:
         - Provide a clean interface for single query and batch document vectorization.
     """
 
-    def __init__(self, embedding_provider: EmbeddingProvider, batch_size: int = 64):
+    def __init__(self,
+                 embedding_provider: EmbeddingProvider,
+                 sparse_provider:BM25EmbeddingService
+                 ):
         """
         Initializes the service with a persistent embedding provider.
 
         Args:
             embedding_provider: A shared instance of the model provider.
-            batch_size: Number of texts to process in a single model pass.
         """
         self._embedding_provider = embedding_provider
-        self._batch_size = max(1, batch_size)
+        self._sparse_provider= sparse_provider # Наш BM25 (FastEmbed)
 
 
     async def get_query_embedding(self, query: str) -> list[float]:
@@ -66,19 +71,41 @@ class VectorIndexingService:
         if any(not t.strip() for t in texts):
             raise ValueError("Input list contains empty or invalid strings.")
 
-        all_vectors = []
-        for start in range(0, len(texts), self._batch_size):
-            batch = texts[start: start + self._batch_size]
-            batch_vectors = await self._embedding_provider.embed(batch)
-            all_vectors.extend(batch_vectors)
 
-        return all_vectors
-    async def get_embeddings_parallel(self, texts: list[str]) -> list[list[float]]:
-        """Parallel — все батчи одновременно через asyncio.gather."""
+        vectors = await self._embedding_provider.embed(texts)
+
+        return vectors
+
+
+    async def get_dense_vectors(self, texts: List[str]) -> List[List[float]]:
+        """Получить только плотные вектора (например, для специфичных задач)"""
         if not texts:
             return []
 
         return await self._embedding_provider.embed(texts)
+
+    async def get_sparse_vectors(self, texts: List[str]) -> List[SparseVectorValue]:
+        if not texts:
+            return []
+
+        """Получить только разреженные вектора"""
+        return await self._sparse_provider.get_sparse_embeddings(texts)
+
+
+    async def get_hybrid_vectors(self, texts: List[str]) -> Tuple[List[List[float]], List[SparseVectorValue]]:
+        """Получить оба вектора одновременно для гибридного RAG.
+        Вычисления запускаются параллельно для максимальной скорости!
+        """
+        import asyncio
+
+        # Запускаем генерацию плотных и разреженных векторов одновременно,
+        # чтобы процессор/видеокарта работали параллельно и не ждали друг друга
+        dense_task = self.get_dense_vectors(texts)
+        sparse_task =  self.get_sparse_vectors(texts)
+
+        dense_vectors, sparse_vectors = await asyncio.gather(dense_task, sparse_task)
+
+        return dense_vectors, sparse_vectors
 
 
 

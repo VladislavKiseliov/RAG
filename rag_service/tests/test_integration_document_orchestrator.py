@@ -176,7 +176,7 @@ async def test_get_file_reads_real_object_from_minio(
     content = b"integration-minio-content"
 
     await s3_repository.upload_file(content=content, key=file_key, content_type="text/plain")
-    loaded = await orchestrator.get_file(file_key)
+    loaded = await orchestrator.get_file_s3_by_s3key(file_key)
 
     assert loaded == content
 

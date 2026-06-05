@@ -11,9 +11,6 @@ from rag_service.api.schemas import DocumentStatus
 class Base(DeclarativeBase):
     pass
 
-
-
-
 class DocumentListItemDTO(Base):
     __tablename__ = "documents"
     __table_args__ = (

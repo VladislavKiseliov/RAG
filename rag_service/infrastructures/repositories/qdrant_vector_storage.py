@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from functools import wraps
-from typing import Any
 
-from qdrant_client import AsyncQdrantClient, models, qdrant_client
+from typing import Any, List
+
+from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.http.models import FilterSelector
 from qdrant_client.models import (
     Distance,
@@ -16,6 +16,7 @@ from qdrant_client.models import (
     OptimizersConfigDiff,
     PointStruct,
     QueryRequest,
+    SparseVector,
     VectorParams,
     WalConfigDiff,
     Document,
@@ -28,6 +29,7 @@ from rag_service.domain.errors.vector import (
     VectorSearchInputError,
     VectorUpsertError,
 )
+from rag_service.domain.models.vector_point import VectorPoint
 
 
 class QdrantVectorStorage():
@@ -85,93 +87,49 @@ class QdrantVectorStorage():
         self._optimizers_indexing_threshold = optimizers_indexing_threshold
         self._wal_capacity_mb = wal_capacity_mb
 
+    async def upsert_vectors(self, points: List[VectorPoint]) -> None:
+        """Сохраняет уже векторизованные доменные точки в Qdrant.
 
-    async def upsert_vectors(self, doc_id: uuid.UUID, childs: list,vectors:list[list[float]]) -> None:
-        """Persist already-vectorized points in Qdrant.
-
-        Expected point format:
-            {
-                "id": <optional int | UUID | str>,
-                "vector": list[float],
-                "payload": dict,
-            }
-
-        Notes:
-        - The provider assumes vectors are already computed.
-        - Payload is stored as-is after shallow copying.
-        - Upserts are split into Qdrant-sized batches only.
+        Принимает готовый батч точек, проверяет/создает коллекцию
+        и отправляет данные в Qdrant без повторного разбиения.
         """
-
-        points = self._creates_points(doc_id, childs, vectors)
-
         if not points:
             return
 
-        first_vector = points[0].get("vector")["dense_vector"]
-        if not first_vector:
-            raise RuntimeError("Point vector is empty")
+        vector_size = len(points[0].dense_vector)
+        if not vector_size:
+            raise RuntimeError("Point dense vector is empty")
 
         try:
-            await self._ensure_collection(len(first_vector))
+            await self._ensure_collection(vector_size)
 
-            for start in range(0, len(points), self._upsert_batch_size):
-                batch = points[start : start + self._upsert_batch_size]
-                qdrant_points: list[PointStruct] = []
-                for index, point in enumerate(batch, start=start):
-                    point_id = self._normalize_point_id(point.get("id"), fallback=f"point:{index}")
-                    qdrant_points.append(
-                        PointStruct(
-                            id=point_id,
-                            vector=point["vector"],
-                            payload=dict(point.get("payload") or {}),
-                        )
+            qdrant_points: list[PointStruct] = []
+            for index, point in enumerate(points):
+                point_id = self._normalize_point_id(point.id, fallback=f"point:{index}")
+                qdrant_points.append(
+                    PointStruct(
+                        id=point_id,
+                        vector={
+                            "dense_vector": point.dense_vector,
+                            "bm25_sparse_vector": SparseVector(
+                                indices=point.sparse_vector.indices,
+                                values=point.sparse_vector.values
+                            )
+                        },
+                        payload=point.payload,
                     )
-
-                await self._client.upsert(
-                    collection_name=self._collection,
-                    points=qdrant_points,
-                    wait=True,
                 )
+
+            await self._client.upsert(
+                collection_name=self._collection,
+                points=qdrant_points,
+                wait=True,
+            )
+
         except VectorCollectionError:
             raise
         except Exception as exc:
-            raise VectorUpsertError("Failed to upsert vectors to Qdrant") from exc
-
-    def _creates_points(self,doc_id: uuid.UUID, childs: list,vectors:list[list[float]]) -> list[dict]:
-        """
-                Internal mapper that assembles the dictionary structure for Qdrant points.
-
-                This method ensures that the 'text' and 'doc_id' are always present
-                in the point's payload for efficient retrieval and filtering.
-                """
-        if not childs or not vectors:
-            return []
-
-        ready_points = []
-
-        for child, vector in zip(childs, vectors, strict=True):
-            ready_points.append(
-                {
-                    "id": child.get("id") or str(uuid.uuid4()),
-                    "vector": {
-                                "dense_vector": vector,
-                                "bm25_sparse_vector": Document(
-                                    text=child["text"],
-                                    model=self.bm25_model
-                                )
-                            },
-                    "payload": {
-                        "parent_id": child["parent_id"],
-                        "headers": child.get("headers") or {},
-                        "text": child["text"],
-                        "source": child.get("source", ""),
-                        "doc_id": str(doc_id),
-                    },
-                }
-            )
-
-        return ready_points
-
+            raise VectorUpsertError(f"Failed to upsert vectors to Qdrant collection: {self._collection}") from exc
 
     def _build_prefetch(
         self,

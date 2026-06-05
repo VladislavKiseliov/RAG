@@ -71,6 +71,10 @@ class RagSettings(BaseSettings):
     max_context_chars: int = 12000
     vector_timeout_seconds: float = 600.0
 
+    # Upload validation
+    upload_allowed_extensions: list[str] = [".pdf", ".docx", ".txt"]
+    upload_max_size_bytes: int = 50 * 1024 * 1024  # 50 MB
+
     # MinIO
     minio_private_url: str
     minio_public_url:str

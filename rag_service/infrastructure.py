@@ -14,7 +14,8 @@ from rag_service.infrastructures.providers.vector_storage_provider import Vector
 from rag_service.workers.ingestion_service import IngestionService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.infrastructures.providers.local_embedding_provider import LocalEmbeddingProvider
+from rag_service.infrastructures.repositories.local_embedding_reposittory import LocalEmbeddingProvider
+from rag_service.infrastructures.repositories.bm25_embedding_service import BM25EmbeddingService
 from rag_service.settings import settings
 
 
@@ -68,17 +69,16 @@ def _build_s3_storage() -> S3StorageProvider:
     )
 
 v_indexing_service: Optional[VectorIndexingService] = None
+
 def get_v_indexing_service() -> VectorIndexingService:
     global v_indexing_service
     if v_indexing_service is None:
-        emb_provider = LocalEmbeddingProvider(
-            model=settings.embedding_model_name,
-        )
+        emb_provider = LocalEmbeddingProvider(model=settings.embedding_model_name)
+        sparse_provider = BM25EmbeddingService()
         v_indexing_service = VectorIndexingService(
             embedding_provider=emb_provider,
-            batch_size=settings.embedding_batch_size
+            sparse_provider=sparse_provider,
         )
-
     return v_indexing_service
 
 

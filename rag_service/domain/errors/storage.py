@@ -36,3 +36,10 @@ class StorageMetadataError(StorageError):
 
     def __init__(self, message: str = "Failed to process object metadata"):
         super().__init__(message=message)
+
+
+class StorageNotFoundError(StorageError):
+    """Raised when a requested object does not exist in storage."""
+
+    def __init__(self, message: str = "Object not found in storage"):
+        super().__init__(message=message)

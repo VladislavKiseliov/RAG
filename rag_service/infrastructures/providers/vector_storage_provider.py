@@ -1,6 +1,8 @@
 from typing import Protocol, Any, runtime_checkable, List, Dict, Optional
 import uuid
 
+from rag_service.domain.models.vector_point import VectorPoint
+
 
 @runtime_checkable
 class VectorStorageProvider(Protocol):
@@ -10,18 +12,11 @@ class VectorStorageProvider(Protocol):
     Implementations are responsible for fusing dense and sparse results.
     """
 
-    async def upsert_vectors(
-            self,
-            doc_id: uuid.UUID,
-            childs: List[Dict[str, Any]],
-            vectors: List[List[float]]
-    ) -> None:
-        """Persist pre-computed dense vectors with associated chunk metadata.
+    async def upsert_vectors(self, points: List[VectorPoint]) -> None:
+        """Persist a batch of domain vector points.
 
         Args:
-            doc_id: Source document identifier.
-            childs: Chunk dicts with keys: id, text, parent_id, headers, source.
-            vectors: Dense embedding vectors aligned with childs (same order and length).
+            points: Pre-computed domain points (dense + sparse vectors + payload).
         """
         ...
 

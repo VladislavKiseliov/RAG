@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Dict
 
+from rag_service.domain.models.vector_point import VectorPoint
+
 logger = logging.getLogger(__name__)
 
 from rag_service.application.chunking_pipeline import DocumentChunkingPipeline
@@ -70,8 +72,19 @@ class IngestionService:
             ValueError: PDF пустой или не распарсился — ретрай бессмысленен.
             Exception: Сетевые/инфраструктурные ошибки — Celery сделает retry.
         """
-        doc = IngestionDocument(doc_id=doc_id, s3_key=s3key, status=DocumentStatus.PENDING)
+        # 1. ЗАГРУЖАЕМ существующий документ из БД, чтобы не потерять file_size и метаданные
+        db_doc = await self._document_service.get_document_by_id(doc_id)
+        if not db_doc:
+            raise ValueError(f"Document {doc_id} targets ghost record in database.")
+
         file_name = Path(s3key).name
+        doc = IngestionDocument(
+            id=db_doc.id,
+            filename=db_doc.filename,
+            s3_key=db_doc.s3key,
+            file_size=db_doc.file_size,
+            status=DocumentStatus.PENDING
+        )
         logger.info("Starting ingestion doc_id=%s s3key=%s", doc_id, s3key)
 
         try:
@@ -127,6 +140,7 @@ class IngestionService:
             logger.error("Extraction failed doc_id=%s error=%s", doc_id, e)
             doc.fail()
             await self._document_service.update_document(doc_id, status=doc.status)
+            return IngestionResult(doc_id=doc_id, status=doc.status)
 
         except Exception as e:
             # Остальные инфраструктурные ошибки (S3, БД, сеть) — Celery ретраит
@@ -143,10 +157,16 @@ class IngestionService:
         async def process_batch_chain(batch_data: List[Dict]):
             batch_texts = [str(c["text"]) for c in batch_data]
 
-            batch_vectors = await self.vector_indexing_service.get_embeddings_parallel(batch_texts)
+            dense_vectors, sparse_vectors = await self.vector_indexing_service.get_hybrid_vectors(batch_texts)
+
+            ready_point = self._creates_points(doc_id=doc_id,
+                                 childs=batch_data,
+                                 dense_vectors=dense_vectors,
+                                 sparse_vectors=sparse_vectors
+                                 )
 
             async with semaphore:
-                await self.vector_storage.upsert_vectors(doc_id, batch_data, batch_vectors)
+                await self.vector_storage.upsert_vectors(ready_point)
 
         for start in range(0, len(children), batch_size):
             batch = children[start: start + batch_size]
@@ -169,6 +189,39 @@ class IngestionService:
 
         await self._document_service.add_parent_chunks(doc_id, parents)
         return children
+
+
+    def _creates_points(self,doc_id: uuid.UUID, childs: list,dense_vectors:list[list[float]],sparse_vectors) -> list[VectorPoint]:
+        """
+                Internal mapper that assembles the dictionary structure for Qdrant points.
+
+                This method ensures that the 'text' and 'doc_id' are always present
+                in the point's payload for efficient retrieval and filtering.
+                """
+        if not childs or not dense_vectors or not sparse_vectors:
+            return []
+
+        ready_points = []
+
+        for child, dense_vector, sparse_vector in zip(childs, dense_vectors, sparse_vectors, strict=True):
+            point_id = child.get("id") or str(uuid.uuid4())
+
+
+            point = VectorPoint(
+                id=point_id,
+                dense_vector=dense_vector,
+                sparse_vector=sparse_vector,
+                text=child["text"],
+                payload={
+                    "parent_id": child["parent_id"],
+                    "headers": child.get("headers") or {},
+                    "text": child["text"],
+                    "source": child.get("source", ""),
+                    "doc_id": str(doc_id),
+                }
+            )
+            ready_points.append(point)
+        return ready_points
 
 
 

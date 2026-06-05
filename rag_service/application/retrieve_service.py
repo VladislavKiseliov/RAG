@@ -255,7 +255,6 @@ def build_retrieved_items(
     parent_key = {str(parent.id): parent for parent in parent_chunks}
 
     items: list[RetrieveItem] = []
-    total = len(parent_key)
     for key, group in group_hits.items():
         row = parent_key.get(key)
         if row is None:
@@ -273,13 +272,13 @@ def build_retrieved_items(
             {
                 "child_chunks":children,
                 "parent_chunk": getattr(row, "content", ""),
-                "metadata":group.get("metadata", []),
+                "metadata":group.get("metadata", {}),
 
             }
         )
     # Итоговая сортировка всех результатов по максимальному скору
     items = sorted(items, key=lambda x: x["metadata"]["score"], reverse=True)
 
-    result = {"items": items, "total": total}
+    result = {"items": items, "total": len(items)}
 
     return result

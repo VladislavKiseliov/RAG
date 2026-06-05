@@ -1,18 +1,46 @@
 import hashlib
+import os
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from rag_service.api.schemas import DocumentStatus
-from rag_service.domain.errors.base import InvalidIngestionStateError
+from rag_service.domain.errors.base import InvalidIngestionStateError, UploadValidationError
+from rag_service.settings import settings
 
 
 @dataclass
 class IngestionDocument:
-    doc_id: uuid.UUID
+    id: uuid.UUID
+    filename: str
     s3_key: str
+    file_size: int
     status: DocumentStatus
     file_hash: str | None = field(default=None)
     chunk_count: int | None = field(default=None)
+
+    @classmethod
+    def create_new(cls, filename: str, file_size: int) -> "IngestionDocument":
+        """Фабричный метод — валидирует метаданные и генерирует S3-ключ."""
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in settings.upload_allowed_extensions:
+            raise UploadValidationError(f"Расширение {ext} не поддерживается.")
+        if file_size <= 0:
+            raise UploadValidationError("Файл пустой.")
+        if file_size > settings.upload_max_size_bytes:
+            raise UploadValidationError(f"Файл слишком велик ({file_size} байт). Лимит {settings.upload_max_size_bytes // (1024*1024)}МБ.")
+
+        doc_id = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+        s3_key = f"documents/{now:%Y/%m}/{doc_id}{ext}"
+
+        return cls(
+            id=doc_id,
+            filename=filename,
+            s3_key=s3_key,
+            file_size=file_size,
+            status=DocumentStatus.PENDING,
+        )
 
     def start_processing(self, file_bytes: bytes) -> None:
         """PENDING → PROCESSING. Вычисляет и регистрирует хеш файла."""

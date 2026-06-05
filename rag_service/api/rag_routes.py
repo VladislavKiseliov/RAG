@@ -223,31 +223,6 @@ async def batch_delete_documents(
 #     )
 #
 #
-# @router.delete("/documents/{doc_id}", response_model=DeleteDocumentResponse)
-# async def delete_document(
-#         doc_id: str,
-#         ingestion_service: IngestionService = Depends(get_ingestion_service),
-#         document_query_service: DocumentQueryService = Depends(get_document_query_service),
-#         document_service: DocumentService = Depends(get_document_service),
-#         upload_service: DocumentUploadService = Depends(get_document_upload_service)
-# ):
-#     """Полное удаление документа из всех систем (DB, S3, Qdrant)"""
-#     doc_uuid = uuid.UUID(doc_id)
-#     doc = await document_query_service.get_document_by_id(doc_uuid)
-#     if not doc:
-#         raise HTTPException(404, "Not found")
-#
-#     # 1. Удаляем векторы
-#     await ingestion_service.vector_provider.delete(doc_uuid)
-#     # 2. Удаляем файл из S3
-#     if doc.minio_key:
-#         await upload_service.delete_file(key=doc.minio_key)
-#     # 3. Удаляем запись из БД
-#     await document_service.delete_document(doc_uuid)
-#
-#     return DeleteDocumentResponse(status="deleted", doc_id=str(doc_uuid))
-#
-#
 # # =============================================================================
 # # 4. DEBUG & STORAGE API (Прямой доступ к хранилищу - только для админа)
 # # =============================================================================
