@@ -1,0 +1,24 @@
+# Frontend and admin panel have their own build context
+frontend/
+admin-panel/
+
+# Infrastructure configs - not needed in app images
+nginx/
+cloudflare/
+
+# Dev/tooling
+.git/
+.idea/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+tests/
+docs/
+
+# Env files (injected via docker-compose env_file)
+.env
+.env.example
+
+# Misc
+*.md

@@ -99,3 +99,6 @@ frontend/.vite/
 # Celery extras
 celerybeat-schedule*
 *.pid
+
+# Cloudflare tunnel credentials (cert, token, config with secrets)
+cloudflare/
