@@ -1,5 +1,5 @@
 ﻿// src/components/Message.jsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -12,6 +12,39 @@ function TypingIndicator() {
                 <span className="typing-dot" />
             </div>
         </div>
+    );
+}
+
+function HighlightedText({ text, childChunks }) {
+    const parts = useMemo(() => {
+        if (!childChunks || childChunks.length === 0) return [{ text, highlight: false }];
+        const result = [];
+        const positions = childChunks
+            .map((chunk) => {
+                const probe = chunk.slice(0, 60).trim();
+                const idx = text.indexOf(probe);
+                return idx !== -1 ? { start: idx, end: idx + chunk.length } : null;
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.start - b.start);
+        let cursor = 0;
+        for (const { start, end } of positions) {
+            if (start > cursor) result.push({ text: text.slice(cursor, start), highlight: false });
+            result.push({ text: text.slice(start, Math.min(end, text.length)), highlight: true });
+            cursor = Math.min(end, text.length);
+        }
+        if (cursor < text.length) result.push({ text: text.slice(cursor), highlight: false });
+        return result;
+    }, [text, childChunks]);
+
+    return (
+        <>
+            {parts.map((part, i) =>
+                part.highlight
+                    ? <mark key={i} className="source-highlight">{part.text}</mark>
+                    : <span key={i}>{part.text}</span>
+            )}
+        </>
     );
 }
 
@@ -64,35 +97,6 @@ function SourcesBlock({ sources }) {
             .map((v) => v.replace(/\*\*/g, '').trim());
         if (parts.length > 0) return parts.join(' › ');
         return `Фрагмент ${unique.indexOf(s) + 1}`;
-    };
-
-    const highlightChunks = (parentText, childChunks) => {
-        if (!childChunks || childChunks.length === 0) return [{ text: parentText, highlight: false }];
-
-        const parts = [];
-        let remaining = parentText;
-        let offset = 0;
-
-        // Сортируем child chunks по позиции в parent тексте
-        const positions = childChunks
-            .map((chunk) => {
-                // Ищем по первым 60 символам chunk для устойчивости к нормализации
-                const probe = chunk.slice(0, 60).trim();
-                const idx = remaining.indexOf(probe, offset);
-                return idx !== -1 ? { start: idx, end: idx + chunk.length, chunk } : null;
-            })
-            .filter(Boolean)
-            .sort((a, b) => a.start - b.start);
-
-        let cursor = 0;
-        for (const { start, end } of positions) {
-            if (start > cursor) parts.push({ text: parentText.slice(cursor, start), highlight: false });
-            parts.push({ text: parentText.slice(start, Math.min(end, parentText.length)), highlight: true });
-            cursor = Math.min(end, parentText.length);
-        }
-        if (cursor < parentText.length) parts.push({ text: parentText.slice(cursor), highlight: false });
-
-        return parts;
     };
 
     const handleMouseEnter = (e, s) => {
@@ -167,11 +171,7 @@ function SourcesBlock({ sources }) {
                 >
                     <div className="source-tooltip-header">{tooltip.name}</div>
                     <div className="source-tooltip-text">
-                        {highlightChunks(tooltip.text, tooltip.childChunks).map((part, i) =>
-                            part.highlight
-                                ? <mark key={i} className="source-highlight">{part.text}</mark>
-                                : <span key={i}>{part.text}</span>
-                        )}
+                        <HighlightedText text={tooltip.text} childChunks={tooltip.childChunks} />
                     </div>
                 </div>
             )}

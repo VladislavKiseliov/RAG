@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { BASE_API_URL, ENDPOINTS } from '../config/api';
+import { ENDPOINTS } from '../config/api';
 
-function ProfileModal({ getAccessToken, onClose }) {
+function ProfileModal({ api, onClose }) {
     const [form, setForm] = useState({
         first_name: '',
         last_name: '',
@@ -16,14 +16,8 @@ function ProfileModal({ getAccessToken, onClose }) {
     const [success, setSuccess] = useState(false);
 
     useEffect(() => {
-        const load = async () => {
-            try {
-                const token = await getAccessToken();
-                const res = await fetch(BASE_API_URL + ENDPOINTS.PROFILE, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (!res.ok) throw new Error('Не удалось загрузить профиль');
-                const data = await res.json();
+        api.get(ENDPOINTS.PROFILE)
+            .then((data) => {
                 setLogin(data.login || '');
                 setRole(data.role || '');
                 setForm({
@@ -32,13 +26,9 @@ function ProfileModal({ getAccessToken, onClose }) {
                     patronymic: data.patronymic || '',
                     job_title: data.job_title || '',
                 });
-            } catch (e) {
-                setError(e.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
+            })
+            .catch((e) => setError(e.message))
+            .finally(() => setLoading(false));
     }, []);
 
     const handleSave = async () => {
@@ -46,16 +36,7 @@ function ProfileModal({ getAccessToken, onClose }) {
         setError(null);
         setSuccess(false);
         try {
-            const token = await getAccessToken();
-            const res = await fetch(BASE_API_URL + ENDPOINTS.PROFILE, {
-                method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(form),
-            });
-            if (!res.ok) throw new Error('Не удалось сохранить');
+            await api.patch(ENDPOINTS.PROFILE, form);
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
         } catch (e) {
@@ -65,12 +46,8 @@ function ProfileModal({ getAccessToken, onClose }) {
         }
     };
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Escape') onClose();
-    };
-
     return (
-        <div className="modal-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
+        <div className="modal-overlay" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
             <div className="modal-box" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <span className="modal-title">Профиль</span>

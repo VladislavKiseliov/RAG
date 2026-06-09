@@ -1,14 +1,14 @@
-﻿// src/pages/ChatPage.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import MessageInput from '../components/MessageInput.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import Message from '../components/Message.jsx';
-import { BASE_API_URL, ENDPOINTS } from '../config/api';
+import { createApiClient } from '../api/client';
+import { ENDPOINTS } from '../config/api';
+
+const GREETING = { id: 1, content: 'Привет! Я ваш помощник по документации. Задайте вопрос.', role: 'assistant' };
 
 function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme }) {
-    const [messages, setMessages] = useState([
-        { id: 1, content: 'Привет! Я ваш помощник по документации. Задайте вопрос.', role: 'assistant' },
-    ]);
+    const [messages, setMessages] = useState([GREETING]);
     const [isTyping, setIsTyping] = useState(false);
     const [currentConversationId, setCurrentConversationId] = useState(null);
     const [conversations, setConversations] = useState([]);
@@ -16,7 +16,8 @@ function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme 
     const [loading, setLoading] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const messagesEndRef = useRef(null);
-    const assistantGreeting = 'Привет! Я ваш помощник по документации. Задайте вопрос.';
+
+    const api = useMemo(() => createApiClient(getAccessToken), [getAccessToken]);
 
     const showError = (message) => {
         setError(message);
@@ -26,20 +27,10 @@ function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme 
     const loadUserConversations = async () => {
         setLoading(true);
         try {
-            const token = await getAccessToken();
-            if (!token) { showError('Сессия истекла. Войдите снова.'); return; }
-            const response = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setConversations(data.conversations || []);
-            } else {
-                const d = await response.json().catch(() => ({}));
-                showError(d.detail || `Ошибка загрузки чатов: ${response.status}`);
-            }
+            const data = await api.get(ENDPOINTS.CONVERSATIONS);
+            setConversations(data.conversations || []);
         } catch (e) {
-            showError('Ошибка сети при загрузке чатов.');
+            showError(e.message);
         } finally {
             setLoading(false);
         }
@@ -48,27 +39,16 @@ function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme 
     const loadConversationHistory = async (conversationId) => {
         setLoading(true);
         try {
-            const token = await getAccessToken();
-            if (!token) { showError('Сессия истекла. Войдите снова.'); return; }
-            const response = await fetch(`${BASE_API_URL}/api/chats/${conversationId}`, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const formatted = data.history.map(msg => ({
-                    id: msg.id,
-                    content: msg.content,
-                    role: msg.role,
-                    sources: msg.sources || null,
-                }));
-                setMessages(formatted.length === 0
-                    ? [{ id: 1, content: assistantGreeting, role: 'assistant' }]
-                    : formatted);
-            } else {
-                setMessages([{ id: 1, content: assistantGreeting, role: 'assistant' }]);
-            }
-        } catch (e) {
-            setMessages([{ id: 1, content: assistantGreeting, role: 'assistant' }]);
+            const data = await api.get(`/api/chats/${conversationId}`);
+            const formatted = data.history.map((msg) => ({
+                id: msg.id,
+                content: msg.content,
+                role: msg.role,
+                sources: msg.sources || null,
+            }));
+            setMessages(formatted.length === 0 ? [GREETING] : formatted);
+        } catch {
+            setMessages([GREETING]);
         } finally {
             setLoading(false);
         }
@@ -82,7 +62,7 @@ function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme 
         if (currentConversationId) {
             loadConversationHistory(currentConversationId);
         } else {
-            setMessages([{ id: 1, content: assistantGreeting, role: 'assistant' }]);
+            setMessages([GREETING]);
         }
     }, [currentConversationId]);
 
@@ -91,82 +71,63 @@ function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme 
     }, [messages, isTyping]);
 
     const handleSendMessage = async (text) => {
-        const ensureConversation = async () => {
-            const token = await getAccessToken();
-            if (!token) { showError('Сессия истекла.'); return null; }
-            const res = await fetch(BASE_API_URL + ENDPOINTS.CONVERSATIONS, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            });
-            if (!res.ok) { showError('Не удалось создать чат.'); return null; }
-            const data = await res.json();
-            setCurrentConversationId(data.conversation_id);
-            loadUserConversations();
-            setMessages([{ id: 1, content: assistantGreeting, role: 'assistant' }]);
-            return data.conversation_id;
-        };
-
         let conversationId = currentConversationId;
         if (!conversationId) {
-            conversationId = await ensureConversation();
-            if (!conversationId) return;
+            try {
+                const data = await api.post(ENDPOINTS.CONVERSATIONS);
+                conversationId = data.conversation_id;
+                setCurrentConversationId(conversationId);
+                setMessages([GREETING]);
+                loadUserConversations();
+            } catch (e) {
+                showError(e.message);
+                return;
+            }
         }
 
-        const userMessage = { id: Date.now(), content: text, role: 'user' };
-        setMessages((prev) => [...prev, userMessage]);
+        setMessages((prev) => [...prev, { id: Date.now(), content: text, role: 'user' }]);
         setIsTyping(true);
 
         try {
-            const token = await getAccessToken();
-            if (!token) { setIsTyping(false); showError('Сессия истекла.'); return; }
-
-            const response = await fetch(BASE_API_URL + ENDPOINTS.MESSAGES(conversationId), {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_message: text }),
-            });
-
-            setIsTyping(false);
-
-            if (response.ok) {
-                const data = await response.json();
-                // data.response — текст, data.sources — массив источников (если есть)
-                const assistantMsg = {
-                    id: Date.now() + 1,
-                    content: data.response,
-                    role: 'assistant',
-                    sources: data.sources || null,
-                };
-                setMessages((prev) => [...prev, assistantMsg]);
-            } else {
-                const d = await response.json().catch(() => ({}));
-                const errText = d.detail || `Ошибка: ${response.status}`;
-                showError(errText);
-                setMessages((prev) => [...prev, {
-                    id: Date.now() + 1,
-                    content: 'Произошла ошибка при получении ответа.',
-                    role: 'assistant',
-                }]);
-            }
-        } catch (e) {
-            setIsTyping(false);
-            showError('Ошибка сети.');
+            const data = await api.post(ENDPOINTS.MESSAGES(conversationId), { user_message: text });
             setMessages((prev) => [...prev, {
                 id: Date.now() + 1,
-                content: 'Ошибка сети при отправке сообщения.',
+                content: data.response,
+                role: 'assistant',
+                sources: data.sources || null,
+            }]);
+        } catch (e) {
+            showError(e.message);
+            setMessages((prev) => [...prev, {
+                id: Date.now() + 1,
+                content: 'Произошла ошибка при получении ответа.',
                 role: 'assistant',
             }]);
+        } finally {
+            setIsTyping(false);
         }
     };
+
+    const removeConversation = useCallback(
+        (id) => setConversations((prev) => prev.filter((c) => c.id !== id)),
+        []
+    );
+
+    const renameConversation = useCallback(
+        (id, title) => setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c))),
+        []
+    );
 
     return (
         <div className="app-layout">
             <Sidebar
+                api={api}
                 currentConversationId={currentConversationId}
                 setCurrentConversationId={setCurrentConversationId}
                 conversations={conversations}
-                getAccessToken={getAccessToken}
                 loadUserConversations={loadUserConversations}
+                onConversationRemoved={removeConversation}
+                onConversationRenamed={renameConversation}
                 onLogout={onLogout}
                 theme={theme}
                 onToggleTheme={onToggleTheme}

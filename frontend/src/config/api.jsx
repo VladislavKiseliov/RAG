@@ -2,7 +2,7 @@
 
 // Базовый адрес FastAPI
 // Используйте 127.0.0.1, если запускаете бэкенд локально на порту 8000
-export const BASE_API_URL = "http://127.0.0.1:8000";
+export const BASE_API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 // Конкретные пути к эндпоинтам
 export const ENDPOINTS = {
