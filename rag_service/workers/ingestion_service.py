@@ -150,22 +150,22 @@ class IngestionService:
             raise e
 
 
-    async def _run_pipeline(self, doc_id: uuid.UUID, children: List[Dict], batch_size: int = 50) -> None:
-        semaphore = asyncio.Semaphore(4)
+    async def _run_pipeline(self, doc_id: uuid.UUID, children: List[Dict], batch_size: int = 25) -> None:
+        semaphore = asyncio.Semaphore(3)
         background_tasks = set()
 
         async def process_batch_chain(batch_data: List[Dict]):
-            batch_texts = [str(c["text"]) for c in batch_data]
-
-            dense_vectors, sparse_vectors = await self.vector_indexing_service.get_hybrid_vectors(batch_texts)
-
-            ready_point = self._creates_points(doc_id=doc_id,
-                                 childs=batch_data,
-                                 dense_vectors=dense_vectors,
-                                 sparse_vectors=sparse_vectors
-                                 )
-
             async with semaphore:
+                batch_texts = [str(c["text"]) for c in batch_data]
+
+                dense_vectors, sparse_vectors = await self.vector_indexing_service.get_hybrid_vectors(batch_texts)
+
+                ready_point = self._creates_points(doc_id=doc_id,
+                                     childs=batch_data,
+                                     dense_vectors=dense_vectors,
+                                     sparse_vectors=sparse_vectors
+                                     )
+
                 await self.vector_storage.upsert_vectors(ready_point)
 
         for start in range(0, len(children), batch_size):

@@ -73,7 +73,7 @@ class QdrantVectorStorage():
         if not collection:
             raise RuntimeError("COLLECTION_NAME is not set")
 
-        self._client: AsyncQdrantClient = AsyncQdrantClient(url=url)
+        self._client: AsyncQdrantClient = AsyncQdrantClient(url=url, timeout=60)
         self._collection = collection
         self._collection_lock = asyncio.Lock()
         self._fusion = models.Fusion.DBSF
