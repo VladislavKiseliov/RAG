@@ -23,7 +23,7 @@ export const createApiClient = (getAccessToken) => {
     };
 
     return {
-        get: (url) => request(url),
+        get: (url, options) => request(url, options),
         post: (url, body) => request(url, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
         patch: (url, body) => request(url, { method: 'PATCH', body: JSON.stringify(body) }),
         delete: (url) => request(url, { method: 'DELETE' }),

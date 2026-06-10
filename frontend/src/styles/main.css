@@ -905,6 +905,8 @@ html, body {
 }
 .toggle-auth:hover { color: var(--accent); }
 
+.auth-error { color: var(--error, #e53e3e); font-weight: 600; margin: 0; }
+
 /* =====================================================
    Utility
    ===================================================== */

@@ -10,25 +10,14 @@ from backend.utils.exceptions import AccessTokenExpiredError
 
 
 class AuthHandler:
-    """
-    Класс для работы с безопасностью: хеширование паролей и генерация JWT.
-    Singleton: один экземпляр на всё приложение.
-    """
-    _instance = None
+    """Хеширование паролей и генерация JWT. Инжектируется через BackendContainer."""
 
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super(AuthHandler, cls).__new__(cls)
-        return cls._instance
-
-    def __init__(self, secret_key: str, algorithm: str, expire_minutes: int,refresh_expire_days: int):
-        if not hasattr(self, 'initialized'):
-            self.SECRET_KEY = secret_key
-            self.ALGORITHM = algorithm
-            self.EXPIRE_MINUTES = expire_minutes
-            self.REFRESH_EXPIRE_DAYS = refresh_expire_days
-            self.password_hash = PasswordHash.recommended()
-            self.initialized = True
+    def __init__(self, secret_key: str, algorithm: str, expire_minutes: int, refresh_expire_days: int):
+        self.SECRET_KEY = secret_key
+        self.ALGORITHM = algorithm
+        self.EXPIRE_MINUTES = expire_minutes
+        self.REFRESH_EXPIRE_DAYS = refresh_expire_days
+        self.password_hash = PasswordHash.recommended()
 
     def create_access_token(self, user_id: str) -> str:
         """
