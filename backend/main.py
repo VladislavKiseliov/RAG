@@ -19,6 +19,8 @@ from backend.api.auth_routes import router as auth_router
 from backend.api.profile_routes import router as profile_router
 from backend.api.chats_routes import router as chats_router
 from backend.api.admin_routes import router as admin_router
+from fastapi.responses import Response
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 # Инициализируем логгер
 setup_logger("backend")
@@ -37,6 +39,8 @@ origins = [
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/metrics":
+            return await call_next(request)
         start = time.perf_counter()
         response = await call_next(request)
         duration = time.perf_counter() - start
@@ -83,6 +87,38 @@ app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(chats_router)
 app.include_router(admin_router)
+
+# Метрики
+REQUEST_COUNT = Counter(
+    'app_requests_total',
+    'Total HTTP requests',
+    ['method', 'endpoint', 'status']
+)
+
+REQUEST_DURATION = Histogram(
+    'app_request_duration_seconds',
+    'HTTP request duration',
+    ['method', 'endpoint']
+)
+
+
+@app.middleware("http")
+async def prometheus_middleware(request, call_next):
+    if request.url.path == "/metrics":
+        return await call_next(request)
+    method = request.method
+    endpoint = request.url.path
+    with REQUEST_DURATION.labels(method, endpoint).time():
+        response = await call_next(request)
+    REQUEST_COUNT.labels(method, endpoint, response.status_code).inc()
+    return response
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 
 # Глобальный обработчик наших кастомных ошибок
 @app.exception_handler(AppError)

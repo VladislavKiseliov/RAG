@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "backend"
+    static_configs:
+      - targets: ["rag_backend:8000"]
+
+  - job_name: "llm_service"
+    static_configs:
+      - targets: ["llm_service:8002"]
+
+  - job_name: "rag_service"
+    static_configs:
+      - targets: ["rag_service:8001"]

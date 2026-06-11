@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: ['frontend_node'],
+    allowedHosts: ['frontend_node', 'rag_frontend'],
   },
   optimizeDeps: {
     force: true,

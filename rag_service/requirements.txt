@@ -9,6 +9,7 @@ asyncpg
 
 # Task queue
 celery[redis]
+flower
 
 # Storage
 aioboto3
@@ -38,3 +39,4 @@ httpx
 
 # Logging
 python-json-logger
+prometheus-client

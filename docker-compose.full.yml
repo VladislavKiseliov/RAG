@@ -101,6 +101,13 @@ services:
       - ./rag_service:/app/rag_service
     command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001 --reload
     restart: unless-stopped
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://localhost:3100/loki/api/v1/push"
+        loki-external-labels: "service=rag_service"
+        mode: non-blocking
+        max-buffer-size: 4m
     depends_on:
       postgres:
         condition: service_healthy
@@ -128,6 +135,13 @@ services:
       - fastembed_cache:/root/.cache/fastembed
     command: celery -A rag_service.celery_app worker -l INFO
     restart: unless-stopped
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://localhost:3100/loki/api/v1/push"
+        loki-external-labels: "service=rag_worker"
+        mode: non-blocking
+        max-buffer-size: 4m
     # КРИТИЧЕСКИЙ БЛОК: Проброс ядер GTX 1660 Ti внутрь Celery воркера
     deploy:
       resources:
@@ -195,6 +209,13 @@ services:
       - ./llm_service:/app/llm_service
     command: uvicorn llm_service.main:app --host 0.0.0.0 --port 8002
     restart: unless-stopped
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://localhost:3100/loki/api/v1/push"
+        loki-external-labels: "service=llm_service"
+        mode: non-blocking
+        max-buffer-size: 4m
     depends_on:
       rag-service:
         condition: service_started
@@ -212,6 +233,13 @@ services:
       - ./backend:/app/backend
       - ./ServiceDataBase:/app/ServiceDataBase
     restart: unless-stopped
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://localhost:3100/loki/api/v1/push"
+        loki-external-labels: "service=backend"
+        mode: non-blocking
+        max-buffer-size: 4m
     depends_on:
       postgres:
         condition: service_healthy

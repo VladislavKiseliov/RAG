@@ -6,7 +6,7 @@ from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 from typing import Optional
 from pwdlib import PasswordHash
 
-from backend.utils.exceptions import AccessTokenExpiredError
+from backend.utils.exceptions import AccessTokenExpiredError, AuthenticationError
 
 
 class AuthHandler:
@@ -46,7 +46,7 @@ class AuthHandler:
             raise AccessTokenExpiredError()
         except InvalidTokenError:
             # Для всех остальных проблем с токеном (битый, чужой)
-            raise InvalidTokenError()
+            raise AuthenticationError()
 
     def get_password_hash(self, password: str) -> str:
         """Генерация хеша пароля."""
