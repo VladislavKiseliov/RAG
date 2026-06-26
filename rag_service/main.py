@@ -19,6 +19,8 @@ REQUEST_DURATION = Histogram(
 )
 
 
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     container: RagContainer = build_rag_infrastructure()

@@ -254,8 +254,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL:-}
     container_name: rag_frontend
     restart: unless-stopped
     depends_on:
@@ -273,7 +271,6 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       WATCHPACK_POLLING_INTERVAL: "1000"
-      VITE_API_URL: ${VITE_API_URL:-}
     volumes:
       - ./admin-panel:/app
       - /app/node_modules
@@ -281,18 +278,6 @@ services:
     depends_on:
       backend:
         condition: service_started
-    networks:
-      - rag_network
-
-  cloudflare-tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflare-tunnel
-    restart: always
-    volumes:
-      - ./cloudflare:/home/nonroot/.cloudflared
-    command: tunnel --config /home/nonroot/.cloudflared/config.yml --heartbeat-interval 10s run rag-tunnel
-    depends_on:
-      - nginx
     networks:
       - rag_network
 

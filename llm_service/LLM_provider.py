@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 from llm_service.application.lean_rag_models import FinalPromptData
+import tomllib
+
+_CONFIG_PATH = Path(__file__).parent / "ai_config.toml"
 
 SYSTEM_PROMPT_RAG = """Ты — профессиональный технический ассистент лаборатории.
 Твоя задача — ответить на вопрос, строго опираясь на предоставленный КОНТЕКСТ ИЗ ДОКУМЕНТАЦИИ.
@@ -65,16 +69,18 @@ class OpenAICompatLLMProvider:
         *,
         api_key: str,
         base_url: str,
-        model: str = "openai/gpt-4o-mini",
     ):
         if not api_key:
             raise ValueError("LLM_API_KEY is not set")
         from openai import AsyncOpenAI
 
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
-        self._model = model
 
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+        live_config = self.get_live_model_settings()
+        current_model = live_config["llm"]["model_name"]
+        current_temp = live_config["llm"]["temperature"]
+
         if data_prompt.route == "domain_rag":
             system = SYSTEM_PROMPT_RAG
             context = data_prompt.context
@@ -83,7 +89,7 @@ class OpenAICompatLLMProvider:
             context = "Поиск в базе знаний не производился за ненадобностью."
 
         response = await self._client.chat.completions.create(
-            model=self._model,
+            model=current_model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": USER_TEMPLATE.format(
@@ -93,26 +99,32 @@ class OpenAICompatLLMProvider:
                     current_query=current_query,
                 )},
             ],
-            temperature=0.2,
+            temperature=current_temp,
         )
         return response.choices[0].message.content or ""
 
     async def generate_general(self, *, query: str, context: str) -> str:
+        live_config = self.get_live_model_settings()
+        current_model = live_config["llm"]["model_name"]
+        current_temp = live_config["llm"]["temperature"]
         content = f"{context}\n\n{query}" if context.strip() else query
         response = await self._client.chat.completions.create(
-            model=self._model,
+            model=current_model,
             messages=[
                 {"role": "system", "content": GENERAL_SYSTEM_PROMPT},
                 {"role": "user", "content": content},
             ],
-            temperature=0.4,
+            temperature=current_temp,
         )
         return response.choices[0].message.content or ""
 
     async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str:
+        live_config = self.get_live_model_settings()
+        current_model = live_config["llm"]["model_name"]
+        current_temp = live_config["llm"]["temperature"]
         history = "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
         response = await self._client.chat.completions.create(
-            model=self._model,
+            model=current_model,
             messages=[
                 {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
                 {"role": "user", "content": SUMMARY_USER_TEMPLATE.format(
@@ -120,9 +132,20 @@ class OpenAICompatLLMProvider:
                     history=history,
                 )},
             ],
-            temperature=0.2,
+            temperature=current_temp,
         )
         return response.choices[0].message.content or ""
+
+    def get_live_model_settings(self):
+        try:
+            with open(_CONFIG_PATH, "rb") as f:
+                config = tomllib.load(f)
+            return config
+        except Exception as e:
+            # Если файл случайно сохранили с ошибкой во время редактирования,
+            # возвращаем дефолтные значения, чтобы бэкенд не упал
+            print(f"Ошибка чтения TOML: {e}")
+            return {"llm": {"model_name": "gpt-4o", "temperature": 0.7}}
 
 
 class GroqLLMProvider:
