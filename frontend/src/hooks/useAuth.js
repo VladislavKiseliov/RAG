@@ -98,5 +98,7 @@ export const useAuth = () => {
         setAuthTokens(null);
     };
 
-    return { isLoggedIn, accessToken, getAccessToken, logout, setAuthTokens };
+    const currentUserGuid = parseJwt(accessToken)?.sub ?? null;
+
+    return { isLoggedIn, accessToken, currentUserGuid, getAccessToken, logout, setAuthTokens };
 };

@@ -3,167 +3,159 @@ import MessageInput from '../components/MessageInput.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import Message from '../components/Message.jsx';
 import { createApiClient } from '../api/client';
-import { ENDPOINTS } from '../config/api';
+import { useAiChat } from '../hooks/useAiChat';
+import { useMessenger } from '../hooks/useMessenger';
+import { useMessengerSocket } from '../hooks/useMessengerSocket';
+import { useErrorToast } from '../hooks/useErrorToast';
+import { formatUserName } from '../utils/formatUserName';
+import { ApiContext } from '../context/ApiContext';
 
-const GREETING = { id: 'greeting', content: 'Привет! Я ваш помощник по документации. Задайте вопрос.', role: 'assistant' };
-
-function ChatPage({ accessToken, getAccessToken, onLogout, theme, onToggleTheme }) {
-    const [messages, setMessages] = useState([GREETING]);
-    const [isTyping, setIsTyping] = useState(false);
-    const [currentConversationId, setCurrentConversationId] = useState(null);
-    const [conversations, setConversations] = useState([]);
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);
+function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, theme, onToggleTheme }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const messagesEndRef = useRef(null);
-    const historyAbortRef = useRef(null);
 
     const api = useMemo(() => createApiClient(getAccessToken), [getAccessToken]);
+    const { error, showError } = useErrorToast();
+    const aiChat = useAiChat(api, showError);
+    const messenger = useMessenger(api);
 
-    const showError = useCallback((message) => {
-        setError(message);
-        setTimeout(() => setError(null), 5000);
-    }, []);
-
-    const loadUserConversations = useCallback(async () => {
-        setLoading(true);
-        try {
-            const data = await api.get(ENDPOINTS.CONVERSATIONS);
-            setConversations(data.conversations || []);
-        } catch (e) {
-            showError(e.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [api, showError]);
-
-    const loadConversationHistory = useCallback(async (conversationId) => {
-        historyAbortRef.current?.abort();
-        const controller = new AbortController();
-        historyAbortRef.current = controller;
-        setLoading(true);
-        try {
-            const data = await api.get(`/api/chats/${conversationId}`, { signal: controller.signal });
-            const formatted = data.history.map((msg) => ({
-                id: msg.id,
-                content: msg.content,
-                role: msg.role,
-                sources: msg.sources || null,
-            }));
-            setMessages(formatted.length === 0 ? [GREETING] : formatted);
-        } catch (e) {
-            if (e.name === 'AbortError') return;
-            setMessages([GREETING]);
-        } finally {
-            if (!controller.signal.aborted) setLoading(false);
-        }
-    }, [api]);
+    const { sendMessage: wsSendMessage } = useMessengerSocket({
+        getAccessToken,
+        onMessage: messenger.handleWsMessage,
+        enabled: !!accessToken,
+    });
 
     useEffect(() => {
-        if (accessToken) loadUserConversations();
+        if (accessToken) {
+            aiChat.loadUserConversations();
+            messenger.loadChats();
+        }
     }, [accessToken]);
 
     useEffect(() => {
-        if (currentConversationId) {
-            loadConversationHistory(currentConversationId);
+        if (aiChat.currentConversationId) {
+            aiChat.loadConversationHistory(aiChat.currentConversationId);
         } else {
-            historyAbortRef.current?.abort();
-            setMessages([GREETING]);
+            aiChat.resetMessages();
         }
-        return () => historyAbortRef.current?.abort();
-    }, [currentConversationId]);
+        return aiChat.abortHistory;
+    }, [aiChat.currentConversationId]);
+
+    const activeMessengerMessages = messenger.messages[messenger.activeChatGuid];
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isTyping]);
+    }, [aiChat.messages, aiChat.isTyping, activeMessengerMessages]);
 
     const handleSendMessage = useCallback(async (text) => {
-        let conversationId = currentConversationId;
-        if (!conversationId) {
-            try {
-                const data = await api.post(ENDPOINTS.CONVERSATIONS);
-                conversationId = data.conversation_id;
-                setCurrentConversationId(conversationId);
-                setMessages([GREETING]);
-                loadUserConversations();
-            } catch (e) {
-                showError(e.message);
-                return;
-            }
+        if (messenger.activeChatGuid) {
+            wsSendMessage(messenger.activeChatGuid, text);
+            return;
         }
+        await aiChat.sendAiMessage(text, aiChat.currentConversationId);
+    }, [messenger.activeChatGuid, wsSendMessage, aiChat.sendAiMessage, aiChat.currentConversationId]);
 
-        setMessages((prev) => [...prev, { id: crypto.randomUUID(), content: text, role: 'user' }]);
-        setIsTyping(true);
+    const selectAiChat = useCallback((id) => {
+        aiChat.setCurrentConversationId(id);
+        messenger.openChat(null);
+    }, [aiChat.setCurrentConversationId, messenger.openChat]);
 
-        try {
-            const data = await api.post(ENDPOINTS.MESSAGES(conversationId), { user_message: text });
-            setMessages((prev) => [...prev, {
-                id: crypto.randomUUID(),
-                content: data.response,
-                role: 'assistant',
-                sources: data.sources || null,
-            }]);
-        } catch (e) {
-            showError(e.message);
-            setMessages((prev) => [...prev, {
-                id: crypto.randomUUID(),
-                content: 'Произошла ошибка при получении ответа.',
-                role: 'assistant',
-            }]);
-        } finally {
-            setIsTyping(false);
-        }
-    }, [api, currentConversationId, loadUserConversations, showError]);
+    const selectMessengerChat = useCallback((guid) => {
+        messenger.openChat(guid);
+        aiChat.setCurrentConversationId(null);
+    }, [messenger.openChat, aiChat.setCurrentConversationId]);
 
-    const removeConversation = useCallback(
-        (id) => setConversations((prev) => prev.filter((c) => c.id !== id)),
-        []
-    );
+    const messengerMessages = activeMessengerMessages ?? [];
+    const activeChat = messenger.chats.find(c => String(c.chat_guid) === messenger.activeChatGuid);
+    const friendName = formatUserName(activeChat);
+    const isMessengerMode = !!messenger.activeChatGuid;
+    const activeConversation = aiChat.conversations.find(c => c.chat_guid === aiChat.currentConversationId);
 
-    const renameConversation = useCallback(
-        (id, title) => setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c))),
-        []
-    );
+    const chatHeader = isMessengerMode
+        ? { icon: (friendName[0] ?? '?').toUpperCase(), title: friendName || 'Чат', sub: 'Личные сообщения', iconStyle: 'dm' }
+        : aiChat.currentConversationId
+            ? { icon: null, title: activeConversation?.title || 'AI-чат', sub: 'AI-ассистент', iconStyle: 'ai' }
+            : null;
 
     return (
-        <div className="app-layout">
-            <Sidebar
-                api={api}
-                currentConversationId={currentConversationId}
-                setCurrentConversationId={setCurrentConversationId}
-                conversations={conversations}
-                loadUserConversations={loadUserConversations}
-                onConversationRemoved={removeConversation}
-                onConversationRenamed={renameConversation}
-                onLogout={onLogout}
-                theme={theme}
-                onToggleTheme={onToggleTheme}
-                onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
-                isCollapsed={sidebarCollapsed}
-            />
-            <main className="main-chat">
-                {error && (
-                    <div className="error-toast">
-                        <span>⚠ {error}</span>
+        <ApiContext.Provider value={api}>
+            <div className="app-layout">
+                <Sidebar
+                    currentConversationId={aiChat.currentConversationId}
+                    setCurrentConversationId={selectAiChat}
+                    conversations={aiChat.conversations}
+                    loadUserConversations={aiChat.loadUserConversations}
+                    onConversationRemoved={aiChat.removeConversation}
+                    onConversationRenamed={aiChat.renameConversation}
+                    messengerChats={messenger.chats}
+                    activeChatGuid={messenger.activeChatGuid}
+                    onSelectMessengerChat={selectMessengerChat}
+                    onCreateDirectChat={messenger.createDirectChat}
+                    onDeleteMessengerChat={messenger.deleteChat}
+                    onLogout={onLogout}
+                    theme={theme}
+                    onToggleTheme={onToggleTheme}
+                    onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
+                    isCollapsed={sidebarCollapsed}
+                />
+                <main className="main-chat">
+                    {error && (
+                        <div className="error-toast">
+                            <span>⚠ {error}</span>
+                        </div>
+                    )}
+                    {chatHeader && (
+                        <header className="chat-header">
+                            <div className={`chat-header-icon ${chatHeader.iconStyle}`}>
+                                {chatHeader.iconStyle === 'ai' ? (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                ) : chatHeader.icon}
+                            </div>
+                            <div>
+                                <div className="chat-header-title">{chatHeader.title}</div>
+                                <div className="chat-header-sub">{chatHeader.sub}</div>
+                            </div>
+                        </header>
+                    )}
+                    <div className="chat-container">
+                        <div className="chat-history" id="chatHistory">
+                            {isMessengerMode ? (
+                                messengerMessages.length === 0
+                                    ? <div className="chat-list-item empty">Нет сообщений</div>
+                                    : messengerMessages.map((msg) => {
+                                        const isOwn = String(msg.user_guid) === currentUserGuid;
+                                        return (
+                                            <Message
+                                                key={msg.guid ?? msg.message_guid}
+                                                content={msg.content}
+                                                role={isOwn ? 'user' : 'assistant'}
+                                                senderName={isOwn ? undefined : friendName}
+                                            />
+                                        );
+                                    })
+                            ) : (
+                                aiChat.messages.map((msg) => (
+                                    <Message
+                                        key={msg.id}
+                                        content={msg.content}
+                                        role={msg.role}
+                                        sources={msg.sources}
+                                    />
+                                ))
+                            )}
+                            {aiChat.isTyping && !isMessengerMode && <Message isTyping />}
+                            <div ref={messagesEndRef} />
+                        </div>
+                        <MessageInput
+                            onSendMessage={handleSendMessage}
+                            disabled={aiChat.isTyping && !isMessengerMode}
+                        />
                     </div>
-                )}
-                <div className="chat-container">
-                    <div className="chat-history" id="chatHistory">
-                        {messages.map((msg) => (
-                            <Message
-                                key={msg.id}
-                                content={msg.content}
-                                role={msg.role}
-                                sources={msg.sources}
-                            />
-                        ))}
-                        {isTyping && <Message isTyping />}
-                        <div ref={messagesEndRef} />
-                    </div>
-                    <MessageInput onSendMessage={handleSendMessage} disabled={isTyping} />
-                </div>
-            </main>
-        </div>
+                </main>
+            </div>
+        </ApiContext.Provider>
     );
 }
 

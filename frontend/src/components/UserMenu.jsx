@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { useApi } from '../context/ApiContext';
 import ProfileModal from './ProfileModal.jsx';
 import { ENDPOINTS } from '../config/api';
 
@@ -8,7 +10,8 @@ const getInitials = (login) => {
     return login.slice(0, 2).toUpperCase();
 };
 
-function UserMenu({ api, onLogout, theme, onToggleTheme, footerClassName = 'sidebar-footer' }) {
+function UserMenu({ onLogout, theme, onToggleTheme, footerClassName = 'sidebar-footer' }) {
+    const api = useApi();
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
     const [initials, setInitials] = useState('...');
@@ -19,15 +22,7 @@ function UserMenu({ api, onLogout, theme, onToggleTheme, footerClassName = 'side
             .catch(() => {});
     }, []);
 
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (showUserMenu && !event.target.closest('.user-menu') && !event.target.closest('.user-menu-button')) {
-                setShowUserMenu(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showUserMenu]);
+    useClickOutside(showUserMenu, ['.user-menu', '.user-menu-button'], useCallback(() => setShowUserMenu(false), []));
 
     return (
         <div className={footerClassName}>
@@ -58,7 +53,7 @@ function UserMenu({ api, onLogout, theme, onToggleTheme, footerClassName = 'side
                 </div>
             )}
             {showProfile && (
-                <ProfileModal api={api} onClose={() => setShowProfile(false)} />
+                <ProfileModal onClose={() => setShowProfile(false)} />
             )}
         </div>
     );

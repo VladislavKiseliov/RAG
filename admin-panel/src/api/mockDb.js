@@ -1,3 +1,8 @@
+const genId = () =>
+  typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+
 function daysAgo(days, minutes = 0) {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -9,14 +14,14 @@ const sampleDocs = Array.from({ length: 73 }).map((_, idx) => {
   const statusPool = ['completed', 'completed', 'completed', 'processing', 'error'];
   const status = statusPool[idx % statusPool.length];
   return {
-    doc_id: crypto.randomUUID(),
+    doc_id: genId(),
     filename: `document_${idx + 1}.pdf`,
     status,
     chunk_count: status === 'completed' ? 40 + (idx % 160) : null,
     uploaded_at: daysAgo(Math.floor(idx / 4), idx * 11),
     size_mb: Number((1 + (idx % 20) * 0.7).toFixed(1)),
     s3key: `documents/${idx + 1}/document_${idx + 1}.pdf`,
-    file_hash: `sha256:${crypto.randomUUID().replaceAll('-', '')}`,
+    file_hash: `sha256:${genId().replaceAll('-', '')}`,
     embedding_model: 'BAAI/bge-m3',
     collection: 'rag_documents_collection',
     error_text: status === 'error' ? 'Ошибка индексации: не удалось извлечь текст' : null,
@@ -26,7 +31,7 @@ const sampleDocs = Array.from({ length: 73 }).map((_, idx) => {
 const sampleUsers = Array.from({ length: 57 }).map((_, idx) => {
   const username = idx === 0 ? 'admin' : `user_${idx}`;
   return {
-    user_id: crypto.randomUUID(),
+    user_id: genId(),
     username,
     is_blocked: idx % 9 === 0 && idx !== 0,
     registered_at: daysAgo(60 - idx),
@@ -41,7 +46,7 @@ const sampleTasks = Array.from({ length: 45 }).map((_, idx) => {
   const status = statePool[idx % statePool.length];
   const elapsed = `0:0${idx % 6}:${(idx * 7) % 60}`.replace(':0:', ':');
   return {
-    task_id: crypto.randomUUID(),
+    task_id: genId(),
     filename: `document_${idx + 1}.pdf`,
     status,
     elapsed,

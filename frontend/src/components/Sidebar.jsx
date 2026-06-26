@@ -1,91 +1,226 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ENDPOINTS } from '../config/api';
 import ChatList from './ChatList.jsx';
+import MessengerChatList from './MessengerChatList.jsx';
+import UserPickerModal from './UserPickerModal.jsx';
+import ProfileModal from './ProfileModal.jsx';
 import UserMenu from './UserMenu.jsx';
+import { useApi } from '../context/ApiContext';
+import { useClickOutside } from '../hooks/useClickOutside';
+
+function SidebarSection({ title, onAdd, addTitle, children }) {
+    const [open, setOpen] = useState(true);
+
+    return (
+        <div className="sidebar-section">
+            <div className="sidebar-section-header" onClick={() => setOpen((v) => !v)}>
+                <span className="chat-section-title">{title}</span>
+                {onAdd && (
+                    <span
+                        className="sidebar-section-add"
+                        title={addTitle}
+                        onClick={(e) => { e.stopPropagation(); onAdd(); }}
+                    >
+                        +
+                    </span>
+                )}
+            </div>
+            {open && <div className="sidebar-section-content">{children}</div>}
+        </div>
+    );
+}
 
 function Sidebar({
-    api,
     currentConversationId,
     setCurrentConversationId,
     conversations,
     loadUserConversations,
     onConversationRemoved,
     onConversationRenamed,
+    messengerChats,
+    activeChatGuid,
+    onSelectMessengerChat,
+    onCreateDirectChat,
+    onDeleteMessengerChat,
     onLogout,
     onToggleSidebar,
     isCollapsed,
     theme,
     onToggleTheme,
 }) {
-    const [isCreating, setIsCreating] = useState(false);
+    const api = useApi();
+    const [isCreatingAi, setIsCreatingAi] = useState(false);
+    const [showUserPicker, setShowUserPicker] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
+    const [userInfo, setUserInfo] = useState({ initials: '..', name: '', role: '', login: '' });
 
-    const handleNewChat = async () => {
-        setIsCreating(true);
+    useEffect(() => {
+        api?.get(ENDPOINTS.PROFILE).then((data) => {
+            const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || data.login || '';
+            const initials = name
+                ? name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+                : (data.login || '?').slice(0, 2).toUpperCase();
+            setUserInfo({ initials, name, role: data.role || '', login: data.login || '' });
+        }).catch(() => {});
+    }, []);
+
+    useClickOutside(
+        profileOpen,
+        ['.sidebar-user-row', '.profile-dropdown'],
+        useCallback(() => setProfileOpen(false), [])
+    );
+
+    const handleNewAiChat = async () => {
+        setIsCreatingAi(true);
         try {
             const data = await api.post(ENDPOINTS.CONVERSATIONS);
             setCurrentConversationId(data.conversation_id);
             loadUserConversations?.();
-        } catch {
-            // error shown inline inside ChatList
         } finally {
-            setIsCreating(false);
+            setIsCreatingAi(false);
         }
+    };
+
+    const handleSelectUser = async (friendGuid) => {
+        setShowUserPicker(false);
+        await onCreateDirectChat?.(friendGuid);
     };
 
     if (isCollapsed) {
         return (
             <nav className="sidebar compact">
                 <div className="sidebar-top">
-                    <button className="icon-btn" onClick={() => onToggleSidebar?.()} aria-label="Развернуть панель" title="Скрыть/Показать панель">
+                    <button className="icon-btn" onClick={() => onToggleSidebar?.()} title="Развернуть">
                         <span className="toggle-sidebar-icon">🔖</span>
                     </button>
                 </div>
                 <div className="compact-controls">
-                    <button className="icon-btn" onClick={handleNewChat} aria-label="Новый чат" title="Новый чат" disabled={isCreating}>
-                        +
-                    </button>
+                    <button className="icon-btn" onClick={() => setShowUserPicker(true)} title="Новый чат">💬</button>
+                    <button className="icon-btn" onClick={handleNewAiChat} title="Новый AI чат" disabled={isCreatingAi}>🤖</button>
                 </div>
-                <UserMenu
-                    api={api}
-                    onLogout={onLogout}
-                    theme={theme}
-                    onToggleTheme={onToggleTheme}
-                    footerClassName="compact-footer"
-                />
+                <UserMenu onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} footerClassName="compact-footer" />
+                {showUserPicker && (
+                    <UserPickerModal onSelect={handleSelectUser} onClose={() => setShowUserPicker(false)} />
+                )}
             </nav>
         );
     }
 
     return (
         <nav className="sidebar">
-            <div className="sidebar-top">
-                <button className="icon-btn" onClick={() => onToggleSidebar?.()} aria-label="Свернуть панель" title="Скрыть/Показать панель">
-                    <span className="toggle-sidebar-icon">🔖</span>
+            {/* Brand */}
+            <div className="sidebar-brand">
+                <div className="sidebar-brand-icon">И</div>
+                <span className="sidebar-brand-name">Инжиниринг</span>
+                <button className="icon-btn sidebar-toggle-btn" onClick={() => onToggleSidebar?.()} title="Свернуть">
+                    ◂
                 </button>
             </div>
-            <div className="sidebar-header">
-                <button className="new-chat-btn" id="newChatBtn" onClick={handleNewChat} disabled={isCreating}>
-                    <span className="new-chat-icon">+</span>
-                    {isCreating ? 'Создание...' : 'Новый чат'}
-                </button>
-                <div className="chat-section-title">Чаты</div>
+
+            {/* Search */}
+            <div className="sidebar-search">
+                <span className="sidebar-search-icon">⌕</span>
+                <input className="sidebar-search-input" placeholder="Поиск по докам и чатам" />
             </div>
 
-            <ChatList
-                api={api}
-                conversations={conversations}
-                currentConversationId={currentConversationId}
-                onSelect={setCurrentConversationId}
-                onRemoved={onConversationRemoved}
-                onRenamed={onConversationRenamed}
-            />
+            {/* Groups */}
+            <div className="sidebar-groups">
+                <SidebarSection title="Сообщения" onAdd={() => setShowUserPicker(true)} addTitle="Новый чат">
+                    <MessengerChatList
+                        chats={messengerChats ?? []}
+                        activeChatGuid={activeChatGuid}
+                        onSelect={onSelectMessengerChat}
+                        onDelete={onDeleteMessengerChat}
+                    />
+                </SidebarSection>
 
-            <UserMenu
-                api={api}
-                onLogout={onLogout}
-                theme={theme}
-                onToggleTheme={onToggleTheme}
-            />
+                <SidebarSection title="Проекты" onAdd={() => {}} addTitle="Новый проект">
+                    <div className="project-create-btn">
+                        <span>＋</span> Создать первый проект
+                    </div>
+                </SidebarSection>
+
+                <SidebarSection
+                    title="AI-ассистент"
+                    onAdd={handleNewAiChat}
+                    addTitle={isCreatingAi ? 'Создание...' : 'Новый чат'}
+                >
+                    <ChatList
+                        conversations={conversations}
+                        currentConversationId={currentConversationId}
+                        onSelect={setCurrentConversationId}
+                        onRemoved={onConversationRemoved}
+                        onRenamed={onConversationRenamed}
+                    />
+                </SidebarSection>
+            </div>
+
+            {/* User row */}
+            <div className="sidebar-user-row">
+                <div className="sidebar-user-row-inner" onClick={() => setProfileOpen((v) => !v)}>
+                    <div className="sidebar-user-avatar-wrap">{userInfo.initials}</div>
+                    <div className="sidebar-user-info">
+                        <div className="sidebar-user-name">{userInfo.name || userInfo.login}</div>
+                        <div className="sidebar-user-role">{userInfo.role}</div>
+                    </div>
+                    <span className={`sidebar-user-caret${profileOpen ? ' open' : ''}`}>▾</span>
+                </div>
+
+                {profileOpen && (
+                    <div className="profile-dropdown" onClick={(e) => e.stopPropagation()}>
+                        <div className="profile-dropdown-header">
+                            <div className="profile-dropdown-avatar">{userInfo.initials}</div>
+                            <div>
+                                <div className="profile-dropdown-name">{userInfo.name || userInfo.login}</div>
+                                <div className="profile-dropdown-meta">{userInfo.login}{userInfo.role ? ` · ${userInfo.role}` : ''}</div>
+                            </div>
+                        </div>
+                        <div className="profile-dropdown-items">
+                            <button
+                                className="profile-dropdown-item"
+                                onClick={() => { setProfileOpen(false); setShowProfile(true); }}
+                            >
+                                <span className="item-left"><span className="item-icon">◴</span> Профиль и данные</span>
+                            </button>
+                            <button className="profile-dropdown-item">
+                                <span className="item-left"><span className="item-icon">⚙</span> Настройки</span>
+                            </button>
+                            <div className="profile-dropdown-item" style={{ cursor: 'default' }}>
+                                <span className="item-left"><span className="item-icon">◐</span> Тема</span>
+                                <div className="theme-pills">
+                                    <button
+                                        className={`theme-pill${theme === 'dark' ? ' active' : ''}`}
+                                        onClick={() => theme !== 'dark' && onToggleTheme?.()}
+                                    >
+                                        Тёмная
+                                    </button>
+                                    <button
+                                        className={`theme-pill${theme === 'light' ? ' active' : ''}`}
+                                        onClick={() => theme !== 'light' && onToggleTheme?.()}
+                                    >
+                                        Светлая
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="profile-dropdown-divider" />
+                            <button
+                                className="profile-dropdown-item danger"
+                                onClick={() => { setProfileOpen(false); onLogout?.(true); }}
+                            >
+                                <span className="item-left"><span>⎋</span> Выйти</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {showUserPicker && (
+                <UserPickerModal onSelect={handleSelectUser} onClose={() => setShowUserPicker(false)} />
+            )}
+            {showProfile && (
+                <ProfileModal onClose={() => setShowProfile(false)} />
+            )}
         </nav>
     );
 }

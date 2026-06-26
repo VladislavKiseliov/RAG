@@ -179,7 +179,7 @@ function SourcesBlock({ sources }) {
     );
 }
 
-function Message({ content, role, sources, isTyping }) {
+function Message({ content, role, sources, isTyping, senderName }) {
     if (isTyping) return <TypingIndicator />;
 
     const isUser = role === 'user';
@@ -188,14 +188,23 @@ function Message({ content, role, sources, isTyping }) {
         <div className={`message ${isUser ? 'user-message' : 'assistant-message'}`}>
             {!isUser && (
                 <div className="avatar assistant-avatar">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                    {senderName ? (
+                        <span style={{ fontSize: '12px', fontWeight: 600 }}>
+                            {senderName[0].toUpperCase()}
+                        </span>
+                    ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                    )}
                 </div>
             )}
             <div className="message-content-wrap">
+                {senderName && (
+                    <span className="message-sender-name">{senderName}</span>
+                )}
                 <div className="message-bubble">
-                    {isUser ? (
+                    {isUser || senderName ? (
                         <span className="message-text">{content}</span>
                     ) : (
                         <div className="message-markdown">
@@ -203,7 +212,7 @@ function Message({ content, role, sources, isTyping }) {
                         </div>
                     )}
                 </div>
-                {!isUser && <SourcesBlock sources={sources} />}
+                {!isUser && !senderName && <SourcesBlock sources={sources} />}
             </div>
             {isUser && (
                 <div className="avatar user-avatar">

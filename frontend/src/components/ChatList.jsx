@@ -1,29 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { useErrorToast } from '../hooks/useErrorToast';
+import { useApi } from '../context/ApiContext';
 
-function ChatList({ api, conversations, currentConversationId, onSelect, onRemoved, onRenamed }) {
+function ChatList({ conversations, currentConversationId, onSelect, onRemoved, onRenamed }) {
+    const api = useApi();
     const [showMenu, setShowMenu] = useState(null);
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
     const [editingTitle, setEditingTitle] = useState(null);
     const [newTitle, setNewTitle] = useState('');
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-    const [error, setError] = useState(null);
+    const { error, showError } = useErrorToast();
     const [processingChatId, setProcessingChatId] = useState(null);
 
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (showMenu && !event.target.closest('.chat-menu') && !event.target.closest('.chat-menu-button')) {
-                setShowMenu(null);
-                setConfirmDeleteId(null);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showMenu]);
-
-    const showError = (message) => {
-        setError(message);
-        setTimeout(() => setError(null), 5000);
-    };
+    useClickOutside(!!showMenu, ['.chat-menu', '.chat-menu-button'], useCallback(() => {
+        setShowMenu(null);
+        setConfirmDeleteId(null);
+    }, []));
 
     const toggleMenu = (chatId, event) => {
         event.stopPropagation();
@@ -86,24 +79,17 @@ function ChatList({ api, conversations, currentConversationId, onSelect, onRemov
 
     return (
         <>
-            {error && (
-                <div className="error-message" style={{
-                    color: 'red', padding: '10px', margin: '10px',
-                    border: '1px solid red', borderRadius: '4px', backgroundColor: '#ffe6e6',
-                }}>
-                    {error}
-                </div>
-            )}
+            {error && <div className="error-message">{error}</div>}
 
             <div className="chat-list" id="chatList">
                 {conversations && conversations.length > 0 ? (
                     conversations.map((chat) => (
                         <div
-                            key={chat.id}
-                            className={`chat-list-item ${currentConversationId === chat.id ? 'active' : ''}`}
-                            onClick={() => onSelect(chat.id)}
+                            key={chat.chat_guid}
+                            className={`chat-list-item ${currentConversationId === chat.chat_guid ? 'active' : ''}`}
+                            onClick={() => onSelect(chat.chat_guid)}
                         >
-                            {editingTitle === chat.id ? (
+                            {editingTitle === chat.chat_guid ? (
                                 <div className="chat-title-edit">
                                     <input
                                         type="text"
@@ -111,7 +97,7 @@ function ChatList({ api, conversations, currentConversationId, onSelect, onRemov
                                         onChange={(e) => setNewTitle(e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter') { e.stopPropagation(); saveTitle(chat.id); }
+                                            if (e.key === 'Enter') { e.stopPropagation(); saveTitle(chat.chat_guid); }
                                             if (e.key === 'Escape') { e.stopPropagation(); cancelEditing(); }
                                         }}
                                         autoFocus
@@ -119,10 +105,10 @@ function ChatList({ api, conversations, currentConversationId, onSelect, onRemov
                                     <div className="edit-actions">
                                         <button
                                             className="save"
-                                            onClick={(e) => { e.stopPropagation(); saveTitle(chat.id); }}
-                                            disabled={processingChatId === chat.id}
+                                            onClick={(e) => { e.stopPropagation(); saveTitle(chat.chat_guid); }}
+                                            disabled={processingChatId === chat.chat_guid}
                                         >
-                                            {processingChatId === chat.id ? '...' : '✓'}
+                                            {processingChatId === chat.chat_guid ? '...' : '✓'}
                                         </button>
                                         <button className="cancel" onClick={(e) => { e.stopPropagation(); cancelEditing(); }}>
                                             ✕
@@ -131,11 +117,16 @@ function ChatList({ api, conversations, currentConversationId, onSelect, onRemov
                                 </div>
                             ) : (
                                 <>
+                                    <span className="ai-chip">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                    </span>
                                     <span className="chat-title">{chat.title}</span>
                                     <button
                                         className="chat-menu-button"
-                                        onClick={(e) => toggleMenu(chat.id, e)}
-                                        disabled={processingChatId === chat.id}
+                                        onClick={(e) => toggleMenu(chat.chat_guid, e)}
+                                        disabled={processingChatId === chat.chat_guid}
                                         aria-label="Chat menu"
                                     >
                                         <span>&#8942;</span>
@@ -178,7 +169,7 @@ function ChatList({ api, conversations, currentConversationId, onSelect, onRemov
                         <>
                             <button
                                 className="menu-item"
-                                onClick={(e) => startEditingTitle(showMenu, conversations.find((c) => c.id === showMenu)?.title || '', e)}
+                                onClick={(e) => startEditingTitle(showMenu, conversations.find((c) => c.chat_guid === showMenu)?.title || '', e)}
                             >
                                 Изменить название
                             </button>

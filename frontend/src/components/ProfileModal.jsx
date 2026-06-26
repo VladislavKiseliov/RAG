@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ENDPOINTS } from '../config/api';
+import { TIMEOUTS } from '../config/constants';
+import { useApi } from '../context/ApiContext';
 
-function ProfileModal({ api, onClose }) {
+function ProfileModal({ onClose }) {
+    const api = useApi();
     const [form, setForm] = useState({
         first_name: '',
         last_name: '',
@@ -38,7 +41,7 @@ function ProfileModal({ api, onClose }) {
         try {
             await api.patch(ENDPOINTS.PROFILE, form);
             setSuccess(true);
-            setTimeout(() => setSuccess(false), 3000);
+            setTimeout(() => setSuccess(false), TIMEOUTS.SUCCESS_TOAST);
         } catch (e) {
             setError(e.message);
         } finally {

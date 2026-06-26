@@ -13,6 +13,7 @@
 | # | Описание | Файл | Строка |
 |---|---|---|---|
 | A1 | `_ensure_collection` вызывается при каждом upsert — лишний `collection_exists()` к Qdrant на каждый документ | `infrastructures/repositories/qdrant_vector_storage.py` | ~300 |
+| A9 | **OOM при инжекте:** `bm25_sparse_vector` строит инвертированный индекс в RAM → Qdrant крашится и обрывает соединение. Фикс: добавить `index=models.SparseIndexParams(on_disk=True)` в `SparseVectorParams` при `create_collection`. **Важно:** требует пересоздания коллекции и переиндексации всех документов. | `infrastructures/repositories/qdrant_vector_storage.py` | ~329 |
 | A2 | `source` в child chunks — временный путь `/tmp/xyz/doc.pdf`, который не существует после ingestion | `application/chunking_pipeline.py` | 58 |
 | A5 | Webhook-токен через `os.getenv` вместо `pydantic-settings` — нарушение архитектурного соглашения | `api/rag_routes.py` | ~85 |
 | A6 | Глобальный синглтон `v_indexing_service` без thread-safety — race condition при параллельном старте воркеров | `infrastructure.py` | ~71 |

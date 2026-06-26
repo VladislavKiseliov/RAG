@@ -4,7 +4,7 @@ import AuthPage from './pages/AuthPage.jsx';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
-    const { isLoggedIn, accessToken, getAccessToken, logout, setAuthTokens } = useAuth();
+    const { isLoggedIn, accessToken, currentUserGuid, getAccessToken, logout, setAuthTokens } = useAuth();
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
 
     useEffect(() => {
@@ -16,7 +16,7 @@ function App() {
 
     return (
         isLoggedIn
-            ? <ChatPage accessToken={accessToken} getAccessToken={getAccessToken} onLogout={logout} theme={theme} onToggleTheme={toggleTheme} />
+            ? <ChatPage accessToken={accessToken} currentUserGuid={currentUserGuid} getAccessToken={getAccessToken} onLogout={logout} theme={theme} onToggleTheme={toggleTheme} />
             : <AuthPage onLoginSuccess={setAuthTokens} />
     );
 }
