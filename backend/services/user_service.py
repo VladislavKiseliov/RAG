@@ -4,8 +4,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from backend.api.schemas import UserProfile, UserProfileUpdateRequest
-from backend.repository.repository import UserRepository
+from backend.schemas.schemas import UserProfile, UserProfileUpdateRequest
+from backend.repository.user_repository import UserRepository
 from backend.utils.exceptions import UserAlreadyExistsError, UserNotFoundError
 
 
@@ -83,3 +83,17 @@ class UserService:
         async with self._sf() as session:
             async with session.begin():
                 return await UserRepository(session).delete_user(user_id)
+
+    async def search_users(self, query: str, exclude_id: int) -> list[dict]:
+        async with self._sf() as session:
+            users = await UserRepository(session).search_users(query=query, exclude_id=exclude_id)
+        return [
+            {
+                "guid": str(u.guid),
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "login": u.login,
+                "job_title": u.job_title,
+            }
+            for u in users
+        ]

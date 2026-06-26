@@ -6,7 +6,7 @@ from typing import Dict
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from backend.repository.repository import AuthRepository
+from backend.services.unit_of_work import UnitOfWork
 from backend.utils.exceptions import (
     InvalidCredentialsError, TokenRevokedError,
     RefreshTokenExpiredError, RefreshTokenError, UserAlreadyExistsError,
@@ -24,8 +24,11 @@ class CurrentUser:
     Passed through FastAPI dependencies to route handlers.
     Contains only the fields needed for request-scoped authorization.
     """
-    id: uuid.UUID
+    id: int
+    guid: uuid.UUID
     login: str
+    first_name: str | None
+    last_name: str | None
 
 
 class AuthService:
@@ -54,8 +57,9 @@ class AuthService:
             InvalidCredentialsError: If the login does not exist or the password is wrong.
                 Both cases return the same error to avoid user enumeration.
         """
-        async with self._sf() as session:
-            user = await AuthRepository(session).get_user_by_login(login)
+
+        async with UnitOfWork(self._sf) as uow:
+            user = await uow.auth.get_user(login)
 
         if user is None:
             logger.warning("Failed login attempt: user not found", extra={"user": login})
@@ -63,7 +67,7 @@ class AuthService:
 
         # bcrypt is CPU-heavy — called outside the session to release the DB connection first
         jwt_token = self._auth.authenticate_user(
-            user_id=str(user.id),
+            user_id=str(user.guid),
             hashed_password=user.password,
             provided_password=password,
         )
@@ -74,9 +78,10 @@ class AuthService:
         refresh_token = secrets.token_urlsafe(48)
         refresh_expires = datetime.now(timezone.utc) + timedelta(days=7)
 
-        async with self._sf() as session:
-            async with session.begin():
-                await AuthRepository(session).add_refresh_token(user.id, refresh_token, refresh_expires)
+        async with UnitOfWork(self._sf) as uow:
+            await uow.auth.add_refresh_token(user_id=user.id, token=refresh_token, expires_at=refresh_expires)
+            await uow.commit()
+
 
         logger.info("User logged in", extra={"user": login})
         return {
@@ -99,18 +104,19 @@ class AuthService:
         Raises:
             UserAlreadyExistsError: If a user with this login already exists.
         """
-        async with self._sf() as session:
-            existing = await AuthRepository(session).get_user_by_login(username)
+        async with UnitOfWork(self._sf) as uow:
+            existing = await uow.auth.get_user(username)
 
         if existing:
             raise UserAlreadyExistsError()
 
         hashed_password = self._auth.get_password_hash(password)
 
-        async with self._sf() as session:
-            async with session.begin():
-                user = await AuthRepository(session).create_user(username, hashed_password)
+        async with UnitOfWork(self._sf) as uow:
+            user = await uow.auth.create_user(login=username, hashed_password=hashed_password)
+            await uow.commit()
             user_id = str(user.id)
+
 
         logger.info("User registered", extra={"user": username})
         return {
@@ -136,8 +142,8 @@ class AuthService:
             TokenRevokedError: If the token has already been revoked.
             RefreshTokenExpiredError: If the token's expiry date has passed.
         """
-        async with self._sf() as session:
-            stored = await AuthRepository(session).get_refresh_token(refresh_token)
+        async with UnitOfWork(self._sf) as uow:
+            stored = await uow.auth.get_refresh_token(refresh_token)
 
         if not stored:
             raise RefreshTokenError("Token not found")
@@ -146,16 +152,19 @@ class AuthService:
         if stored.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
             raise RefreshTokenExpiredError()
 
-        user_id = str(stored.user_id)
-        new_access = self._auth.create_access_token(user_id)
+        async with UnitOfWork(self._sf) as uow:
+            user = await uow.auth.get_user_by_id(stored.user_id)
+
+        new_access = self._auth.create_access_token(str(user.guid))
         new_refresh = secrets.token_urlsafe(48)
         refresh_expires = datetime.now(timezone.utc) + timedelta(days=7)
 
-        async with self._sf() as session:
-            async with session.begin():
-                repo = AuthRepository(session)
-                await repo.revoke_refresh_token(refresh_token)
-                await repo.add_refresh_token(stored.user_id, new_refresh, refresh_expires)
+        async with UnitOfWork(self._sf) as uow:
+            await uow.auth.revoke_refresh_token(token=refresh_token)
+            await uow.auth.add_refresh_token(user_id=stored.user_id,
+                                             token=new_refresh,
+                                             expires_at=refresh_expires)
+            await uow.commit()
 
         return {
             "access_token": new_access,
@@ -175,21 +184,20 @@ class AuthService:
         Returns:
             Dict with status and a descriptive message.
         """
-        async with self._sf() as session:
-            stored = await AuthRepository(session).get_refresh_token(refresh_token)
+        async with UnitOfWork(self._sf) as uow:
+            stored = await uow.auth.get_refresh_token(refresh_token)
 
         if not stored or stored.revoked:
             return {"status": "success", "message": "Already logged out"}
 
-        async with self._sf() as session:
-            async with session.begin():
-                repo = AuthRepository(session)
-                if revoke_all:
-                    count = await repo.revoke_all_user_tokens(stored.user_id)
-                    message = f"Logged out from all devices. Revoked {count} tokens."
-                else:
-                    await repo.revoke_refresh_token(refresh_token)
-                    message = "Logged out successfully."
+        async with UnitOfWork(self._sf) as uow:
+            if revoke_all:
+                count = await uow.auth.revoke_all_user_tokens(stored.user_id)
+                message = f"Logged out from all devices. Revoked {count} tokens."
+            else:
+                await uow.auth.revoke_refresh_token(refresh_token)
+                message = "Logged out successfully."
+            await uow.commit()
 
         logger.info("User logged out", extra={"user_id": str(stored.user_id), "revoke_all": revoke_all})
         return {"status": "success", "message": message}
@@ -218,15 +226,21 @@ class AuthService:
             raise AuthenticationError("Invalid token claim")
 
         try:
-            user_uuid = uuid.UUID(user_id_str)
+            user_guid = uuid.UUID(user_id_str)
         except ValueError:
             logger.warning("Invalid token: bad user_id format", extra={"sub": user_id_str})
             raise AuthenticationError("Invalid user identifier format")
 
-        async with self._sf() as session:
-            user = await AuthRepository(session).get_user_id(user_uuid)
+        async with UnitOfWork(self._sf) as uow:
+            user = await uow.auth.get_user_by_guid(user_guid)
 
         if not user:
             raise UserNotFoundError()
 
-        return CurrentUser(id=user.id, login=user.login)
+        return CurrentUser(
+            id=user.id,
+            guid=user.guid,
+            login=user.login,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )

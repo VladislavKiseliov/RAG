@@ -1,8 +1,35 @@
 # --- Модели (Pydantic) ---
+import uuid
 from datetime import datetime
 from typing import Optional, Any
 
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field
+
+from backend.models.database_models import ChatType
+
+
+class DirectChatItem(BaseModel):
+    chat_guid: uuid.UUID
+    friend_guid: uuid.UUID
+    friend_login: str | None = None
+    friend_first_name: str | None = None
+    friend_last_name: str | None = None
+    last_message_content: str | None = None
+    updated_at: datetime | None = None
+
+class NewChatCreated(DirectChatItem):
+    type: str = "new_chat_created"
+
+
+
+
+class ChatBaseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    chat_id: int = Field(validation_alias="id")
+    chat_guid: uuid.UUID = Field(validation_alias="guid")
+    chat_type: Optional[ChatType] = None
+    title: Optional[str] = None
+    created_by_id: int
 
 
 # --- 1. ВХОД В СИСТЕМУ (АУТЕНТИФИКАЦИЯ) ---
@@ -56,6 +83,7 @@ class UserProfileUpdateRequest(BaseModel):
     job_title: str | None = None
     department: str | None = None
     email: str | None = None
+    is_new: bool = False
 
 
 class Message(BaseModel):
@@ -78,3 +106,7 @@ class RefreshRequest(BaseModel):
 class LogoutRequest(BaseModel):
     refresh_token: str
     revoke_all: bool = False
+
+
+class CreateDirectChatRequest(BaseModel):
+    friend_guid: uuid.UUID

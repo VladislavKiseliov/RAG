@@ -1,380 +1,201 @@
-# Messenger — План интеграции
+# Чеклист запуска мессенджера
 
-Групповой мессенджер поверх существующего FastAPI бэкенда.
 Референс: https://github.com/notarious2/fastapi-chat
 
 ---
 
-## Шаг 1 — Redis в инфраструктуру
-
-### `settings.py`
-Добавить поля в `BackendSettings`:
-```python
-redis_host: str = "localhost"       # REDIS_HOST
-redis_port: int = 6379              # REDIS_PORT
-redis_password: str = ""            # REDIS_PASSWORD
-redis_db: int = 0                   # REDIS_DB
-```
-Добавить property `REDIS_URL`:
-```python
-@property
-def REDIS_URL(self) -> str:
-    if self.redis_password:
-        return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
-    return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
-```
-
-### `infrastructure.py`
-Добавить в `BackendContainer`:
-```python
-redis_pool: aioredis.ConnectionPool
-```
-В `build_backend_infrastructure()`:
-```python
-redis_pool = aioredis.ConnectionPool.from_url(
-    settings.REDIS_URL,
-    max_connections=20,
-    decode_responses=False,
-)
-```
-Импорт: `import redis.asyncio as aioredis`
-
-### `main.py`
-В `lifespan` после создания контейнера:
-```python
-from backend.managers.websocket_manager import WebSocketManager
-
-socket_manager = WebSocketManager(redis_pool=container.redis_pool)
-app.state.socket_manager = socket_manager
-
-# Регистрация handlers (из messenger_handlers.py)
-from backend.websocket.messenger_handlers import register_handlers
-register_handlers(socket_manager)
-```
-При shutdown закрыть пул:
-```python
-await container.redis_pool.aclose()
-```
-
-### `dependencies.py`
-Добавить две зависимости:
-```python
-async def get_socket_manager(request: Request) -> WebSocketManager:
-    return request.app.state.socket_manager
-
-async def get_redis(request: Request) -> aioredis.Redis:
-    return aioredis.Redis(connection_pool=request.app.state.container.redis_pool)
-
-SocketManagerDep = Annotated[WebSocketManager, Depends(get_socket_manager)]
-RedisDep = Annotated[aioredis.Redis, Depends(get_redis)]
-```
+## БЛОК 1 — `services/websocket_handlers.py` ✅
+- [x] Убраны декораторы и глобальный `socket_manager`. Хендлеры принимают `socket_manager` как аргумент. Добавлена `register_handlers(socket_manager)`, вызывается в `lifespan` из `main.py`
 
 ---
 
-## Шаг 2 — Модели БД
-
-### Новый файл `models/messenger_models.py`
-
-Три таблицы в схеме `messenger_schema`:
-
-```python
-class GroupChat(Base):
-    __tablename__ = "group_chats"
-    __table_args__ = {"schema": "messenger_schema"}
-
-    id: UUID (pk, default=uuid4)
-    name: str
-    description: str | None
-    created_by: UUID (FK → users_shema.users.id, ondelete="SET NULL")
-    created_at: datetime
-    updated_at: datetime
-
-class GroupParticipant(Base):
-    __tablename__ = "group_participants"
-    __table_args__ = {"schema": "messenger_schema"}
-
-    id: int (pk, autoincrement)
-    chat_id: UUID (FK → messenger_schema.group_chats.id, ondelete="CASCADE")
-    user_id: UUID (FK → users_shema.users.id, ondelete="CASCADE")
-    role: str  # "member" | "admin"
-    joined_at: datetime
-    # UniqueConstraint(chat_id, user_id)
-
-class GroupMessage(Base):
-    __tablename__ = "group_messages"
-    __table_args__ = {"schema": "messenger_schema"}
-
-    id: UUID (pk, default=uuid7)
-    chat_id: UUID (FK → messenger_schema.group_chats.id, ondelete="CASCADE")
-    user_id: UUID (FK → users_shema.users.id, ondelete="SET NULL")
-    content: str (Text)
-    created_at: datetime
-    # Index: (chat_id, id)
-```
-
-### Миграция Alembic
-```bash
-alembic -c alembic.ini revision --autogenerate -m "add_messenger_schema"
-# Проверить что в миграции есть CREATE SCHEMA IF NOT EXISTS messenger_schema
-alembic -c alembic.ini upgrade head
-```
-
-Убедиться что в `migrations/env.py` подключены `messenger_models.py`.
+## БЛОК 2 — `services/auth_service.py` ✅
+- [x] `CurrentUser` расширен: `id: int`, `guid: uuid.UUID`, `first_name: str | None`, `last_name: str | None`
+- [x] `get_user_from_token` — поиск по `guid` через `get_user_by_guid`, заполняет все поля
+- [x] Auth bug исправлен: `login` теперь кладёт `str(user.guid)` в JWT `sub`
+- [x] Добавлены пропущенные `commit()` в `login`, `refresh`, `logout`, `register`
 
 ---
 
-## Шаг 3 — Managers
-
-### Новый файл `managers/websocket_manager.py`
-
-Адаптация из fastapi-chat. Изменение одно: `redis_pool` через конструктор.
-
-```python
-class WebSocketManager:
-    def __init__(self, redis_pool):
-        self.handlers: dict = {}
-        self.chats: dict[str, set[WebSocket]] = {}
-        self.user_to_websockets: dict[str, set[WebSocket]] = {}
-        self.pubsub_client = RedisPubSubManager(redis_pool=redis_pool)
-```
-
-Методы (скопировать из референса, адаптировать):
-- `connect_socket(websocket)` — accept
-- `add_user_to_chat(chat_id, websocket)` — подписка на Redis канал
-- `remove_user_from_chat(chat_id, websocket)` — отписка
-- `broadcast_to_chat(chat_id, message)` — publish в Redis
-- `_pubsub_data_reader(pubsub_subscriber)` — фоновый reader
-- `send_error(message, websocket)` — отправить ошибку клиенту
-
-### Новый файл `managers/pubsub_manager.py`
-
-Адаптация из fastapi-chat. Принимает `redis_pool` в конструктор:
-
-```python
-class RedisPubSubManager:
-    def __init__(self, redis_pool):
-        self._redis_pool = redis_pool
-        self.pubsub = None
-
-    async def connect(self):
-        redis = aioredis.Redis(connection_pool=self._redis_pool)
-        self.pubsub = redis.pubsub()
-
-    async def subscribe(self, channel: str): ...
-    async def unsubscribe(self, channel: str): ...
-    async def publish(self, channel: str, message: str): ...
-```
+## БЛОК 3 — `repository/chat_repository.py` ✅
+- [x] `ChatRepository.get_user_active_chats` — JOIN через `chat_participant`, фильтр по `user_id: int`
+- [x] `ChatService.get_user_active_chats` — передаёт `current_user.id` (int)
 
 ---
 
-## Шаг 4 — WebSocket роутер
-
-### Новый файл `websocket/messenger_router.py`
-
-Единственный WS-эндпоинт: `GET /ws/messenger/`
-
-Токен передаётся как query-параметр (браузер не умеет кастомные заголовки в WS):
-```
-ws://host/ws/messenger/?token=<access_token>
-```
-
-Логика подключения:
-```python
-@router.websocket("/ws/messenger/")
-async def messenger_ws(
-    websocket: WebSocket,
-    token: str = Query(...),
-    socket_manager: WebSocketManager = Depends(get_socket_manager),
-    db: AsyncSession = Depends(get_session),
-):
-    # 1. Аутентификация через существующий AuthService
-    try:
-        current_user = await auth_service.get_user_from_token(token)
-    except (AuthenticationError, UserNotFoundError):
-        await websocket.close(code=4001)
-        return
-
-    await socket_manager.connect_socket(websocket)
-
-    # 2. Загрузить список групп пользователя из БД
-    chats = await messenger_repo.get_user_chats(current_user.id)
-
-    # 3. Подписать соединение на каналы чатов
-    for chat in chats:
-        await socket_manager.add_user_to_chat(str(chat.id), websocket)
-
-    # 4. Основной цикл
-    try:
-        while True:
-            incoming = await websocket.receive_json()
-            message_type = incoming.get("type")
-            handler = socket_manager.handlers.get(message_type)
-            if not handler:
-                await socket_manager.send_error(f"Unknown type: {message_type}", websocket)
-                continue
-            await handler(
-                websocket=websocket,
-                db=db,
-                incoming=incoming,
-                current_user=current_user,
-                socket_manager=socket_manager,
-                chats=chats,
-            )
-    except WebSocketDisconnect:
-        for chat in chats:
-            await socket_manager.remove_user_from_chat(str(chat.id), websocket)
-```
+## БЛОК 4 — `schemas/websocket_schemas.py` ✅
+- [x] `is_new: bool = False` добавлен в `SendMessageSchema`
 
 ---
 
-## Шаг 5 — Handlers
-
-### Новый файл `websocket/messenger_handlers.py`
-
-Три handler-а + функция регистрации:
-
-```python
-def register_handlers(socket_manager: WebSocketManager):
-    socket_manager.handlers["new_message"] = new_message_handler
-    socket_manager.handlers["user_typing"] = user_typing_handler
-    socket_manager.handlers["message_read"] = message_read_handler
-```
-
-**`new_message_handler`**:
-1. Распарсить `chat_id`, `content` из incoming
-2. Проверить что `current_user` — участник чата (`messenger_repo.is_participant`)
-3. Сохранить `GroupMessage` в PostgreSQL
-4. После успешного сохранения — `socket_manager.broadcast_to_chat(chat_id, message_dict)`
-
-Формат исходящего сообщения:
-```json
-{
-  "type": "new_message",
-  "message_id": "uuid",
-  "chat_id": "uuid",
-  "user_id": "uuid",
-  "content": "текст",
-  "created_at": "iso8601"
-}
-```
-
-**`user_typing_handler`**:
-1. Проверить участие в чате
-2. Broadcast `{"type": "user_typing", "chat_id": "...", "user_id": "..."}` — без сохранения в БД
-
-**`message_read_handler`**:
-1. Обновить статус прочтения (или просто логировать — зависит от требований)
-2. Broadcast `{"type": "message_read", "chat_id": "...", "user_id": "...", "message_id": "..."}`
+## БЛОК 5 — `dependencies.py` ✅
+- [x] `get_message_service()` и `MessageServiceDep` добавлены
 
 ---
 
-## Шаг 6 — Repository
-
-### Новый файл `repository/messenger_repository.py`
-
-```python
-class MessengerRepository:
-    def __init__(self, session: AsyncSession): ...
-
-    async def get_user_chats(self, user_id: UUID) -> list[GroupChat]:
-        # SELECT gc.* FROM group_chats gc
-        # JOIN group_participants gp ON gc.id = gp.chat_id
-        # WHERE gp.user_id = user_id
-
-    async def is_participant(self, chat_id: UUID, user_id: UUID) -> bool: ...
-
-    async def create_chat(self, name: str, creator_id: UUID) -> GroupChat: ...
-
-    async def add_participant(self, chat_id: UUID, user_id: UUID, role: str = "member") -> GroupParticipant: ...
-
-    async def remove_participant(self, chat_id: UUID, user_id: UUID) -> bool: ...
-
-    async def create_message(self, chat_id: UUID, user_id: UUID, content: str) -> GroupMessage: ...
-
-    async def get_messages(self, chat_id: UUID, limit: int = 50, before_id: UUID | None = None) -> list[GroupMessage]:
-        # Пагинация — последние N сообщений, или до before_id
-
-    async def get_chat_participants(self, chat_id: UUID) -> list[GroupParticipant]: ...
-```
+## БЛОК 6 — `api/websocket_router.py` ✅
+- [x] Убраны: `cache`, `db_session`, `user_status_task`, `mark_user_as_offline`
+- [x] `message_service: MessageServiceDep` передаётся в dispatch
 
 ---
 
-## Шаг 7 — HTTP API
-
-### Новый файл `api/messenger_routes.py`
-
-Все эндпоинты через Bearer токен (как везде в проекте).
-
-```
-POST   /api/messenger/chats                    — создать группу
-GET    /api/messenger/chats                    — список групп пользователя
-GET    /api/messenger/chats/{chat_id}/messages — история (с пагинацией)
-POST   /api/messenger/chats/{chat_id}/participants         — добавить участника
-DELETE /api/messenger/chats/{chat_id}/participants/{user_id} — удалить участника
-GET    /api/messenger/chats/{chat_id}/participants         — список участников
-```
-
-### Подключить в `main.py`:
-```python
-from backend.api.messenger_routes import router as messenger_router
-from backend.websocket.messenger_router import router as messenger_ws_router
-
-app.include_router(messenger_router)
-app.include_router(messenger_ws_router)
-```
+## БЛОК 7 — `main.py` ✅
+- [x] `websocket_router` зарегистрирован
 
 ---
 
-## Шаг 8 — Фронтенд
+## БЛОК 8 — Унификация модели + HTTP роуты мессенджера
 
-### `useMessenger.js`
-
-```javascript
-// Управляет WS соединением
-// - подключается при монтировании
-// - переподключается при разрыве через 2 сек
-// - раздаёт события в стейт по type:
-//   new_message → добавить в список сообщений активного чата
-//   user_typing → показать индикатор
-//   message_read → обновить статус
-```
-
-Токен берётся из localStorage/cookie и передаётся как query-параметр:
-```javascript
-const ws = new WebSocket(`ws://host/ws/messenger/?token=${token}`)
-```
-
-### `MessengerPage.jsx`
-
-- Левая панель: список групп (загрузка через `GET /api/messenger/chats`)
-- Правая панель: история сообщений + поле ввода
-- История: `GET /api/messenger/chats/{id}/messages` при открытии чата
-- Отправка: `ws.send(JSON.stringify({type: "new_message", chat_id, content}))`
-
-### `App.jsx`
-
-Добавить переключение между RAG-чатом и мессенджером — два раздела, не пересекаются.
+> Всё в одной модели: `Chats` (chat_type) + `chat_participant` + `Messages`.
 
 ---
 
-## Порядок проверки каждого шага
-
-| Шаг | Как проверить |
-|-----|---------------|
-| 1. Redis | `GET /admin/system/health` — Redis должен быть green |
-| 2. Модели | Миграция прошла без ошибок, таблицы видны в БД |
-| 3. Managers | Unit-тест: создать WS, подписать на канал, publish, проверить доставку |
-| 4. WS роутер | Подключиться через wscat: `wscat -c "ws://localhost:8000/ws/messenger/?token=..."` |
-| 5. Handlers | Отправить `{"type": "new_message", ...}`, проверить запись в БД и broadcast |
-| 6. Repository | Через pytest: создать чат, добавить участника, создать сообщение |
-| 7. HTTP API | Postman / curl — CRUD операции |
-| 8. Фронт | Открыть два браузера, убедиться что сообщение доходит в реальном времени |
+### 8А — Модель `Messages`: поле `role` ✅
+- [x] `role: Mapped[str | None]` добавлен в `Messages`
 
 ---
 
-## Зависимости для установки
+### 8Б — `ChatRepository` ✅
+- [x] `create_chat` — `Chats(chat_type=..., created_by_id=user_id, title=title)` без несуществующих полей
+- [x] `get_user_active_chats` — JOIN через `chat_participant`, опциональный фильтр `chat_type`
+- [x] `get_chat(chat_id: int)` — по integer PK
+- [x] `delete_chat(chat_id: int)` — по integer PK
+- [x] `update_chat_title(chat_id: int, new_title: str)` — по integer PK
+- [x] `get_chat_member_guids` — исправлен баг `.c.chat_id`
+- [x] `get_chat_by_guid(chat_guid: UUID)` — новый метод для ConversationService
+- [x] `get_chat_id_by_guid(chat_guid: UUID) -> int` — новый метод
+
+---
+
+### 8В — `MessageRepository` ✅
+- [x] `add_message` — объединён с `create_messenger_message`, `role`/`user_id`/`sources` опциональны
+- [x] `get_history(chat_id: int)` — тип исправлен
+- [x] `get_recent(chat_id: int)` — тип исправлен
+- [x] `count_after(chat_id: int, after_id: int | None)` — типы исправлены
+- [x] `get_messages_after(chat_id: int, after_id: int | None)` — типы исправлены
+- [x] `get_messages_paginated(chat_id: int, limit, offset)` — новый метод для мессенджера
+
+---
+
+### 8Г — `ChatService` и `ConversationService` ✅
+- [x] `ChatService` — полная перезапись на UnitOfWork, `user_id: int`, `await uow.commit()` везде
+- [x] `ConversationService` — импорты исправлены, везде `chat_guid → get_chat_by_guid → chat.id (int)`
+
+---
+
+### 8Д — `UnitOfWork` ✅
+- [x] `messenger` property добавлен → `MessengerRepository`
+- [x] Импорты исправлены: каждый репозиторий из своего модуля
+
+---
+
+### 8Е — Новые методы репозитория для мессенджера ✅
+- [x] `ChatRepository.create_direct_chat(creator_id, friend_id)` — chat + 2 записи в `chat_participant`
+- [x] `ChatRepository.get_user_chats_with_details(user_id)` — один SQL: чат + друг + последнее сообщение
+- [x] `ChatRepository.is_chat_participant(chat_id, user_id)` — проверка доступа
+- [x] `MessageRepository.get_messages_paginated(chat_id, limit, offset)`
+
+---
+
+### 8Ж — `MessengerService` ✅
+- [x] `create_direct_chat(user_id, friend_guid)` — находит друга, создаёт чат, возвращает dict
+- [x] `get_user_chats(user_id)` — список чатов с деталями
+- [x] `get_chat_messages(chat_guid, user_id, limit, offset)` — история с проверкой доступа
+
+---
+
+### 8З — HTTP роуты и регистрация ✅
+- [x] Создан `api/messenger_routes.py` — 3 эндпоинта
+- [x] `MessengerServiceDep` добавлен в `dependencies.py`
+- [x] `app.include_router(messenger_router)` в `main.py`
+- [x] `websocket_utils.py` адаптирован под dict из `MessengerService`
+
+---
+
+### 8И — AI-чаты: синхронизация роутов и безопасность ✅
+- [x] `chats_routes.py` синхронизирован с новым `ChatService` (guid вместо uuid везде)
+- [x] Проверка доступа к чату через `_resolve_chat_for_user` внутри сервиса — один JOIN-запрос
+- [x] `ChatRepository.get_chat_id_for_participant` — резолвит guid в id + проверяет участие
+- [x] Логика "найди → проверь → выполни" убрана из роутов, живёт только в сервисе
+
+---
+
+## БЛОК 8К — Реорганизация файлов бэкенда ✅
+
+- [x] `services/ai/llm_client.py` — перемещён из `services/llm_client.py`
+- [x] `services/ai/conversation_service.py` — перемещён из `services/ConversationService.py`
+- [x] `services/messenger/websocket_manager.py` — перемещён из `services/websocket_manager.py`
+- [x] `services/messenger/websocket_utils.py` — перемещён из `services/websocket_utils.py`
+- [x] `services/messenger/websocket_handlers.py` — перемещён из `services/websocket_handlers.py`
+- [x] `services/messenger/message_service.py` — перемещён из `services/MessageService.py`
+- [x] `services/messenger/messenger_service.py` — перемещён из `services/messenger_service.py`
+- [x] `repository/messenger_repository.py` — извлечён из `user_repository.py`
+- [x] Старые файлы удалены, все импорты обновлены (`infrastructure.py`, `dependencies.py`, `main.py`, `unit_of_work.py`, `messenger_routes.py`)
+- [x] Без `__init__.py` — namespace packages Python 3.3+
+
+---
+
+## БЛОК 8Л — Фиксы AI-чатов и поиск пользователей ✅
+
+- [x] `ChatRepository.create_chat` — теперь добавляет создателя в `chat_participant` (без этого `get_history` не работал)
+- [x] `ChatBaseSchema` — исправлены aliases: `chat_id = Field(validation_alias="id")`, `chat_guid = Field(validation_alias="guid")`; `title` стал Optional
+- [x] `UserRepository.search_users(query, exclude_id)` — ilike по `first_name`, `last_name`, `login`; исключает текущего пользователя
+- [x] `UserService.search_users(query, exclude_id)` — возвращает `guid`, `first_name`, `last_name`, `login`, `job_title`
+- [x] `GET /api/users/search?q=` — новый endpoint в `profile_routes.py`
+
+---
+
+## БЛОК 9 — Фронтенд: WS клиент ✅
+
+`frontend/src/hooks/useMessengerSocket.js`
+
+- [x] Подключение к `ws://localhost:8000/websocket/ws/?token=<accessToken>`
+- [x] Реконнект с exponential backoff
+- [x] Dispatch по `type`: `new_message`, `message_read`, `user_typing`, `new_chat_created`, `chat_deleted`, `error`
+- [x] `sendMessage(chat_guid, content)`
+- [x] `sendTyping(chat_guid)`
+- [x] `markRead(chat_guid, message_guid)`
+
+---
+
+## БЛОК 10 — Фронтенд: стейт мессенджера ✅
+
+`frontend/src/hooks/useMessenger.js`
+
+- [x] `chats`, `activeChatGuid`, `messages`, `typingUsers`
+- [x] `loadChats()`, `loadMessages(chat_guid)`, `createDirectChat(friend_guid)`, `openChat(chat_guid)`
+- [x] Обработчики WS событий (`handleWsMessage`)
+
+---
+
+## БЛОК 11 — Фронтенд: компоненты ⚠️ (частично)
+
+- [x] `frontend/src/components/MessengerChatList.jsx` — список чатов с именем друга и последним сообщением
+- [x] `frontend/src/components/UserPickerModal.jsx` — поиск пользователей с дебаунсом 300ms
+- [ ] `frontend/src/pages/MessengerPage.jsx` — страница мессенджера (не создана)
+- [ ] `frontend/src/components/MessengerMessage.jsx` — пузырь сообщения
+- [ ] `frontend/src/components/TypingIndicator.jsx`
+
+---
+
+## БЛОК 12 — Фронтенд: навигация и интеграция ⚠️ (частично)
+
+- [x] `Sidebar.jsx` — три секции (Мессенджер / Проекты / Чат с ИИ) с collapse/expand
+- [x] `config/api.jsx` — ENDPOINTS мессенджера (`MESSENGER_CHATS`, `MESSENGER_DIRECT`, `MESSENGER_MESSAGES`, `MESSENGER_WS`)
+- [x] `ChatPage.jsx` — интегрированы `useMessenger` и `useMessengerSocket`, переключение режимов
+- [ ] Сборка `MessengerPage` и подключение в `App.jsx` / роутинг
+
+---
+
+## Что осталось
 
 ```
-redis>=5.0.0
+Фронтенд:
+  11 → MessengerPage.jsx, MessengerMessage.jsx, TypingIndicator.jsx
+  12 → App.jsx роутинг на MessengerPage
+
+Проверка:
+  Postman: POST /messenger/chats/direct, GET /messenger/chats/
+  Postman: GET /api/users/search?q=иван
+  Браузер: два окна — один пишет, второй получает по WS
 ```
-Уже есть в requirements (Redis используется Celery в rag_service). Проверить что `redis.asyncio` доступен.

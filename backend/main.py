@@ -19,12 +19,21 @@ from backend.api.auth_routes import router as auth_router
 from backend.api.profile_routes import router as profile_router
 from backend.api.chats_routes import router as chats_router
 from backend.api.admin_routes import router as admin_router
+from backend.api.websocket_router import websocket_router
+from backend.api.messenger_routes import router as messenger_router
 from fastapi.responses import Response
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 # Инициализируем логгер
 setup_logger("backend")
 logger = logging.getLogger("backend")
+
+
+class _MetricsFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/metrics" not in record.getMessage()
+
+logging.getLogger("uvicorn.access").addFilter(_MetricsFilter())
 
 # Настройки CORS
 origins = [
@@ -59,8 +68,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: FastAPI):
     logger.info("Starting up infrastructure...")
     container = build_backend_infrastructure()
-    # Сохраняем в sate для доступа через Depends(get_auth_service)
     app.state.container = container
+
+    from backend.services.messenger.websocket_handlers import register_handlers
+    register_handlers(container.socket_manager)
+
     yield
 
     logger.info("Shutting down infrastructure...")
@@ -87,6 +99,8 @@ app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(chats_router)
 app.include_router(admin_router)
+app.include_router(websocket_router)
+app.include_router(messenger_router)
 
 # Метрики
 REQUEST_COUNT = Counter(

@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter
 from backend.dependencies import  AuthServiceDep
-from backend.api.schemas import LoginRequest, RegisterRequest, RefreshRequest, LogoutRequest
+from backend.schemas.schemas import LoginRequest, RegisterRequest, RefreshRequest, LogoutRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

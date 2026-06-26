@@ -1,6 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
-from backend.api.schemas import UserProfile, UserProfileUpdateRequest
+from backend.schemas.schemas import UserProfile, UserProfileUpdateRequest
 from backend.dependencies import CurrentUserDep, UserServiceDep
 
 router = APIRouter(prefix="/api", tags=["profile"])
@@ -13,6 +13,16 @@ async def get_profile(
 ):
     """Return the authenticated user's profile."""
     return await user_service.get_user_repo_by_id(current_user.id)
+
+
+@router.get("/users/search")
+async def search_users(
+        current_user: CurrentUserDep,
+        user_service: UserServiceDep,
+        q: str = Query(..., min_length=1, description="Поиск по имени, фамилии или логину"),
+
+):
+    return await user_service.search_users(query=q, exclude_id=current_user.id)
 
 
 @router.patch("/profile", response_model=UserProfile)
