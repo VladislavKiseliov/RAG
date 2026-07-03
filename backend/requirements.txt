@@ -3,6 +3,7 @@ fastapi==0.110.3
 starlette==0.37.2
 uvicorn==0.29.0
 fastapi-limiter
+python-multipart==0.0.20
 
 # Database
 sqlalchemy==2.0.46
