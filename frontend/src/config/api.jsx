@@ -17,4 +17,7 @@ export const ENDPOINTS = {
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
         return `${proto}://${window.location.host}/websocket/ws/?token=${token}`;
     },
+    KNOWLEDGE_DOCUMENTS: "/api/knowledge/documents",
+    KNOWLEDGE_DOCUMENT_STATUS: (id) => `/api/knowledge/documents/${id}`,
+    PROJECTS: "/api/projects",
 };

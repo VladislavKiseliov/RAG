@@ -5,11 +5,13 @@ export const createApiClient = (getAccessToken) => {
         const token = await getAccessToken();
         if (!token) throw new Error('Сессия истекла. Войдите снова.');
 
+        const isFormData = options.body instanceof FormData;
+
         const response = await fetch(BASE_API_URL + url, {
             ...options,
             headers: {
                 'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
+                ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
                 ...options.headers,
             },
         });
@@ -25,6 +27,7 @@ export const createApiClient = (getAccessToken) => {
     return {
         get: (url, options) => request(url, options),
         post: (url, body) => request(url, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
+        postForm: (url, formData) => request(url, { method: 'POST', body: formData }),
         patch: (url, body) => request(url, { method: 'PATCH', body: JSON.stringify(body) }),
         delete: (url) => request(url, { method: 'DELETE' }),
     };

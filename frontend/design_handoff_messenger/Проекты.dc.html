@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum' 1; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.28); border-radius: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .clamp2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  @keyframes pFadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .field::placeholder { color: var(--muted,#7c7264); }
+</style>
+</helmet>
+
+<div class="app" style="height:100vh; display:flex; overflow:hidden; position:relative; background:var(--bg,#0a0806); color:var(--text,#efe8dd); {{ rootStyle }}">
+
+  <!-- ===================== APP RAIL ===================== -->
+  <nav style="width:62px; flex-shrink:0; background:var(--rail,#0c0907); border-right:1px solid var(--border,rgba(255,255,255,.06)); display:flex; flex-direction:column; align-items:center; padding:16px 0; gap:6px;">
+    <div style="width:32px; height:32px; border-radius:9px; background:var(--accent,#d9a441); display:flex; align-items:center; justify-content:center; color:var(--accent-ink,#1a150f); font-weight:700; font-size:16px; margin-bottom:10px;">И</div>
+    <a href="Мессенджер.dc.html" title="Чаты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">✦</a>
+    <a href="База знаний.dc.html" title="База знаний" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">▤</a>
+    <div title="Проекты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); color:var(--accent,#d9a441);">◫</div>
+    <div onClick="{{ toggleTheme }}" title="Тема" style="margin-top:auto; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">{{ themeIcon }}</div>
+  </nav>
+
+  <!-- ===================== LIST VIEW ===================== -->
+  <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+    <main style="flex:1; display:flex; flex-direction:column; min-width:0;">
+      <header style="padding:26px 36px 0; flex-shrink:0;">
+        <div style="display:flex; align-items:flex-end; gap:16px;">
+          <div>
+            <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Рабочее пространство</div>
+            <div style="font-size:24px; font-weight:700; color:var(--strong,#f3ead9); margin-top:4px;">Проекты</div>
+          </div>
+          <div onClick="{{ createProject }}" style="margin-left:auto; display:flex; align-items:center; gap:9px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13.5px; font-weight:600; padding:11px 18px; border-radius:11px; cursor:pointer;" style-hover="filter:brightness(1.07);">
+            <span style="font-size:16px; line-height:1;">＋</span> Новый проект
+          </div>
+        </div>
+
+        <!-- stats strip -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:22px;">
+          <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
+            <div class="mono" style="font-size:26px; font-weight:600; color:var(--accent,#d9a441);">{{ statOnMe }}</div>
+            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">проектов на вас</div>
+          </div>
+          <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
+            <div class="mono" style="font-size:26px; font-weight:600; color:var(--strong,#f3ead9);">{{ statActive }}</div>
+            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">в активной работе</div>
+          </div>
+          <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
+            <div class="mono" style="font-size:26px; font-weight:600; color:var(--strong,#f3ead9);">{{ statTasks }}</div>
+            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">задач на вас</div>
+          </div>
+          <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
+            <div class="mono" style="font-size:26px; font-weight:600; color:var(--ok,#86b98c);">+{{ statWeek }}</div>
+            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">обновлений за неделю</div>
+          </div>
+        </div>
+      </header>
+
+      <div style="flex:1; overflow-y:auto; padding:24px 36px 40px;">
+        <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin-bottom:14px;">Ваши проекты</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px;">
+          <sc-for list="{{ projects }}" as="p" hint-placeholder-count="5">
+            <div onClick="{{ p.onOpen }}" style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:16px; padding:18px 20px; cursor:pointer; display:flex; flex-direction:column; transition:border-color .14s, transform .14s;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.45)); transform:translateY(-2px);">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div style="width:42px; height:42px; border-radius:12px; flex-shrink:0; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; color:var(--accent,#d9a441);">{{ p.glyph }}</div>
+                <div style="min-width:0; flex:1;">
+                  <div style="font-size:15px; font-weight:600; color:var(--strong,#f3ead9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.name }}</div>
+                  <div style="display:flex; align-items:center; gap:6px; margin-top:3px;"><span style="width:7px; height:7px; border-radius:50%; flex-shrink:0; background:{{ p.statusColor }};"></span><span style="font-size:11.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ p.status }}</span></div>
+                </div>
+              </div>
+              <div class="clamp2" style="font-size:12.5px; line-height:1.5; color:var(--muted,#7c7264); margin-top:13px; min-height:37px;">{{ p.desc }}</div>
+
+              <!-- progress -->
+              <div style="margin-top:15px;">
+                <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:6px;"><span style="color:var(--muted,#7c7264);">Задачи</span><span class="mono" style="color:var(--text,#cabfae);">{{ p.tasksLabel }}</span></div>
+                <div style="height:6px; border-radius:6px; background:var(--surface,#15100a); overflow:hidden;"><div style="height:100%; width:{{ p.progressW }}; background:var(--accent,#d9a441); border-radius:6px;"></div></div>
+              </div>
+
+              <!-- footer -->
+              <div style="display:flex; align-items:center; gap:14px; margin-top:15px; padding-top:13px; border-top:1px solid var(--border,rgba(255,255,255,.05));">
+                <div style="display:flex; align-items:center;">
+                  <sc-for list="{{ p.members }}" as="m" hint-placeholder-count="3">
+                    <div style="width:24px; height:24px; border-radius:50%; margin-right:-7px; border:2px solid var(--card,#110d08); background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--accent,#d9a441);">{{ m }}</div>
+                  </sc-for>
+                </div>
+                <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264);">▤ {{ p.filesCount }}</span>
+                <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264); margin-left:auto;">{{ p.updated }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ===================== DETAIL VIEW ===================== -->
+  <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+    <main style="flex:1; display:flex; min-width:0;">
+
+      <!-- center -->
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden;">
+        <header style="padding:18px 28px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+          <div onClick="{{ back }}" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted,#7c7264); cursor:pointer; margin-bottom:14px;" style-hover="color:var(--text);">← Все проекты</div>
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div style="width:44px; height:44px; border-radius:12px; flex-shrink:0; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700; color:var(--accent,#d9a441);">{{ dGlyph }}</div>
+            <div style="min-width:0;">
+              <div style="font-size:19px; font-weight:700; color:var(--strong,#f3ead9);">{{ dName }}</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:4px;"><span style="width:7px; height:7px; border-radius:50%; background:{{ dStatusColor }};"></span><span style="font-size:12px; color:var(--muted,#7c7264);">{{ dStatus }} · {{ dLead }} · {{ dDeadline }}</span></div>
+            </div>
+            <a href="Мессенджер.dc.html" style="margin-left:auto; text-decoration:none; display:flex; align-items:center; gap:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); color:var(--text,#efe8dd); font-size:13px; font-weight:500; padding:9px 14px; border-radius:10px;" style-hover="border-color:var(--accent-soft-border);"><span style="color:var(--accent,#d9a441);">✦</span> Чат проекта</a>
+          </div>
+        </header>
+
+        <div style="flex:1; overflow-y:auto; padding:24px 28px 40px;">
+          <!-- desc -->
+          <div style="font-size:14px; line-height:1.62; color:var(--text,#e7dccb); max-width:680px;">{{ dDesc }}</div>
+
+          <!-- tasks -->
+          <div style="display:flex; align-items:center; justify-content:space-between; margin:26px 0 12px;">
+            <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Задачи</span>
+            <span class="mono" style="font-size:12px; color:var(--text,#cabfae);">{{ dTasksLabel }}</span>
+          </div>
+          <div style="height:6px; border-radius:6px; background:var(--surface,#15100a); overflow:hidden; margin-bottom:14px; max-width:680px;"><div style="height:100%; width:{{ dProgressW }}; background:var(--accent,#d9a441); border-radius:6px; transition:width .25s;"></div></div>
+          <div style="display:flex; flex-direction:column; gap:7px; max-width:680px;">
+            <sc-for list="{{ dTasks }}" as="t" hint-placeholder-count="5">
+              <div onClick="{{ t.onToggle }}" style="display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:11px; background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); cursor:pointer;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.4));">
+                <span style="width:19px; height:19px; border-radius:6px; flex-shrink:0; border:1.5px solid {{ t.boxBorder }}; background:{{ t.boxBg }}; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--accent-ink,#1a150f);">{{ t.check }}</span>
+                <span style="font-size:13.5px; color:{{ t.textColor }}; text-decoration:{{ t.strike }};">{{ t.t }}</span>
+                <span class="mono" style="margin-left:auto; font-size:11px; color:var(--muted,#7c7264);">{{ t.assignee }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- activity -->
+          <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin:28px 0 12px;">Активность</div>
+          <div style="display:flex; flex-direction:column; gap:2px; max-width:680px;">
+            <sc-for list="{{ dActivity }}" as="a" hint-placeholder-count="4">
+              <div style="display:flex; gap:13px; padding:9px 0;">
+                <div style="width:28px; height:28px; border-radius:50%; flex-shrink:0; background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--accent,#d9a441);">{{ a.who }}</div>
+                <div style="min-width:0;"><div style="font-size:13px; color:var(--text,#cabfae); line-height:1.45;">{{ a.text }}</div><div style="font-size:11px; color:var(--muted,#7c7264); margin-top:2px;">{{ a.when }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== RIGHT PANEL ===== -->
+      <aside style="width:330px; flex-shrink:0; border-left:1px solid var(--border,rgba(255,255,255,.06)); background:var(--sidebar,#0e0b08); display:flex; flex-direction:column; overflow-y:auto;">
+
+        <!-- files -->
+        <div style="padding:20px 20px 8px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Файлы проекта · {{ dFileCount }}</span>
+          <span onClick="{{ addFile }}" title="Добавить файл" style="width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--accent,#d9a441); background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); cursor:pointer;" style-hover="filter:brightness(1.12);">＋</span>
+        </div>
+        <div style="padding:4px 12px 8px;">
+          <sc-for list="{{ dFiles }}" as="f" hint-placeholder-count="6">
+            <div style="display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:10px; cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+              <div class="mono" style="width:34px; height:34px; border-radius:9px; flex-shrink:0; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:600; color:var(--accent,#d9a441);">{{ f.ext }}</div>
+              <div style="min-width:0; flex:1;">
+                <div style="font-size:13px; color:var(--text,#efe8dd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ f.name }}</div>
+                <div style="font-size:11px; color:var(--muted,#7c7264);">{{ f.meta }}</div>
+              </div>
+              <span style="font-size:13px; color:{{ f.dotColor }};">{{ f.dot }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- linked docs -->
+        <div style="padding:16px 20px 8px; border-top:1px solid var(--border,rgba(255,255,255,.06)); margin-top:6px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Из базы знаний</span>
+            <a href="База знаний.dc.html" style="font-size:11px; color:var(--accent,#d9a441); text-decoration:none;">Открыть →</a>
+          </div>
+        </div>
+        <div style="padding:0 12px 8px;">
+          <sc-for list="{{ dDocs }}" as="d" hint-placeholder-count="3">
+            <a href="База знаний.dc.html" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+              <span style="color:var(--accent,#d9a441); font-size:13px;">▤</span>
+              <span style="font-size:12.5px; color:var(--text,#cabfae); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ d.title }}</span>
+              <span class="mono" style="margin-left:auto; font-size:10.5px; color:var(--muted,#7c7264); white-space:nowrap;">◆ {{ d.points }}</span>
+            </a>
+          </sc-for>
+        </div>
+
+        <!-- members -->
+        <div style="padding:16px 20px 8px; border-top:1px solid var(--border,rgba(255,255,255,.06)); margin-top:6px;">
+          <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Участники · {{ dMemberCount }}</span>
+        </div>
+        <div style="padding:0 12px 20px;">
+          <sc-for list="{{ dMembers }}" as="m" hint-placeholder-count="3">
+            <div style="display:flex; align-items:center; gap:11px; padding:8px 10px;">
+              <div style="width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--accent,#d9a441);">{{ m.init }}</div>
+              <div style="min-width:0;"><div style="font-size:13px; color:var(--text,#efe8dd);">{{ m.name }}</div><div style="font-size:11px; color:var(--muted,#7c7264);">{{ m.role }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </aside>
+    </main>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    let saved = 'dark';
+    try { saved = localStorage.getItem('msgr-theme') || 'dark'; } catch (e) {}
+    this.state = { theme: saved, view: 'list', selectedId: null, projects: this.seed() };
+    this._uid = 0;
+  }
+
+  themes = {
+    dark: {
+      bg:'#0a0806', rail:'#0c0907', sidebar:'#0e0b08', surface:'#15100a', card:'#110d08',
+      border:'rgba(255,255,255,.06)', cardBorder:'rgba(255,255,255,.06)',
+      text:'#cabfae', strong:'#f3ead9', muted:'#7c7264',
+      accent:'#d9a441', accentInk:'#1a150f', accentSoft:'#241a10', accentSoftBorder:'rgba(217,164,65,.3)',
+      hover:'rgba(255,255,255,.045)', logoA:'#d9a441', logoB:'#b97e2e', ok:'#86b98c',
+    },
+    light: {
+      bg:'#fbfcfc', rail:'#f0f3f3', sidebar:'#f6f8f8', surface:'#eef1f1', card:'#ffffff',
+      border:'#e8eaec', cardBorder:'#e8eaec',
+      text:'#374151', strong:'#0e1213', muted:'#8b9197',
+      accent:'#0891b2', accentInk:'#ffffff', accentSoft:'#e6f4f7', accentSoftBorder:'#c5e6ee',
+      hover:'rgba(0,0,0,.035)', logoA:'#22b8d6', logoB:'#0891b2', ok:'#3f9d54',
+    },
+  };
+
+  seed() {
+    return [
+      {
+        id:'pay', name:'Платёжный шлюз v2', glyph:'ПШ', status:'В работе', kind:'active', lead:'Ведёт Влад', deadline:'до 12 июля',
+        desc:'Новая версия платёжного шлюза: переход на идемпотентные операции, поддержка нескольких провайдеров и сверка транзакций.',
+        members:[{init:'ВЛ',name:'Влад Логинов',role:'Тимлид'},{init:'ИП',name:'Иван Петров',role:'Бэкенд'},{init:'СК',name:'Соня Кравец',role:'QA'}],
+        updated:'2 ч назад',
+        tasks:[
+          {t:'Контракт API провайдера', done:true, assignee:'ИП'},
+          {t:'Идемпотентность начислений', done:true, assignee:'ИП'},
+          {t:'Сверка транзакций (cron)', done:true, assignee:'ВЛ'},
+          {t:'Обработка частичных возвратов', done:false, assignee:'ВЛ'},
+          {t:'Нагрузочное тестирование', done:false, assignee:'СК'},
+          {t:'Документация для интеграторов', done:false, assignee:'ВЛ'},
+        ],
+        files:[
+          {name:'Спецификация шлюза.pdf', ext:'PDF', size:'1.4 МБ', by:'Влад', when:'2 ч назад', ok:true},
+          {name:'provider-contract.yaml', ext:'YAML', size:'24 КБ', by:'Иван', when:'вчера', ok:true},
+          {name:'Схема сверки.fig', ext:'FIG', size:'3.1 МБ', by:'Соня', when:'2 дня', ok:true},
+          {name:'reconcile.sql', ext:'SQL', size:'8 КБ', by:'Влад', when:'3 дня', ok:true},
+          {name:'Тест-план.docx', ext:'DOC', size:'120 КБ', by:'Соня', when:'4 дня', ok:true},
+        ],
+        docs:[{title:'API Reference — Orders v2', points:312},{title:'Архитектура сервисов', points:268}],
+        activity:[
+          {who:'ИП', text:'Иван закрыл задачу «Идемпотентность начислений»', when:'2 часа назад'},
+          {who:'ВЛ', text:'Влад добавил файл «Спецификация шлюза.pdf»', when:'2 часа назад'},
+          {who:'СК', text:'Соня оставила комментарий к тест-плану', when:'вчера'},
+          {who:'ИП', text:'Иван открыл ветку feature/multi-provider', when:'2 дня назад'},
+        ],
+      },
+      {
+        id:'mig', name:'Миграция БД на v2', glyph:'МБ', status:'На ревью', kind:'review', lead:'Ведёт SRE', deadline:'до 30 июня',
+        desc:'Перевод схемы базы данных на версию 2 с минимальным даунтаймом: dry-run, посервисный rollout и план отката.',
+        members:[{init:'АР',name:'Артём Рыжов',role:'SRE'},{init:'ВЛ',name:'Влад Логинов',role:'Ревью'}],
+        updated:'5 ч назад',
+        tasks:[
+          {t:'Снапшот и заморозка схемы', done:true, assignee:'АР'},
+          {t:'Dry-run на реплике', done:true, assignee:'АР'},
+          {t:'Online-DDL для больших таблиц', done:true, assignee:'АР'},
+          {t:'Финальное ревью', done:false, assignee:'ВЛ'},
+        ],
+        files:[
+          {name:'Runbook миграции.md', ext:'MD', size:'180 КБ', by:'Артём', when:'5 ч назад', ok:true},
+          {name:'migration_v2.sql', ext:'SQL', size:'42 КБ', by:'Артём', when:'вчера', ok:true},
+          {name:'rollback.sql', ext:'SQL', size:'18 КБ', by:'Артём', when:'вчера', ok:true},
+        ],
+        docs:[{title:'Runbook: миграция БД на v2', points:96}],
+        activity:[
+          {who:'АР', text:'Артём отправил проект на ревью', when:'5 часов назад'},
+          {who:'АР', text:'Артём приложил rollback.sql', when:'вчера'},
+        ],
+      },
+      {
+        id:'red', name:'Редизайн портала', glyph:'РП', status:'В работе', kind:'active', lead:'Ведёт дизайн', deadline:'до 20 июля',
+        desc:'Обновление инженерного портала: новая структура навигации, тёмная и светлая темы, единая система компонентов.',
+        members:[{init:'СК',name:'Соня Кравец',role:'Дизайн'},{init:'ВЛ',name:'Влад Логинов',role:'Фронтенд'}],
+        updated:'вчера',
+        tasks:[
+          {t:'Аудит текущих экранов', done:true, assignee:'СК'},
+          {t:'Система токенов и тем', done:true, assignee:'СК'},
+          {t:'Сборка библиотеки компонентов', done:false, assignee:'ВЛ'},
+          {t:'Перенос экранов', done:false, assignee:'ВЛ'},
+          {t:'Юзабилити-тест', done:false, assignee:'СК'},
+        ],
+        files:[
+          {name:'Портал — макеты.fig', ext:'FIG', size:'8.2 МБ', by:'Соня', when:'вчера', ok:true},
+          {name:'Гайд по темам.pdf', ext:'PDF', size:'640 КБ', by:'Соня', when:'2 дня', ok:true},
+        ],
+        docs:[{title:'Гайд по код-стайлу', points:64}],
+        activity:[
+          {who:'СК', text:'Соня обновила макеты в Figma', when:'вчера'},
+          {who:'ВЛ', text:'Влад начал сборку компонентов', when:'2 дня назад'},
+        ],
+      },
+      {
+        id:'ci', name:'Ускорение CI/CD', glyph:'CI', status:'Планирование', kind:'plan', lead:'Ведёт DevEx', deadline:'до 5 авг',
+        desc:'Сокращение времени сборки и деплоя: кэширование зависимостей, параллельные джобы и blue-green выкатка.',
+        members:[{init:'ИП',name:'Иван Петров',role:'DevEx'}],
+        updated:'3 дня назад',
+        tasks:[
+          {t:'Замер текущих времён', done:true, assignee:'ИП'},
+          {t:'План кэширования', done:false, assignee:'ИП'},
+          {t:'Параллелизация тестов', done:false, assignee:'ИП'},
+        ],
+        files:[
+          {name:'Метрики сборок.xlsx', ext:'XLS', size:'56 КБ', by:'Иван', when:'3 дня', ok:true},
+        ],
+        docs:[{title:'Руководство по CI/CD', points:148}],
+        activity:[
+          {who:'ИП', text:'Иван собрал метрики текущих сборок', when:'3 дня назад'},
+        ],
+      },
+      {
+        id:'bil', name:'Биллинг', glyph:'БИ', status:'В работе', kind:'active', lead:'Ведёт Влад', deadline:'до 28 июля',
+        desc:'Запуск сервиса тарификации: модель тарифов, начисления по событиям использования и сверка с провайдером платежей.',
+        members:[{init:'ВЛ',name:'Влад Логинов',role:'Тимлид'},{init:'АР',name:'Артём Рыжов',role:'Бэкенд'}],
+        updated:'сегодня',
+        tasks:[
+          {t:'Модель тарифных планов', done:true, assignee:'ВЛ'},
+          {t:'Начисления по событиям', done:false, assignee:'АР'},
+          {t:'Сверка с провайдером', done:false, assignee:'АР'},
+          {t:'Отчёты по начислениям', done:false, assignee:'ВЛ'},
+        ],
+        files:[
+          {name:'Заметки: биллинг.md', ext:'MD', size:'64 КБ', by:'Влад', when:'сегодня', ok:true},
+          {name:'billing-schema.json', ext:'JSON', size:'12 КБ', by:'Артём', when:'вчера', ok:true},
+        ],
+        docs:[{title:'Архитектура сервисов', points:268}],
+        activity:[
+          {who:'ВЛ', text:'Влад зафиксировал модель тарифов', when:'сегодня'},
+        ],
+      },
+    ];
+  }
+
+  statusColor(kind, t) {
+    if (kind === 'active') return t.ok;
+    if (kind === 'review') return t.accent;
+    return t.muted;
+  }
+
+  setTheme(v){ try{localStorage.setItem('msgr-theme',v);}catch(e){} this.setState({theme:v}); }
+  toggleTheme(){ this.setTheme(this.state.theme==='dark'?'light':'dark'); }
+  openProject(id){ this.setState({view:'detail', selectedId:id}); }
+  back(){ this.setState({view:'list', selectedId:null}); }
+
+  toggleTask(pid, idx){
+    this.setState(s => ({ projects: s.projects.map(p => p.id!==pid ? p : { ...p, tasks: p.tasks.map((t,i)=> i!==idx ? t : {...t, done:!t.done}) }) }));
+  }
+
+  addFile(pid){
+    const input = document.createElement('input');
+    input.type='file'; input.multiple=true;
+    input.onchange=()=>{
+      const list=[...(input.files||[])];
+      if(!list.length) return;
+      this.setState(s => ({ projects: s.projects.map(p => {
+        if(p.id!==pid) return p;
+        const added=list.map(f=>{
+          const ext=(f.name.split('.').pop()||'file').toUpperCase().slice(0,4);
+          const kb=Math.max(1,Math.round(f.size/1024));
+          return { name:f.name, ext, size: kb>=1024?(kb/1024).toFixed(1)+' МБ':kb+' КБ', by:'Влад', when:'только что', ok:true, fresh:true };
+        });
+        return { ...p, files:[...added, ...p.files] };
+      }) }));
+    };
+    input.click();
+  }
+
+  renderVals() {
+    const t = this.themes[this.state.theme] || this.themes.dark;
+    const rootStyle =
+      `--bg:${t.bg};--rail:${t.rail};--sidebar:${t.sidebar};--surface:${t.surface};--card:${t.card};` +
+      `--border:${t.border};--card-border:${t.cardBorder};--text:${t.text};--strong:${t.strong};--muted:${t.muted};` +
+      `--accent:${t.accent};--accent-ink:${t.accentInk};--accent-soft:${t.accentSoft};--accent-soft-border:${t.accentSoftBorder};` +
+      `--hover:${t.hover};--logo-a:${t.logoA};--logo-b:${t.logoB};--ok:${t.ok};`;
+
+    const ps = this.state.projects;
+    const done = p => p.tasks.filter(x=>x.done).length;
+
+    const projects = ps.map(p => ({
+      id:p.id, name:p.name, glyph:p.glyph, status:p.status, desc:p.desc, updated:p.updated,
+      onOpen: ()=>this.openProject(p.id),
+      statusColor: this.statusColor(p.kind, t),
+      tasksLabel: done(p)+'/'+p.tasks.length,
+      progressW: Math.round(done(p)/p.tasks.length*100)+'%',
+      members: p.members.map(m=>m.init),
+      filesCount: p.files.length,
+    }));
+
+    const statActive = ps.filter(p=>p.kind==='active').length;
+    const statTasks = ps.reduce((a,p)=>a + p.tasks.filter(x=>!x.done && x.assignee==='ВЛ').length, 0);
+
+    const base = {
+      rootStyle,
+      themeIcon: this.state.theme==='dark'?'☾':'☀',
+      toggleTheme: ()=>this.toggleTheme(),
+      isList: this.state.view==='list',
+      isDetail: this.state.view==='detail',
+      projects,
+      statOnMe: ps.length, statActive, statTasks, statWeek: 24,
+      createProject: ()=>{},
+      back: ()=>this.back(),
+    };
+
+    const p = ps.find(x=>x.id===this.state.selectedId);
+    if (!p) return base;
+
+    const dn = done(p);
+    return {
+      ...base,
+      dGlyph:p.glyph, dName:p.name, dStatus:p.status, dStatusColor:this.statusColor(p.kind,t),
+      dLead:p.lead, dDeadline:p.deadline, dDesc:p.desc,
+      dTasksLabel: dn+' из '+p.tasks.length,
+      dProgressW: Math.round(dn/p.tasks.length*100)+'%',
+      dTasks: p.tasks.map((tk,i)=>({
+        t:tk.t, assignee:tk.assignee,
+        onToggle: ()=>this.toggleTask(p.id,i),
+        check: tk.done?'✓':'',
+        boxBg: tk.done?'var(--accent)':'transparent',
+        boxBorder: tk.done?'var(--accent)':'var(--muted)',
+        textColor: tk.done?'var(--muted)':'var(--text)',
+        strike: tk.done?'line-through':'none',
+      })),
+      dActivity: p.activity.map(a=>({who:a.who, text:a.text, when:a.when})),
+      dFileCount: p.files.length,
+      dFiles: p.files.map(f=>({
+        name:f.name, ext:f.ext, meta: f.size+' · '+f.by+' · '+f.when,
+        dot: f.fresh?'●':'', dotColor:'var(--ok)',
+      })),
+      dDocs: p.docs,
+      dMemberCount: p.members.length,
+      dMembers: p.members,
+      addFile: ()=>this.addFile(p.id),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -47,6 +47,7 @@ function Sidebar({
     isCollapsed,
     theme,
     onToggleTheme,
+    onOpenProjects,
 }) {
     const api = useApi();
     const [isCreatingAi, setIsCreatingAi] = useState(false);
@@ -91,13 +92,13 @@ function Sidebar({
         return (
             <nav className="sidebar compact">
                 <div className="sidebar-top">
-                    <button className="icon-btn" onClick={() => onToggleSidebar?.()} title="Развернуть">
-                        <span className="toggle-sidebar-icon">🔖</span>
+                    <button className="icon-btn sidebar-toggle-btn" onClick={() => onToggleSidebar?.()} title="Развернуть">
+                        <span className="toggle-sidebar-icon">▸</span>
                     </button>
                 </div>
                 <div className="compact-controls">
-                    <button className="icon-btn" onClick={() => setShowUserPicker(true)} title="Новый чат">💬</button>
-                    <button className="icon-btn" onClick={handleNewAiChat} title="Новый AI чат" disabled={isCreatingAi}>🤖</button>
+                    <button className="icon-btn" onClick={() => setShowUserPicker(true)} title="Новый чат">✉</button>
+                    <button className="icon-btn" onClick={handleNewAiChat} title="Новый AI чат" disabled={isCreatingAi}>✦</button>
                 </div>
                 <UserMenu onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} footerClassName="compact-footer" />
                 {showUserPicker && (
@@ -135,8 +136,8 @@ function Sidebar({
                     />
                 </SidebarSection>
 
-                <SidebarSection title="Проекты" onAdd={() => {}} addTitle="Новый проект">
-                    <div className="project-create-btn">
+                <SidebarSection title="Проекты" onAdd={onOpenProjects} addTitle="Новый проект">
+                    <div className="project-create-btn" onClick={onOpenProjects}>
                         <span>＋</span> Создать первый проект
                     </div>
                 </SidebarSection>
