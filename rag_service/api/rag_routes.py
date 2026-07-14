@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from urllib.parse import unquote
+from urllib.parse import unquote_plus
 import logging
 import os
 import uuid
@@ -29,7 +29,7 @@ from rag_service.domain.errors import (
     InvalidDocumentIdError,
     WebhookAuthorizationError,
 )
-from rag_service.workers.ingestion_service import IngestionService
+from rag_service.application.ingestion_service import IngestionService
 from rag_service.dependencies import DocumentOrchestratorDep, RetrieveServiceDep, TaskDispatcherServiceDep, DocServiceDep
 from rag_service.utils.logger_config import setup_logger
 
@@ -86,7 +86,7 @@ async def handle_webhook(
 
     for record in event.records:
         raw_key = record.s3.object.key
-        s3key = unquote(raw_key)
+        s3key = unquote_plus(raw_key)
         await dispatcher.dispatch_ingestion(s3key=s3key)
 
     return {"status": "accepted"}

@@ -7,13 +7,13 @@ from rag_service.api.schemas import UploadFileResponse
 from rag_service.application.document_service import DataBaseDocumentService
 from rag_service.domain.document import IngestionDocument
 from rag_service.domain.errors.storage import StorageNotFoundError
-from rag_service.infrastructures.providers.s3_storage_provider import S3StorageProvider
+from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
 
 
 class DocumentOrchestrator:
     def __init__(self,
-                 s3_storage : S3StorageProvider,
+                 s3_storage : BucketStorageProvider,
                  vector_storage : VectorStorageProvider,
                  database : DataBaseDocumentService):
 
@@ -27,11 +27,11 @@ class DocumentOrchestrator:
         await self.database.create_doc(
             doc_id=doc.id,
             filename=doc.filename,
-            s3key=doc.s3_key,
+            s3key=doc.s3key,
             file_size=doc.file_size,
         )
 
-        presigned_url = await self.s3_storage.generate_presigned_url(doc.s3_key)
+        presigned_url = await self.s3_storage.generate_presigned_url(doc.s3key)
 
         return UploadFileResponse(
             doc_id=str(doc.id),

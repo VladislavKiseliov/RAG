@@ -33,6 +33,10 @@ fastembed
 # Document processing
 pymupdf4llm
 langchain-text-splitters
+docling[easyocr]
+pypdf
+pandas
+uuid6
 
 # HTTP client
 httpx

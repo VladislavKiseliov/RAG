@@ -1,4 +1,4 @@
-"""Service layer for document metadata and parent chunk persistence."""
+"""Service layer for document metadata and parent chunk models."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import AsyncGenerator, Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.exc import IntegrityError
 
+from rag_service.domain.chunking.chunk_builder import ParentChunk
 from rag_service.domain.errors.postgres import DocumentAlreadyExists
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
 from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks
@@ -136,7 +137,7 @@ class DataBaseDocumentService:
             await session.commit()
             return new_id
 
-    async def add_parent_chunks(self, doc_id: uuid.UUID, parents: list[dict]) -> None:
+    async def add_parent_chunks(self, doc_id: uuid.UUID, parents: list[ParentChunk]) -> None:
         if not parents:
             return
 
@@ -147,10 +148,10 @@ class DataBaseDocumentService:
             rows = []
             for idx, parent in enumerate(parents):
                 rows.append({
-                    "id": parent.get("id", uuid.uuid4()), # Вернул генерацию ID из оригинала
-                    "content": str(parent["text"]),
-                    "page_num": str(parent.get("page_num") or ""),
-                    "headers": parent.get("headers") or {},
+                    "id": parent.id,
+                    "content": parent.text,
+                    "page_num": "",
+                    "headers": parent.headers,
                     "chunk_index": start_index + idx,
                 })
 
@@ -172,21 +173,13 @@ class DataBaseDocumentService:
             self,
             doc_id: uuid.UUID,
             *,
-            status: str | DocumentStatus | None = None,
-            metadata: dict[str, Any] | None = None,
-            chunk_count: int | None = None,
-            s3key: str | None = None,
-            file_hash: str | None = None,
+            update_data: dict[str, Any | None]
     ) -> None:
         """Update selected document fields and commit transaction."""
         async with self.session_scope() as (session, repo):
             await repo.update_document(
                 doc_id,
-                status=status,
-                metadata=metadata,
-                chunk_count=chunk_count,
-                s3key=s3key,
-                file_hash=file_hash,
+                update_data=update_data
             )
             await session.commit()
 
@@ -212,7 +205,7 @@ class DataBaseDocumentService:
                 "s3key": document.s3key,
                 "meta": document.meta or {},
                 "created_at": document.created_at,
-                # Documents model currently has no updated_at column.
+                # Documents models currently has no updated_at column.
                 "updated_at": getattr(document, "updated_at", None),
                 "chunk_count": document.chunk_count,
             }

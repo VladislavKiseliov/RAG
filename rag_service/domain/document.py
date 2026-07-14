@@ -1,8 +1,8 @@
-import hashlib
 import os
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+
+import uuid6
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.domain.errors.base import InvalidIngestionStateError, UploadValidationError
@@ -13,7 +13,7 @@ from rag_service.settings import settings
 class IngestionDocument:
     id: uuid.UUID
     filename: str
-    s3_key: str
+    s3key: str
     file_size: int
     status: DocumentStatus
     file_hash: str | None = field(default=None)
@@ -30,23 +30,21 @@ class IngestionDocument:
         if file_size > settings.upload_max_size_bytes:
             raise UploadValidationError(f"Файл слишком велик ({file_size} байт). Лимит {settings.upload_max_size_bytes // (1024*1024)}МБ.")
 
-        doc_id = uuid.uuid4()
-        now = datetime.now(timezone.utc)
-        s3_key = f"documents/{now:%Y/%m}/{doc_id}{ext}"
+        doc_id = uuid6.uuid7()
+        s3key = f"{doc_id}/{filename}"
 
         return cls(
             id=doc_id,
             filename=filename,
-            s3_key=s3_key,
+            s3key=s3key,
             file_size=file_size,
             status=DocumentStatus.PENDING,
         )
 
-    def start_processing(self, file_bytes: bytes) -> None:
+    def start_processing(self) -> None:
         """PENDING → PROCESSING. Вычисляет и регистрирует хеш файла."""
         if self.status != DocumentStatus.PENDING:
             raise InvalidIngestionStateError(self.status.value, DocumentStatus.PROCESSING.value)
-        self.file_hash = hashlib.sha256(file_bytes).hexdigest()
         self.status = DocumentStatus.PROCESSING
 
     def start_extraction(self) -> None:

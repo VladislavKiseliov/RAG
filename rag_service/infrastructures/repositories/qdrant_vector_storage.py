@@ -141,7 +141,7 @@ class QdrantVectorStorage():
     ) -> list[models.Prefetch]:
         """Build prefetch list for hybrid search.
 
-        Dense prefetch uses cosine similarity; sparse uses BM25 via qdrant/bm25 model.
+        Dense prefetch uses cosine similarity; sparse uses BM25 via qdrant/bm25 models.
         score_threshold applies to dense candidates only (BM25 scale is not comparable).
         """
         return [

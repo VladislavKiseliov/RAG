@@ -3,7 +3,7 @@ from __future__ import annotations
 """Integration tests for DataBaseDocumentService on a real test PostgreSQL DB.
 
 The suite seeds multiple documents with different statuses and verifies that
-service methods work against real persistence state (not mocks).
+service methods work against real models state (not mocks).
 """
 
 import uuid
@@ -185,7 +185,7 @@ async def test_create_doc_persists_s3key_and_meta(
     service: DataBaseDocumentService,
     session_factory,
 ) -> None:
-    """Create a new document and verify minio key + metadata persistence."""
+    """Create a new document and verify minio key + metadata models."""
     new_doc_id = uuid.uuid4()
     filename = "created-from-service.pdf"
     s3key = "documents/2026/04/created-from-service__dddd4444.pdf"

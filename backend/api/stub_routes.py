@@ -33,7 +33,7 @@ _DOCUMENTS: list[dict] = [
         "id": "api", "title": "API Reference — Orders v2", "type": "OpenAPI 3.1", "type_abbr": "API",
         "collection": "api", "personal": False,
         "size": "1.2 МБ", "pages": 48, "chunk_size": 512, "overlap": 64, "chunks": 312,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "Платформа", "updated": "2 дня назад", "status": "indexed",
         "summary": "Полное описание REST API сервиса заказов: аутентификация по OAuth2, ресурсы orders и line_items, курсорная пагинация, единый формат ошибок и вебхуки. Версия 2 сохраняет обратную совместимость с v1 через заголовок Accept-Version.",
         "sections": [
@@ -48,7 +48,7 @@ _DOCUMENTS: list[dict] = [
         "id": "cicd", "title": "Руководство по CI/CD", "type": "Markdown", "type_abbr": "MD",
         "collection": "process", "personal": False,
         "size": "340 КБ", "pages": 22, "chunk_size": 512, "overlap": 64, "chunks": 148,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "DevEx", "updated": "5 дней назад", "status": "indexed",
         "summary": "Стандарт пайплайнов: этапы lint → test → build → deploy, кэширование зависимостей, стратегия деплоя blue-green и процедура отката. Описаны required-чеки и политика веток.",
         "sections": [
@@ -62,7 +62,7 @@ _DOCUMENTS: list[dict] = [
         "id": "arch", "title": "Архитектура сервисов", "type": "Confluence", "type_abbr": "CONF",
         "collection": "infra", "personal": False,
         "size": "2.1 МБ", "pages": 64, "chunk_size": 640, "overlap": 80, "chunks": 268,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "Архитектура", "updated": "неделю назад", "status": "indexed",
         "summary": "Карта доменных сервисов и их контрактов: orders, billing, notifications, identity. Описаны синхронные вызовы, событийная шина и границы транзакций. Добавлен сервис billing.",
         "sections": [
@@ -76,7 +76,7 @@ _DOCUMENTS: list[dict] = [
         "id": "runbook", "title": "Runbook: миграция БД на v2", "type": "Markdown", "type_abbr": "MD",
         "collection": "infra", "personal": False,
         "size": "180 КБ", "pages": 14, "chunk_size": 512, "overlap": 64, "chunks": 96,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "SRE", "updated": "3 дня назад", "status": "indexed",
         "summary": "Пошаговый сценарий перехода схемы на v2: dry-run, посервисное применение миграций, проверка консистентности и план отката. Указаны окна обслуживания и владельцы шагов.",
         "sections": [
@@ -90,7 +90,7 @@ _DOCUMENTS: list[dict] = [
         "id": "style", "title": "Гайд по код-стайлу", "type": "Markdown", "type_abbr": "MD",
         "collection": "process", "personal": False,
         "size": "96 КБ", "pages": 11, "chunk_size": 384, "overlap": 48, "chunks": 64,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "DevEx", "updated": "2 недели назад", "status": "indexed",
         "summary": "Соглашения по именованию, форматированию и структуре модулей, правила ревью и требования к покрытию тестами. Линтер и форматтер настроены как pre-commit и required-чек в CI.",
         "sections": [
@@ -103,7 +103,7 @@ _DOCUMENTS: list[dict] = [
         "id": "onb", "title": "Onboarding инженера", "type": "Confluence", "type_abbr": "CONF",
         "collection": "process", "personal": False,
         "size": "420 КБ", "pages": 18, "chunk_size": 512, "overlap": 64, "chunks": 112,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "People", "updated": "месяц назад", "status": "indexed",
         "summary": "План первых двух недель: доступы, локальное окружение, первый коммит и знакомство с командами. Чеклист по дням и ответственные наставники для каждого блока.",
         "sections": [
@@ -116,7 +116,7 @@ _DOCUMENTS: list[dict] = [
         "id": "p1", "title": "Заметки: архитектура биллинга", "type": "Markdown", "type_abbr": "MD",
         "collection": "personal", "personal": True,
         "size": "64 КБ", "pages": 6, "chunk_size": 384, "overlap": 48, "chunks": 36,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "Влад Логинов", "updated": "сегодня", "status": "indexed",
         "summary": "Личные заметки по новому сервису биллинга: модель тарифов, идемпотентность начислений, открытые вопросы по сверке с провайдером. Черновик для обсуждения на следующем синке.",
         "sections": [
@@ -129,7 +129,7 @@ _DOCUMENTS: list[dict] = [
         "id": "p2", "title": "Чеклист релиза", "type": "PDF", "type_abbr": "PDF",
         "collection": "personal", "personal": True,
         "size": "48 КБ", "pages": 3, "chunk_size": 384, "overlap": 48, "chunks": 22,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": "Влад Логинов", "updated": "вчера", "status": "indexed",
         "summary": "Персональный чеклист перед выкаткой: фиче-флаги, миграции, метрики и дежурный. Использую как финальную проверку перед нажатием deploy.",
         "sections": [
@@ -286,7 +286,7 @@ async def upload_document(current_user: CurrentUserDep, file: UploadFile = File(
         "collection": "personal", "personal": True,
         "size": f"{kb / 1024:.1f} МБ" if kb >= 1024 else f"{kb} КБ",
         "pages": max(1, round(chunks / 8)), "chunk_size": 384, "overlap": 48, "chunks": chunks,
-        "model": "bge-m3", "dim": 1024, "metric": "cosine",
+        "models": "bge-m3", "dim": 1024, "metric": "cosine",
         "owner": current_user.login or "Пользователь", "updated": "только что", "status": "processing",
         "summary": "Документ загружен и разбивается на чанки. Краткое содержание появится после индексации и записи векторов в базу.",
         "sections": [{"title": "Документ", "chunks": chunks, "summary": "Идёт извлечение текста, чанкинг и расчёт эмбеддингов."}],

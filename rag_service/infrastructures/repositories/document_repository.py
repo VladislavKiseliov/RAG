@@ -1,4 +1,4 @@
-"""Repository layer for rag document and parent chunk persistence."""
+"""Repository layer for rag document and parent chunk models."""
 
 from __future__ import annotations
 
@@ -162,7 +162,7 @@ class DocumentRepository:
             metadata: JSON metadata to persist in `meta`.
             s3key: Object storage key for the uploaded file.
             doc_status: Initial document status.
-            doc_id: Optional explicit UUID. If omitted, model default is used.
+            doc_id: Optional explicit UUID. If omitted, models default is used.
 
         Returns:
             UUID of the inserted document.
@@ -207,11 +207,7 @@ class DocumentRepository:
             self,
             doc_id: uuid.UUID,
             *,
-            status: str | DocumentStatus | None = None,
-            metadata: dict | None = None,
-            chunk_count: int | None = None,
-            s3key: str | None = None,
-            file_hash: str | None = None,
+            update_data: dict[str, Any | None]
     ) -> None:
         """Partially update selected document fields by id.
 
@@ -228,16 +224,23 @@ class DocumentRepository:
         """
         values: dict[str, Any] = {}
 
-        if status is not None:
-            values["status"] = getattr(status, "value", status)
-        if metadata is not None:
-            values["meta"] = metadata
-        if chunk_count is not None:
-            values["chunk_count"] = chunk_count
-        if s3key is not None:
-            values["s3key"] = s3key
-        if file_hash is not None:
-            values["file_hash"] = file_hash
+        field_mapping = {
+            "metadata": "meta",
+        }
+
+        for key, value in update_data.items():
+            if value is None:
+                continue
+
+            # Определяем целевое имя колонки в базе данных
+            db_key = field_mapping.get(key, key)
+
+            # Обрабатываем специфичные типы, например Enum статуса
+            if db_key == "status":
+                values["status"] = getattr(value, "value", value)
+            else:
+                values[db_key] = value
+
 
         if not values:
             return

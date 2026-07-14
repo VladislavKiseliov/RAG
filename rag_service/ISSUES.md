@@ -1,4 +1,15 @@
+
 # RAG Service — Issues & Fixes
+
+## ✅ Исправлено (сессия Docling-рефакторинга)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| A2 | `source` в child chunks — временный путь во `TemporaryDirectory()` | Временные файлы убраны полностью — конвертация PDF идёт через bytes/`DocumentStream` от S3 до Docling, temp-директорий в пайплайне больше нет |
+| T1 | `raise e` вместо `raise` — терялся traceback | `application/ingestion_service.py` переписан с явной политикой исключений (retry/no-retry по типу), голого `raise e` не осталось |
+| T5 | Дублирующиеся импорты `uuid`/`Any` | `document_parser.py` → `chunk_builder.py`, файл реструктурирован (датаклассы `ParentChunk`/`ChildChunk`), импорты собраны в одном месте |
+
+---
 
 ## 🔴 Баги
 
@@ -14,7 +25,6 @@
 |---|---|---|---|
 | A1 | `_ensure_collection` вызывается при каждом upsert — лишний `collection_exists()` к Qdrant на каждый документ | `infrastructures/repositories/qdrant_vector_storage.py` | вызов 104, def 294 |
 | A9 | **OOM при инжекте:** `bm25_sparse_vector` строит инвертированный индекс в RAM → Qdrant крашится и обрывает соединение. Фикс: добавить `index=models.SparseIndexParams(on_disk=True)` в `SparseVectorParams` при `create_collection`. **Важно:** требует пересоздания коллекции и переиндексации всех документов. | `infrastructures/repositories/qdrant_vector_storage.py` | 332 |
-| A2 | `source` в child chunks — временный путь во `TemporaryDirectory()` (`workers/ingestion_service.py:113-120`), который удаляется сразу после ingestion | `application/chunking_pipeline.py` | 58 |
 | A5 | Webhook-токен через `os.getenv` вместо `pydantic-settings` — нарушение архитектурного соглашения | `api/rag_routes.py` | 84 |
 | A6 | Глобальный синглтон `v_indexing_service` без thread-safety — `if v_indexing_service is None` без lock, race condition при параллельном старте воркеров | `infrastructure.py` | 71–82 |
 | A7 | Ключ дедупликации в `group_hits_by_parent` — только `parent_id`, а не `(doc_id, parent_id)` | `application/retrieve_service.py` | 217 |
@@ -86,9 +96,7 @@
 
 | # | Описание | Файл | Строка |
 |---|---|---|---|
-| T1 | `raise e` вместо `raise` — теряется оригинальный traceback | `workers/ingestion_service.py` | ~150 |
-| T2 | Deprecated: `List`, `Dict` вместо `list`, `dict` из built-ins | `workers/ingestion_service.py` | 9 |
-| T5 | Дублирующиеся импорты `uuid` и `Any` | `domain/chunking/document_parser.py` | 122–123 |
+| T2 | Deprecated: `List`, `Dict` вместо `list`, `dict` из built-ins | `application/ingestion_service.py` | 9 |
 | T6 | Misleading переменная `existing_by_name` — проверка идёт по `doc_id`, а не по имени | `application/document_service.py` | ~125 |
 | T7 | Аннотация `status: str` вместо `status: DocumentStatus` | `application/document_service.py` | ~57 |
 | T8 | `requested_parent_ids` — передаются строки, `get_parent_chunks` ожидает `list[uuid.UUID]` | `application/retrieve_service.py` | 105, 164 |

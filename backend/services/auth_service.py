@@ -34,7 +34,7 @@ class CurrentUser:
 class AuthService:
     """Handles user authentication lifecycle: registration, login, token rotation, and logout.
 
-    Depends on AuthRepository for persistence and an auth_handler for JWT and bcrypt operations.
+    Depends on AuthRepository for models and an auth_handler for JWT and bcrypt operations.
     All DB interactions open short-lived sessions; bcrypt is intentionally called outside
     the session to avoid holding a connection during a CPU-heavy operation.
     """

@@ -2,13 +2,13 @@ from typing import Annotated
 from fastapi import Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from rag_service.infrastructure import RagContainer
+from rag_service.container import RagContainer
 from rag_service.application.document_service import DataBaseDocumentService, DocumentQueryService
 from rag_service.application.document_orchestrator import DocumentOrchestrator
 from rag_service.application.retrieve_service import RetrieveService
 from rag_service.application.task_dispatcher_service import TaskDispatcherService
 from rag_service.application.vector_indexing_service import VectorIndexingService
-from rag_service.infrastructures.providers.s3_storage_provider import S3StorageProvider
+from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
 
 # --- 1. Базовые зависимости контейнера ---
@@ -33,7 +33,7 @@ def get_v_indexing_service(container: RagContainer = Depends(get_container)):
 
 ContainerDep = Annotated[RagContainer, Depends(get_container)]
 SessionFactoryDep = Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
-S3StorageDep = Annotated[S3StorageProvider, Depends(get_s3_storage)]
+S3StorageDep = Annotated[BucketStorageProvider, Depends(get_s3_storage)]
 VectorStorageDep = Annotated[VectorStorageProvider, Depends(get_vector_storage)]
 VectorIndexingDep = Annotated[VectorIndexingService, Depends(get_v_indexing_service)]
 

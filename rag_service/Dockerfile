@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     python3.12-dev \
     curl \
     git \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Скачиваем и ставим актуальный pip для Python 3.12, настраиваем глобальные алиасы
@@ -30,6 +32,14 @@ COPY rag_service/requirements.txt ./requirements.txt
 # Обновляем pip и ставим все зависимости (включая GPU-PyTorch через extra-index-url)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
+
+# Прогреваем модели Docling в образ (layout, tableformer, easyocr) — чтобы первый
+# документ в проде не тянул их из сети
+RUN docling-tools models download layout tableformer easyocr
+
+# docling-tools download кладёт только english_g2/latin_g2 — для рантайм-конфига
+# EasyOcrOptions(lang=["ru", "en"]) нужна ещё cyrillic_g2, докачиваем её в ту же папку
+RUN python3.12 -c "import easyocr; easyocr.Reader(['ru', 'en'], model_storage_directory='/root/.cache/docling/models/EasyOcr', download_enabled=True, verbose=False)"
 
 # Копируем исходный код приложения
 COPY rag_service/ ./rag_service/

@@ -73,9 +73,11 @@ services:
       until (/usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin}) do
         echo 'Waiting for MinIO...' && sleep 2;
       done;
-      /usr/bin/mc mb --ignore-existing myminio/rag-documents;
-      /usr/bin/mc event add myminio/rag-documents arn:minio:sqs::1:webhook --event put;
-      echo 'MinIO Webhook configured successfully!';
+      /usr/bin/mc mb --ignore-existing myminio/${MINIO_BUCKET_KNOWLEDGE_BASE:-knowledge-base};
+      /usr/bin/mc mb --ignore-existing myminio/${MINIO_BUCKET_USERS:-users};
+      /usr/bin/mc mb --ignore-existing myminio/${MINIO_BUCKET_PROJECTS:-projects};
+      /usr/bin/mc event add myminio/${MINIO_BUCKET_KNOWLEDGE_BASE:-knowledge-base} arn:minio:sqs::1:webhook --event put;
+      echo 'MinIO buckets and webhook configured successfully!';
       "
 
   qdrant:
@@ -99,6 +101,10 @@ services:
       - .env
     volumes:
       - ./rag_service:/app/rag_service
+      # Сохраняем кэш моделей Hugging Face (SentenceTransformers)
+      - hf_cache:/root/.cache/huggingface
+      # Сохраняем кэш ONNX-моделей (FastEmbed)
+      - fastembed_cache:/root/.cache/fastembed
     command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001 --reload
     restart: unless-stopped
     logging:
@@ -113,6 +119,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      minio-init:
+        condition: service_completed_successfully
       qdrant:
         condition: service_started
       redis:
@@ -155,6 +163,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      minio-init:
+        condition: service_completed_successfully
       qdrant:
         condition: service_started
       redis:

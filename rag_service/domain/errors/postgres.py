@@ -4,7 +4,7 @@ from rag_service.domain.errors.base import AppError
 
 
 class PostgresError(AppError):
-    """Base class for Postgres-backed persistence errors."""
+    """Base class for Postgres-backed models errors."""
 
     def __init__(self, message: str = "Database operation failed"):
         super().__init__(message=message, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -38,7 +38,7 @@ class DocumentByStorageKeyNotFound(PostgresError):
 
 
 class DocumentRepositoryError(PostgresError):
-    """Generic repository failure in document persistence."""
+    """Generic repository failure in document models."""
 
 
 class DocumentReadError(DocumentRepositoryError):

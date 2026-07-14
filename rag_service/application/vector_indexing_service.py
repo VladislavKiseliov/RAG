@@ -27,7 +27,7 @@ class VectorIndexingService:
         Initializes the service with a persistent embedding provider.
 
         Args:
-            embedding_provider: A shared instance of the model provider.
+            embedding_provider: A shared instance of the models provider.
         """
         self._embedding_provider = embedding_provider
         self._sparse_provider= sparse_provider # Наш BM25 (FastEmbed)
@@ -67,7 +67,7 @@ class VectorIndexingService:
         if not texts:
             return []
 
-        # Optional: check for empty chunks to avoid model errors
+        # Optional: check for empty chunks to avoid models errors
         if any(not t.strip() for t in texts):
             raise ValueError("Input list contains empty or invalid strings.")
 

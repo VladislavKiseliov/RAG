@@ -3,7 +3,7 @@ from __future__ import annotations
 """Integration tests for ``DocumentOrchestrator`` against real infrastructure.
 
 These tests are intentionally end-to-end at the service boundary and use:
-- a real PostgreSQL test database for document persistence;
+- a real PostgreSQL test database for document models;
 - a real MinIO bucket for object storage operations;
 - a mocked vector storage dependency only where vector deletion is asserted.
 
@@ -97,7 +97,7 @@ async def orchestrator(
 
     Vector storage is mocked to keep tests deterministic and focused on:
     - orchestration behavior;
-    - persistence consistency;
+    - models consistency;
     - storage integration.
     """
     db_service = DataBaseDocumentService(session_factory=session_factory)
@@ -140,7 +140,7 @@ async def test_get_upload_link_persists_document_and_returns_presigned_url(
     Validates:
     - HTTP-like presigned URL shape;
     - generated object-key naming convention;
-    - DB persistence of filename and minio key (column + metadata mirror).
+    - DB models of filename and minio key (column + metadata mirror).
     """
     filename = f"3-{uuid.uuid4()}.pdf"
     file_size = 512

@@ -6,7 +6,7 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 
 from rag_service.api.exception_handlers import register_exception_handlers
 from rag_service.api.rag_routes import router as rag_router
-from rag_service.infrastructure import build_rag_infrastructure, RagContainer
+from rag_service.container import build_rag_infrastructure, RagContainer
 from rag_service.utils.logger_config import setup_logger
 
 setup_logger("rag_service")
@@ -23,7 +23,7 @@ REQUEST_DURATION = Histogram(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    container: RagContainer = build_rag_infrastructure()
+    container: RagContainer = await build_rag_infrastructure()
     app.state.container = container
     yield
     await container.engine.dispose()

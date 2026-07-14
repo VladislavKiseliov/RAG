@@ -122,7 +122,7 @@ class RetrieveService:
     ) -> dict:
         """Execute a multi-query retrieval pipeline using a single Qdrant batch request.
 
-        Embeds all queries in one model call, sends a single batch request to
+        Embeds all queries in one models call, sends a single batch request to
         Qdrant, then deduplicates results by (doc_id, parent_id) keeping the
         highest-scoring child hit per parent block.
 

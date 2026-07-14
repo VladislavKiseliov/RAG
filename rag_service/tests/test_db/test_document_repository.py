@@ -22,7 +22,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def engine():
-    """Create engine and align schema to current model contract for repository tests."""
+    """Create engine and align schema to current models contract for repository tests."""
     assert settings.MODE == "TEST", "Repository integration tests must run with MODE=TEST"
     engine = create_async_engine("postgresql+asyncpg://myuser:mypassword@localhost:5432/myapp_db", future=True)
     yield engine
@@ -93,7 +93,7 @@ async def test_create_document_persists_core_fields(
     db_session: AsyncSession,
     created_doc_ids: list[uuid.UUID],
 ) -> None:
-    """Create document and verify filename/status/meta/s3key persistence."""
+    """Create document and verify filename/status/meta/s3key models."""
     key = f"documents/2026/04/{uuid.uuid4()}__a1b2c3d4.pdf"
     doc_id = await _create_document(
         repo,

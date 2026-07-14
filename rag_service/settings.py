@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from rag_service.domain.storage import StorageDomain
+
 
 class RagSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -75,13 +77,39 @@ class RagSettings(BaseSettings):
     upload_allowed_extensions: list[str] = [".pdf", ".docx", ".txt"]
     upload_max_size_bytes: int = 50 * 1024 * 1024  # 50 MB
 
+    # ──────────────────────────────────────────
+    # Docling conversion
+    # ──────────────────────────────────────────
+    docling_num_threads: int = 3
+    docling_device: str = "cpu"  # cpu | cuda | mps | xpu | auto
+
+    # Встроенный в Docling потоковый батчинг по страницам (StandardPdfPipeline) —
+    # защита от переполнения памяти на больших PDF без ручного разрезания файла
+    docling_ocr_batch_size: int = 4
+    docling_layout_batch_size: int = 4
+    docling_table_batch_size: int = 4
+    docling_queue_max_size: int = 100
+    docling_artifacts_path: str = "/root/.cache/docling/models"
+
     # MinIO
     minio_private_url: str
     minio_public_url:str
     minio_access_key: str
     minio_secret_key: str
-    minio_bucket: str
     minio_secure: bool
+
+    # MinIO buckets (по доменам)
+    minio_bucket_knowledge_base: str
+    minio_bucket_users: str
+    minio_bucket_projects: str
+
+    @property
+    def minio_buckets(self) -> dict[StorageDomain, str]:
+        return {
+            StorageDomain.KNOWLEDGE_BASE: self.minio_bucket_knowledge_base,
+            StorageDomain.USERS: self.minio_bucket_users,
+            StorageDomain.PROJECTS: self.minio_bucket_projects,
+        }
     # Redis
     redis_url:str
 

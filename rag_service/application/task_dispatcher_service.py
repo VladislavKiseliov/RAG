@@ -18,7 +18,7 @@ class TaskDispatcherService:
         if doc is None:
             raise DocumentByStorageKeyNotFound(s3key)
 
-        await self.database.update_document(doc_id=doc.id, status=DocumentStatus.UPLOAD)
+        await self.database.update_document(doc.id, update_data={"status": DocumentStatus.UPLOAD})
         ingest_document_task.delay(str(doc.id), s3key)
 
 

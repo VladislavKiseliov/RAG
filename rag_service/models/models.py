@@ -1,7 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import uuid
 from datetime import datetime
 
+import uuid6
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -23,7 +24,7 @@ class DocumentListItemDTO(Base):
         {"schema": "rag_kernel"},
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     file_hash: Mapped[str] = mapped_column(String(64), nullable=True)
     file_size: Mapped[int] = mapped_column(Integer, nullable=True)
@@ -44,6 +45,16 @@ class DocumentListItemDTO(Base):
     chunk_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     parent_chunks: Mapped[list["ParentChunks"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    document_chapters: Mapped[list["DocumentChapters"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    document_tables: Mapped[list["DocumentTables"]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -73,3 +84,47 @@ class ParentChunks(Base):
     headers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     document: Mapped[DocumentListItemDTO] = relationship(back_populates="parent_chunks")
+
+
+class DocumentChapters(Base):
+    __tablename__ = "document_chapters"
+    __table_args__ = (
+        UniqueConstraint("doc_id", "chapter_number", name="uq_document_chapters_doc_chapter_number"),
+        Index("ix_document_chapters_doc_id", "doc_id"),
+        {"schema": "rag_kernel"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7)
+    doc_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("rag_kernel.documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    chapter_number: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    s3_md_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    document: Mapped[DocumentListItemDTO] = relationship(back_populates="document_chapters")
+
+
+class DocumentTables(Base):
+    __tablename__ = "document_tables"
+    __table_args__ = (
+        UniqueConstraint("doc_id", "table_index", name="uq_document_tables_doc_table_index"),
+        Index("ix_document_tables_doc_id", "doc_id"),
+        {"schema": "rag_kernel"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7)
+    doc_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("rag_kernel.documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    table_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    s3_csv_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    s3_html_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+
+    document: Mapped[DocumentListItemDTO] = relationship(back_populates="document_tables")
