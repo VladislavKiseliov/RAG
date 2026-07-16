@@ -289,7 +289,9 @@ class IngestionService:
     )->None:
 
         await self._document_service.add_parent_chunks(doc_id,parent_chunks)
-        await self._store_docling_artifacts(doc_id, parsed_document)
+        chapter_rows, table_rows = await self._store_docling_artifacts(doc_id, parsed_document)
+        await self._document_service.add_document_chapters(doc_id, chapter_rows)
+        await self._document_service.add_document_tables(doc_id, table_rows)
 
 
 
@@ -335,33 +337,52 @@ class IngestionService:
 
         return parents, children
 
-    async def _store_docling_artifacts(self, doc_id: uuid.UUID, docling_result: ParsedDocument) -> None:
-        """Заливает в S3 сырые артефакты Docling про запас: полный текст, главы, таблицы, мета-разделы."""
+    async def _store_docling_artifacts(
+            self, doc_id: uuid.UUID, docling_result: ParsedDocument
+    ) -> tuple[list[dict], list[dict]]:
+        """Заливает в S3 сырые артефакты Docling про запас: полный текст, главы, таблицы, мета-разделы.
+
+        Возвращает строки для `document_chapters`/`document_tables` с теми же S3-путями,
+        по которым главы/таблицы были только что залиты.
+        """
         prefix = str(doc_id)
 
         await self.s3_storage.upload_file(
             docling_result.full_markdown.encode("utf-8"), f"{prefix}/full.md", "text/markdown"
         )
 
+        chapter_rows: list[dict] = []
         for chapter in docling_result.chapters:
             safe_num = chapter.number.replace(".", "_")
+            s3_md_path = f"{prefix}/chapters/chapter_{safe_num}.md"
             await self.s3_storage.upload_file(
-                chapter.markdown.encode("utf-8"), f"{prefix}/chapters/chapter_{safe_num}.md", "text/markdown"
+                chapter.markdown.encode("utf-8"), s3_md_path, "text/markdown"
             )
+            chapter_rows.append({
+                "chapter_number": chapter.number,
+                "title": chapter.title,
+                "s3_md_path": s3_md_path,
+            })
 
+        table_rows: list[dict] = []
         for table in docling_result.tables:
-            await self.s3_storage.upload_file(
-                table.csv_bytes, f"{prefix}/tables/table_{table.index}.csv", "text/csv"
-            )
-            await self.s3_storage.upload_file(
-                table.html_bytes, f"{prefix}/tables/table_{table.index}.html", "text/html"
-            )
+            s3_csv_path = f"{prefix}/tables/table_{table.index}.csv"
+            s3_html_path = f"{prefix}/tables/table_{table.index}.html"
+            await self.s3_storage.upload_file(table.csv_bytes, s3_csv_path, "text/csv")
+            await self.s3_storage.upload_file(table.html_bytes, s3_html_path, "text/html")
+            table_rows.append({
+                "table_index": table.index,
+                "s3_csv_path": s3_csv_path,
+                "s3_html_path": s3_html_path,
+            })
 
         for section in docling_result.meta_sections:
             name = section.section_type.lower()
             await self.s3_storage.upload_file(
                 section.markdown.encode("utf-8"), f"{prefix}/meta/{name}.md", "text/markdown"
             )
+
+        return chapter_rows, table_rows
 
 
     def _creates_points(self,doc_id: uuid.UUID, childs: list,dense_vectors:list[list[float]],sparse_vectors) -> list[VectorPoint]:

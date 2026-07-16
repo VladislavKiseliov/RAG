@@ -71,10 +71,21 @@ class DocumentSummaryResponse(BaseModel):
     chunk_count: int | None = None
 
 
+class ChapterSummary(BaseModel):
+    chapter_number: str
+    title: str
+
+
+class TableSummary(BaseModel):
+    table_index: int
+
+
 class DocumentDetailResponse(DocumentSummaryResponse):
-    file_hash: str
+    file_hash: str | None = None
     s3key: str | None = None
     meta: dict[str, Any] | None = None
+    chapters: list[ChapterSummary] = Field(default_factory=list)
+    tables: list[TableSummary] = Field(default_factory=list)
 
 
 class DocumentStatusResponse(BaseModel):

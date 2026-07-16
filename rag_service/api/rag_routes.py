@@ -12,16 +12,15 @@ from fastapi import APIRouter, Depends, status, Query, Header, Response, Request
 from rag_service.api.schemas import (
     BatchDeleteDocumentsRequest,
     BatchDeleteDocumentsResponse,
+    ChapterSummary,
     DeleteDocumentResponse,
     DocumentDetailResponse,
     DocumentStatusResponse,
     DocumentSummaryResponse,
     PlaceholderActionResponse,
     RetrieveRequest,
-    RetrieveResponse, UploadFileResponse, MinioWebhookEvent, DocumentStatus,
+    RetrieveResponse, TableSummary, UploadFileResponse, MinioWebhookEvent, DocumentStatus,
 )
-# Импорты сервисов (предполагаем наличие соответствующих провайдеров)
-from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.task_dispatcher_service import TaskDispatcherService
 from rag_service.domain.errors import (
     DocumentNotFound,
@@ -30,7 +29,7 @@ from rag_service.domain.errors import (
     WebhookAuthorizationError,
 )
 from rag_service.application.ingestion_service import IngestionService
-from rag_service.dependencies import DocumentOrchestratorDep, RetrieveServiceDep, TaskDispatcherServiceDep, DocServiceDep
+from rag_service.dependencies import DocumentOrchestratorDep, RetrieveServiceDep, TaskDispatcherServiceDep, DocServiceDep, DocQueryServiceDep
 from rag_service.utils.logger_config import setup_logger
 
 
@@ -194,34 +193,37 @@ async def batch_delete_documents(
     )
 
 
-#
-# @router.get("/documents/{doc_id}", response_model=DocumentDetailResponse)
-# async def get_document_details(
-#         doc_id: str,
-#         document_query_service: DocumentQueryService = Depends(get_document_query_service),
-# ):
-#     """Полная информация о документе, включая метаданные и ключ в S3"""
-#     try:
-#         doc_uuid = uuid.UUID(doc_id)
-#     except ValueError:
-#         raise HTTPException(400, "Invalid doc_id format")
-#
-#     doc = await document_query_service.get_document_by_id(doc_uuid)
-#     if doc is None:
-#         raise HTTPException(404, "Document not found")
-#
-#     meta = doc.meta if isinstance(doc.meta, dict) else {}
-#     return DocumentDetailResponse(
-#         doc_id=str(doc.id),
-#         filename=doc.filename,
-#         status=doc.status.value,
-#         created_at=doc.created_at,
-#         chunk_count=doc.chunk_count,
-#         file_hash=doc.file_hash,
-#         minio_key=doc.minio_key or meta.get("minio_key"),
-#         meta=meta,
-#     )
-#
+@router.get("/documents/{doc_id}", response_model=DocumentDetailResponse)
+async def get_document_details(
+        doc_id: str,
+        document_query_service: DocQueryServiceDep,
+):
+    """Полная информация о документе: метаданные, ключ в S3, главы и таблицы"""
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError as exc:
+        raise InvalidDocumentIdError() from exc
+
+    doc = await document_query_service.get_document_by_id(doc_uuid)
+    if doc is None:
+        raise DocumentNotFound(doc_id)
+
+    chapters = await document_query_service.get_chapters_by_doc_id(doc_uuid)
+    tables = await document_query_service.get_tables_by_doc_id(doc_uuid)
+
+    return DocumentDetailResponse(
+        doc_id=str(doc.id),
+        filename=doc.filename,
+        status=doc.status.value if hasattr(doc.status, "value") else str(doc.status),
+        created_at=doc.created_at,
+        chunk_count=doc.chunk_count,
+        file_hash=doc.file_hash,
+        s3key=doc.s3key,
+        meta=doc.meta if isinstance(doc.meta, dict) else {},
+        chapters=[ChapterSummary(chapter_number=c.chapter_number, title=c.title) for c in chapters],
+        tables=[TableSummary(table_index=t.table_index) for t in tables],
+    )
+
 #
 # # =============================================================================
 # # 4. DEBUG & STORAGE API (Прямой доступ к хранилищу - только для админа)

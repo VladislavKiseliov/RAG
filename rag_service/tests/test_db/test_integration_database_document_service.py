@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.application.document_service import DataBaseDocumentService
-from rag_service.models import Base, DocumentListItemDTO, ParentChunks
+from rag_service.models import Base, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables
 from rag_service.settings import settings
 
 
@@ -251,6 +251,69 @@ async def test_update_document_updates_selected_fields(
         assert doc.chunk_count == 9
         assert doc.s3key == new_key
         assert doc.file_hash == new_hash
+
+
+async def test_add_document_chapters_persists_rows(
+    service: DataBaseDocumentService,
+    session_factory,
+) -> None:
+    """add_document_chapters should insert rows scoped to the target document."""
+    target = SEEDED_DOCUMENTS[0]["id"]
+
+    await service.add_document_chapters(
+        target,
+        [{"chapter_number": "1", "title": "Введение", "s3_md_path": f"{target}/chapters/chapter_1.md"}],
+    )
+
+    async with session_factory() as session:
+        result = await session.execute(select(DocumentChapters).where(DocumentChapters.doc_id == target))
+        rows = list(result.scalars().all())
+        assert len(rows) == 1
+        assert rows[0].chapter_number == "1"
+        assert rows[0].title == "Введение"
+
+        await session.execute(text("DELETE FROM rag_kernel.document_chapters WHERE doc_id = :doc_id"), {"doc_id": target})
+        await session.commit()
+
+
+async def test_add_document_chapters_empty_list_is_noop(
+    service: DataBaseDocumentService,
+    session_factory,
+) -> None:
+    """Empty chapters list should not touch the database or open a session."""
+    target = SEEDED_DOCUMENTS[0]["id"]
+
+    await service.add_document_chapters(target, [])
+
+    async with session_factory() as session:
+        result = await session.execute(select(DocumentChapters).where(DocumentChapters.doc_id == target))
+        assert list(result.scalars().all()) == []
+
+
+async def test_add_document_tables_persists_rows(
+    service: DataBaseDocumentService,
+    session_factory,
+) -> None:
+    """add_document_tables should insert rows scoped to the target document."""
+    target = SEEDED_DOCUMENTS[0]["id"]
+
+    await service.add_document_tables(
+        target,
+        [{
+            "table_index": 0,
+            "s3_csv_path": f"{target}/tables/table_0.csv",
+            "s3_html_path": f"{target}/tables/table_0.html",
+        }],
+    )
+
+    async with session_factory() as session:
+        result = await session.execute(select(DocumentTables).where(DocumentTables.doc_id == target))
+        rows = list(result.scalars().all())
+        assert len(rows) == 1
+        assert rows[0].table_index == 0
+
+        await session.execute(text("DELETE FROM rag_kernel.document_tables WHERE doc_id = :doc_id"), {"doc_id": target})
+        await session.commit()
 
 
 async def test_delete_document_removes_row(service: DataBaseDocumentService, session_factory) -> None:

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
-from rag_service.models import Base, DocumentListItemDTO, ParentChunks
+from rag_service.models import Base, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables
 from rag_service.settings import settings
 
 
@@ -338,6 +338,125 @@ async def test_bulk_insert_chunks_and_read_helpers(
 
     max_index = await repo.get_max_chunk_index(doc_id)
     assert max_index == 1
+
+
+async def test_bulk_insert_chapters_persists_rows(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Insert document chapters and verify they land in document_chapters."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="chapters.pdf")
+
+    await repo.bulk_insert_chapters(
+        doc_id,
+        [
+            {"chapter_number": "1", "title": "Введение", "s3_md_path": f"{doc_id}/chapters/chapter_1.md"},
+            {"chapter_number": "2", "title": "Установка", "s3_md_path": f"{doc_id}/chapters/chapter_2.md"},
+        ],
+    )
+    await db_session.commit()
+
+    result = await db_session.execute(
+        select(DocumentChapters).where(DocumentChapters.doc_id == doc_id).order_by(DocumentChapters.chapter_number)
+    )
+    rows = list(result.scalars().all())
+    assert [row.chapter_number for row in rows] == ["1", "2"]
+    assert [row.title for row in rows] == ["Введение", "Установка"]
+    assert rows[0].s3_md_path == f"{doc_id}/chapters/chapter_1.md"
+    assert rows[0].summary is None
+
+
+async def test_bulk_insert_chapters_empty_input_is_noop(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Empty chapters input should not touch the database."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="no-chapters.pdf")
+
+    await repo.bulk_insert_chapters(doc_id, [])
+    await db_session.commit()
+
+    result = await db_session.execute(select(DocumentChapters).where(DocumentChapters.doc_id == doc_id))
+    assert list(result.scalars().all()) == []
+
+
+async def test_bulk_insert_tables_persists_rows(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Insert document tables and verify they land in document_tables."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="tables.pdf")
+
+    await repo.bulk_insert_tables(
+        doc_id,
+        [
+            {
+                "table_index": 0,
+                "s3_csv_path": f"{doc_id}/tables/table_0.csv",
+                "s3_html_path": f"{doc_id}/tables/table_0.html",
+            },
+        ],
+    )
+    await db_session.commit()
+
+    result = await db_session.execute(select(DocumentTables).where(DocumentTables.doc_id == doc_id))
+    rows = list(result.scalars().all())
+    assert len(rows) == 1
+    assert rows[0].table_index == 0
+    assert rows[0].s3_csv_path == f"{doc_id}/tables/table_0.csv"
+    assert rows[0].s3_html_path == f"{doc_id}/tables/table_0.html"
+    assert rows[0].title is None
+
+
+async def test_get_chapters_by_doc_id_returns_in_document_order(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Chapters should come back in the order they were inserted (uuid7 ids sort chronologically)."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="read-chapters.pdf")
+
+    await repo.bulk_insert_chapters(
+        doc_id,
+        [
+            {"chapter_number": "1", "title": "Введение", "s3_md_path": f"{doc_id}/chapters/chapter_1.md"},
+            {"chapter_number": "2", "title": "Установка", "s3_md_path": f"{doc_id}/chapters/chapter_2.md"},
+        ],
+    )
+    await db_session.commit()
+
+    chapters = await repo.get_chapters_by_doc_id(doc_id)
+    assert [c.chapter_number for c in chapters] == ["1", "2"]
+    assert [c.title for c in chapters] == ["Введение", "Установка"]
+
+
+async def test_get_chapters_by_doc_id_empty_when_none(repo: DocumentRepository) -> None:
+    """Unknown/empty document should return an empty chapters list."""
+    assert await repo.get_chapters_by_doc_id(uuid.uuid4()) == []
+
+
+async def test_get_tables_by_doc_id_returns_ordered_by_index(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """Tables should come back ordered by table_index ascending."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="read-tables.pdf")
+
+    await repo.bulk_insert_tables(
+        doc_id,
+        [
+            {"table_index": 1, "s3_csv_path": f"{doc_id}/tables/table_1.csv", "s3_html_path": f"{doc_id}/tables/table_1.html"},
+            {"table_index": 0, "s3_csv_path": f"{doc_id}/tables/table_0.csv", "s3_html_path": f"{doc_id}/tables/table_0.html"},
+        ],
+    )
+    await db_session.commit()
+
+    tables = await repo.get_tables_by_doc_id(doc_id)
+    assert [t.table_index for t in tables] == [0, 1]
 
 
 async def test_get_parents_by_ids_empty_input(repo: DocumentRepository) -> None:

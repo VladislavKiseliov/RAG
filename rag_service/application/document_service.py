@@ -158,6 +158,22 @@ class DataBaseDocumentService:
             await repo.bulk_insert_chunks(doc_id, rows)
             await session.commit()
 
+    async def add_document_chapters(self, doc_id: uuid.UUID, chapters: list[dict]) -> None:
+        if not chapters:
+            return
+
+        async with self.session_scope() as (session, repo):
+            await repo.bulk_insert_chapters(doc_id, chapters)
+            await session.commit()
+
+    async def add_document_tables(self, doc_id: uuid.UUID, tables: list[dict]) -> None:
+        if not tables:
+            return
+
+        async with self.session_scope() as (session, repo):
+            await repo.bulk_insert_tables(doc_id, tables)
+            await session.commit()
+
     async def set_status(
             self,
             doc_id: uuid.UUID,
@@ -255,3 +271,11 @@ class DocumentQueryService:
     ) -> list[ParentChunks]:
         async with self.session_scope() as (_, repo):
             return await repo.get_parents_by_ids(requested_parent_ids, doc_id=doc_id)
+
+    async def get_chapters_by_doc_id(self, doc_id: uuid.UUID) -> list:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_chapters_by_doc_id(doc_id)
+
+    async def get_tables_by_doc_id(self, doc_id: uuid.UUID) -> list:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_tables_by_doc_id(doc_id)

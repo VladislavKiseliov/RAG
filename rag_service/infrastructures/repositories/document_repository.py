@@ -12,7 +12,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks
+from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables
 
 
 class DocumentRepository:
@@ -370,3 +370,67 @@ class DocumentRepository:
                         await asyncio.sleep(0.5)
                         continue
                     raise
+
+    async def get_chapters_by_doc_id(self, doc_id: uuid.UUID) -> list[DocumentChapters]:
+        """Return document chapters in original document order (uuid7 ids sort chronologically).
+
+        Args:
+            doc_id: Target document UUID.
+        """
+        result = await self._session.execute(
+            select(DocumentChapters).where(DocumentChapters.doc_id == doc_id).order_by(DocumentChapters.id.asc())
+        )
+        return list(result.scalars().all())
+
+    async def get_tables_by_doc_id(self, doc_id: uuid.UUID) -> list[DocumentTables]:
+        """Return document tables ordered by their position in the document.
+
+        Args:
+            doc_id: Target document UUID.
+        """
+        result = await self._session.execute(
+            select(DocumentTables).where(DocumentTables.doc_id == doc_id).order_by(DocumentTables.table_index.asc())
+        )
+        return list(result.scalars().all())
+
+    async def bulk_insert_chapters(self, doc_id: uuid.UUID, chapters: Iterable[dict]) -> None:
+        """Bulk insert document chapters (one document has tens of chapters, no batching needed).
+
+        Args:
+            doc_id: Target document UUID used for all inserted rows.
+            chapters: Iterable of dicts with `chapter_number`, `title`, `s3_md_path`.
+        """
+        rows = [
+            {
+                "doc_id": doc_id,
+                "chapter_number": chapter["chapter_number"],
+                "title": chapter["title"],
+                "s3_md_path": chapter["s3_md_path"],
+            }
+            for chapter in chapters
+        ]
+        if not rows:
+            return
+
+        await self._session.execute(insert(DocumentChapters), rows)
+
+    async def bulk_insert_tables(self, doc_id: uuid.UUID, tables: Iterable[dict]) -> None:
+        """Bulk insert document tables (one document has tens of tables, no batching needed).
+
+        Args:
+            doc_id: Target document UUID used for all inserted rows.
+            tables: Iterable of dicts with `table_index`, `s3_csv_path`, `s3_html_path`.
+        """
+        rows = [
+            {
+                "doc_id": doc_id,
+                "table_index": table["table_index"],
+                "s3_csv_path": table["s3_csv_path"],
+                "s3_html_path": table["s3_html_path"],
+            }
+            for table in tables
+        ]
+        if not rows:
+            return
+
+        await self._session.execute(insert(DocumentTables), rows)
