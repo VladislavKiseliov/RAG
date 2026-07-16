@@ -102,3 +102,7 @@ celerybeat-schedule*
 
 # Cloudflare tunnel credentials (cert, token, config with secrets)
 cloudflare/
+
+# AI tooling local config
+.ai/
+.claude/
