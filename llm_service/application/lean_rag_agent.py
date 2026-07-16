@@ -6,12 +6,12 @@ from typing import Any
 from langgraph.graph import END, StateGraph
 
 
+from llm_service.ai_config import get_live_config
 from llm_service.LLM_provider import OpenAICompatLLMProvider
 from llm_service.application.lean_rag_models import LeanAgentState, QueryRouterProtocol, RetrievalResult, \
     FinalPromptData, RetrieveItem
 from llm_service.application.services.query_service import QueryExpansionService
 from llm_service.application.services.retrieval_service import  RetrievalService
-from llm_service.promt.promts import QUERY_EXPANSION_PROMPT
 from llm_service.utils.logger_config import setup_logger
 
 
@@ -85,7 +85,8 @@ class LeanRagAgent:
     async def expand_queries_node(self, state: LeanAgentState) -> dict[str, list[str]]:
         """Генерирует альтернативные формулировки запроса через LLM для улучшения recall."""
         started = time.perf_counter()
-        raw_expansion = (await self.llm_provider.generate_general(query=QUERY_EXPANSION_PROMPT.format(summary= state.summary,
+        query_expansion_prompt = get_live_config().prompts.query_expansion_prompt
+        raw_expansion = (await self.llm_provider.generate_general(query=query_expansion_prompt.format(summary= state.summary,
                                                                                                       recent_history = state.messages,
                                                                                                       query = state.query),
                                                                   context="")).strip()

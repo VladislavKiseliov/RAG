@@ -12,7 +12,6 @@ class LLMSettings(BaseSettings):
 
     LLM_API_KEY: str
     LLM_BASE_URL: str
-    LLM_MODEL: str
 
     HF_TOKEN: str = ""
     LLM_PROVIDER: str = "openai_compat"

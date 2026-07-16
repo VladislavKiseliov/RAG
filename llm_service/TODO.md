@@ -23,4 +23,6 @@
 
 - [ ] Structured logging — настроить JSON-формат для всех нод графа
 - [ ] Тесты — покрыть `LeanRagAgent.run()`, expand, retrieve, generate
-- [ ] Убрать мёртвый код: `agent_service.py`, `answer_service.py`, `promt/promts.py` (после переноса промптов)
+- [x] Убрать мёртвый код: `promt/promts.py` (промпты перенесены в `ai_config.toml`, файл удалён)
+- [ ] Убрать мёртвый код: `agent_service.py`, `answer_service.py`
+- [ ] `max_tokens` есть в `ai_config.toml` (`[llm]`) и валидируется в `AppConfig`, но нигде не передаётся в `chat.completions.create()` — решение отложено намеренно, вернуться к этому позже

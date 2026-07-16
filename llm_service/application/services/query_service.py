@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Literal
 
 from llm_service.application.lean_rag_models import ExpandedQueryPack
@@ -30,7 +31,12 @@ class QueryExpansionService:
     async def expand(original_query: str, row_query: str, max_queries: int = 6) -> ExpandedQueryPack:
 
         raw_expansion = row_query.strip()
-        expansion_lines = [line.strip("-• \t") for line in raw_expansion.splitlines() if line.strip()]
+
+        try:
+            parsed = json.loads(raw_expansion)
+            expansion_lines = [str(item).strip() for item in parsed if str(item).strip()]
+        except (json.JSONDecodeError, TypeError):
+            expansion_lines = [line.strip("-• \t") for line in raw_expansion.splitlines() if line.strip()]
 
         queries = [original_query]
         for line in expansion_lines:

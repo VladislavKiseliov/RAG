@@ -1,30 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Protocol
 
+from llm_service.ai_config import get_live_config
 from llm_service.application.lean_rag_models import FinalPromptData
-import tomllib
-
-_CONFIG_PATH = Path(__file__).parent / "ai_config.toml"
-
-SYSTEM_PROMPT_RAG = """Ты — профессиональный технический ассистент лаборатории.
-Твоя задача — ответить на вопрос, строго опираясь на предоставленный КОНТЕКСТ ИЗ ДОКУМЕНТАЦИИ.
-
-Правила:
-1) Используй только информацию из блока КОНТЕКСТ ИЗ ДОКУМЕНТАЦИИ.
-2) ИСТОРИЮ ДИАЛОГА и РЕЗЮМЕ используй только для понимания того, о каких деталях шла речь ранее (например, модель прибора или настройки ШИМ), если они не указаны в самом вопросе.
-3) Если в КОНТЕКСТЕ ИЗ ДОКУМЕНТАЦИИ нет прямого ответа на вопрос, ответь ровно одной фразой: "В предоставленном контексте ответа нет."
-4) Не придумывай факты от себя. Выводи только текст ответа, без вступлений и приветствий."""
-
-
-SYSTEM_PROMPT_CHAT = """Ты — профессиональный инженер-консультант. 
-Сейчас идет свободное обсуждение задачи, поиск по базе документации не производился.
-
-Правила:
-1) Отвечай на вопрос, опираясь на ИСТОРИЮ ДИАЛОГА, РЕЗЮМЕ ПРЕДЫДУЩЕЙ БЕСЕДЫ и свои технические знания.
-2) Будь лаконичен, точен и вежлив.
-3) Выводи только текст ответа, без дежурных вступлений."""
 
 USER_TEMPLATE = """РЕЗЮМЕ ДИАЛОГА:
 {summary}
@@ -38,15 +17,6 @@ USER_TEMPLATE = """РЕЗЮМЕ ДИАЛОГА:
 ---
 
 ВОПРОС: {current_query}"""
-
-GENERAL_SYSTEM_PROMPT = """Ты — полезный ассистент. Отвечай кратко и по делу.
-Если не уверен — честно скажи, что информации недостаточно."""
-
-SUMMARY_SYSTEM_PROMPT = """Ты — ассистент, который сжимает историю диалога в короткое резюме.
-Правила:
-1) Сохрани все важные факты: названия, числа, технические детали, договорённости.
-2) Если передано существующее резюме — объедини его с новыми сообщениями в единый связный текст.
-3) Выводи только текст резюме без вступлений и пояснений."""
 
 SUMMARY_USER_TEMPLATE = """СУЩЕСТВУЮЩЕЕ РЕЗЮМЕ:
 {existing_summary}
@@ -77,19 +47,17 @@ class OpenAICompatLLMProvider:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
 
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
-        live_config = self.get_live_model_settings()
-        current_model = live_config["llm"]["model_name"]
-        current_temp = live_config["llm"]["temperature"]
+        config = get_live_config()
 
         if data_prompt.route == "domain_rag":
-            system = SYSTEM_PROMPT_RAG
+            system = config.prompts.system_prompt_rag
             context = data_prompt.context
         else:
-            system = SYSTEM_PROMPT_CHAT
+            system = config.prompts.system_prompt_chat
             context = "Поиск в базе знаний не производился за ненадобностью."
 
         response = await self._client.chat.completions.create(
-            model=current_model,
+            model=config.llm.model_name,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": USER_TEMPLATE.format(
@@ -99,57 +67,42 @@ class OpenAICompatLLMProvider:
                     current_query=current_query,
                 )},
             ],
-            temperature=current_temp,
+            temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
 
     async def generate_general(self, *, query: str, context: str) -> str:
-        live_config = self.get_live_model_settings()
-        current_model = live_config["llm"]["model_name"]
-        current_temp = live_config["llm"]["temperature"]
+        config = get_live_config()
         content = f"{context}\n\n{query}" if context.strip() else query
         response = await self._client.chat.completions.create(
-            model=current_model,
+            model=config.llm.model_name,
             messages=[
-                {"role": "system", "content": GENERAL_SYSTEM_PROMPT},
+                {"role": "system", "content": config.prompts.general_system_prompt},
                 {"role": "user", "content": content},
             ],
-            temperature=current_temp,
+            temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
 
     async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str:
-        live_config = self.get_live_model_settings()
-        current_model = live_config["llm"]["model_name"]
-        current_temp = live_config["llm"]["temperature"]
+        config = get_live_config()
         history = "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
         response = await self._client.chat.completions.create(
-            model=current_model,
+            model=config.llm.model_name,
             messages=[
-                {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                {"role": "system", "content": config.prompts.summary_system_prompt},
                 {"role": "user", "content": SUMMARY_USER_TEMPLATE.format(
                     existing_summary=existing_summary or "отсутствует",
                     history=history,
                 )},
             ],
-            temperature=current_temp,
+            temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
 
-    def get_live_model_settings(self):
-        try:
-            with open(_CONFIG_PATH, "rb") as f:
-                config = tomllib.load(f)
-            return config
-        except Exception as e:
-            # Если файл случайно сохранили с ошибкой во время редактирования,
-            # возвращаем дефолтные значения, чтобы бэкенд не упал
-            print(f"Ошибка чтения TOML: {e}")
-            return {"llm": {"model_name": "gpt-4o", "temperature": 0.7}}
-
 
 class GroqLLMProvider:
-    def __init__(self, *, api_key: str, model: str = "openai/gpt-oss-120b:groq"):
+    def __init__(self, *, api_key: str):
         if not api_key:
             raise ValueError("HF_TOKEN is not set")
         from openai import AsyncOpenAI
@@ -159,18 +112,19 @@ class GroqLLMProvider:
             base_url="https://router.huggingface.co/v1",
             timeout=60.0,
         )
-        self._model = model
 
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+        config = get_live_config()
+
         if data_prompt.route == "domain_rag":
-            system = SYSTEM_PROMPT_RAG
+            system = config.prompts.system_prompt_rag
             context = data_prompt.context
         else:
-            system = SYSTEM_PROMPT_CHAT
+            system = config.prompts.system_prompt_chat
             context = "Поиск в базе знаний не производился за ненадобностью."
 
         response = await self._client.chat.completions.create(
-            model=self._model,
+            model=config.llm.model_name,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": USER_TEMPLATE.format(
@@ -180,34 +134,36 @@ class GroqLLMProvider:
                     current_query=current_query,
                 )},
             ],
-            temperature=0.2,
+            temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
 
     async def generate_general(self, *, query: str, context: str) -> str:
+        config = get_live_config()
         content = f"{context}\n\n{query}" if context.strip() else query
         response = await self._client.chat.completions.create(
-            model=self._model,
+            model=config.llm.model_name,
             messages=[
-                {"role": "system", "content": GENERAL_SYSTEM_PROMPT},
+                {"role": "system", "content": config.prompts.general_system_prompt},
                 {"role": "user", "content": content},
             ],
-            temperature=0.4,
+            temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
 
     async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str:
+        config = get_live_config()
         history = "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
         response = await self._client.chat.completions.create(
-            model=self._model,
+            model=config.llm.model_name,
             messages=[
-                {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                {"role": "system", "content": config.prompts.summary_system_prompt},
                 {"role": "user", "content": SUMMARY_USER_TEMPLATE.format(
                     existing_summary=existing_summary or "отсутствует",
                     history=history,
                 )},
             ],
-            temperature=0.2,
+            temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
 

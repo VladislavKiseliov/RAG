@@ -36,7 +36,6 @@ def _build_llm_provider() -> LLMProvider:
     if settings.LLM_PROVIDER == "groq":
         return GroqLLMProvider(
             api_key=settings.HF_TOKEN,
-            model=settings.LLM_MODEL,
         )
     return OpenAICompatLLMProvider(
         api_key=settings.LLM_API_KEY,
