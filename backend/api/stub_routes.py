@@ -1,20 +1,34 @@
-"""Временные заглушки API для экранов «База знаний» и «Проекты».
+"""API для экрана «База знаний» (чтение) и заглушка «Проекты».
 
-In-memory данные, без обращения к rag_service/БД. Существуют только на время
-жизни процесса — перезапуск бэкенда сбрасывает состояние. Заменить на реальную
-реализацию, когда появится DDD-слой для этих доменов.
+Чтение документов (`GET /api/knowledge/documents`) проксирует и агрегирует
+реальные данные из rag_service (главы, таблицы, статус индексации). Загрузка
+(`POST`/`PATCH`) — временная заглушка на in-memory данных: реальный upload
+через основной фронт идёт через presigned-URL-пайплайн (как в admin-panel) и
+пока не подключён, поэтому «загруженный» документ не появится в списке после
+следующего обновления страницы.
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 
+import httpx
 from fastapi import APIRouter, File, UploadFile
 from pydantic import BaseModel
 
 from backend.dependencies import CurrentUserDep
+from backend.settings import settings
 
-knowledge_router = APIRouter(prefix="/api/knowledge", tags=["knowledge-stub"])
+knowledge_router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 projects_router = APIRouter(prefix="/api/projects", tags=["projects-stub"])
+
+RAG_SERVICE_URL = settings.RAG_SERVICE_URL.rstrip("/")
+
+_TYPE_ABBR_BY_EXT = {
+    "pdf": "PDF", "docx": "DOC", "doc": "DOC",
+    "md": "MD", "markdown": "MD", "txt": "TXT",
+}
+_STATUS_TO_UI = {"completed": "indexed"}
 
 
 class DocumentStatusUpdate(BaseModel):
@@ -23,121 +37,82 @@ class DocumentStatusUpdate(BaseModel):
 
 _COLLECTIONS = [
     {"id": "all", "label": "Вся библиотека", "icon": "▤"},
-    {"id": "api", "label": "API и интеграции", "icon": "◇"},
-    {"id": "infra", "label": "Инфраструктура", "icon": "◫"},
-    {"id": "process", "label": "Процессы", "icon": "❏"},
 ]
 
-_DOCUMENTS: list[dict] = [
-    {
-        "id": "api", "title": "API Reference — Orders v2", "type": "OpenAPI 3.1", "type_abbr": "API",
-        "collection": "api", "personal": False,
-        "size": "1.2 МБ", "pages": 48, "chunk_size": 512, "overlap": 64, "chunks": 312,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "Платформа", "updated": "2 дня назад", "status": "indexed",
-        "summary": "Полное описание REST API сервиса заказов: аутентификация по OAuth2, ресурсы orders и line_items, курсорная пагинация, единый формат ошибок и вебхуки. Версия 2 сохраняет обратную совместимость с v1 через заголовок Accept-Version.",
+_DOCUMENTS: list[dict] = []
+
+
+def _format_size(file_size: int | None) -> str:
+    if not file_size:
+        return "—"
+    kb = file_size / 1024
+    return f"{kb / 1024:.1f} МБ" if kb >= 1024 else f"{round(kb)} КБ"
+
+
+def _split_ext(filename: str) -> tuple[str, str]:
+    if "." not in filename:
+        return filename, "txt"
+    title, ext = filename.rsplit(".", 1)
+    return title, ext.lower()
+
+
+def _to_ui_document(summary: dict, detail: dict | None) -> dict:
+    """Map rag_service document (summary + optional detail) to the KB screen shape.
+
+    Полей `collection`/`personal`/`owner`/`pages`/`chunk_size`/`overlap`/
+    `models`/`dim`/`metric` в rag_service нет (нет тегов документа, нет
+    привязки к пользователю, нет постраничного трекинга, чанкинг не
+    токен-оконный). Оставлены как явные заглушки по договорённости — не
+    выдумываем правдоподобные числа.
+    """
+    title, ext = _split_ext(summary["filename"])
+    detail = detail or {}
+    chapters = detail.get("chapters", [])
+
+    return {
+        "id": summary["doc_id"],
+        "title": title,
+        "type": ext.upper(),
+        "type_abbr": _TYPE_ABBR_BY_EXT.get(ext, ext.upper()[:4]),
+        "collection": "all",
+        "personal": False,
+        "size": _format_size(summary.get("size")),
+        "pages": None,
+        "chunk_size": None,
+        "overlap": None,
+        "chunks": summary.get("chunk_count"),
+        "models": None,
+        "dim": None,
+        "metric": None,
+        "owner": "—",
+        "updated": summary["created_at"][:10],
+        "status": _STATUS_TO_UI.get(summary["status"], "processing"),
+        "summary": "Автоматическое резюме документа пока не сформировано.",
         "sections": [
-            {"title": "Аутентификация", "chunks": 28, "summary": "OAuth2 client_credentials, время жизни access-токена 1 час, скоупы orders:read и orders:write. Ротация секрета без даунтайма."},
-            {"title": "Эндпоинты Orders", "chunks": 96, "summary": "CRUD по заказам, фильтры по статусу и периоду, bulk-операции до 500 записей за запрос, идемпотентные ключи для POST."},
-            {"title": "Пагинация", "chunks": 34, "summary": "Курсорная модель: параметры limit и cursor, в ответе next_cursor. Offset не поддерживается из-за дрейфа данных."},
-            {"title": "Ошибки", "chunks": 52, "summary": "Единый объект error{code, message, details}, маппинг на HTTP-статусы, повторы только для 5xx и 429."},
-            {"title": "Вебхуки", "chunks": 41, "summary": "События order.created/updated/cancelled, подпись HMAC-SHA256, ретраи с экспоненциальным backoff до 24 часов."},
+            {
+                "title": chapter["title"],
+                "chunks": None,
+                "summary": "Саммари главы пока не сформировано.",
+            }
+            for chapter in chapters
         ],
-    },
-    {
-        "id": "cicd", "title": "Руководство по CI/CD", "type": "Markdown", "type_abbr": "MD",
-        "collection": "process", "personal": False,
-        "size": "340 КБ", "pages": 22, "chunk_size": 512, "overlap": 64, "chunks": 148,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "DevEx", "updated": "5 дней назад", "status": "indexed",
-        "summary": "Стандарт пайплайнов: этапы lint → test → build → deploy, кэширование зависимостей, стратегия деплоя blue-green и процедура отката. Описаны required-чеки и политика веток.",
-        "sections": [
-            {"title": "Структура пайплайна", "chunks": 44, "summary": "Параллельные джобы lint/test, артефакты между стадиями, матрица версий рантайма."},
-            {"title": "Кэширование", "chunks": 30, "summary": "Ключи кэша по lock-файлу, инвалидация при смене базового образа, экономия ~6 мин на сборку."},
-            {"title": "Деплой", "chunks": 42, "summary": "Blue-green через два таргет-группы, прогрев и health-checks перед переключением трафика."},
-            {"title": "Откат", "chunks": 32, "summary": "Откат одной командой на предыдущий тег, окно автоматического отката по метрикам ошибок."},
-        ],
-    },
-    {
-        "id": "arch", "title": "Архитектура сервисов", "type": "Confluence", "type_abbr": "CONF",
-        "collection": "infra", "personal": False,
-        "size": "2.1 МБ", "pages": 64, "chunk_size": 640, "overlap": 80, "chunks": 268,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "Архитектура", "updated": "неделю назад", "status": "indexed",
-        "summary": "Карта доменных сервисов и их контрактов: orders, billing, notifications, identity. Описаны синхронные вызовы, событийная шина и границы транзакций. Добавлен сервис billing.",
-        "sections": [
-            {"title": "Доменные границы", "chunks": 58, "summary": "Каждый сервис владеет своими данными, межсервисные обращения только через публичные контракты."},
-            {"title": "Событийная шина", "chunks": 72, "summary": "Kafka-топики по доменам, схемы в реестре, at-least-once доставка и дедупликация на стороне потребителя."},
-            {"title": "Билинг", "chunks": 66, "summary": "Новый сервис тарификации, идемпотентные начисления, сверка с провайдером платежей раз в сутки."},
-            {"title": "Идентичность", "chunks": 72, "summary": "Единый identity-провайдер, JWT с короткими TTL, делегирование скоупов между сервисами."},
-        ],
-    },
-    {
-        "id": "runbook", "title": "Runbook: миграция БД на v2", "type": "Markdown", "type_abbr": "MD",
-        "collection": "infra", "personal": False,
-        "size": "180 КБ", "pages": 14, "chunk_size": 512, "overlap": 64, "chunks": 96,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "SRE", "updated": "3 дня назад", "status": "indexed",
-        "summary": "Пошаговый сценарий перехода схемы на v2: dry-run, посервисное применение миграций, проверка консистентности и план отката. Указаны окна обслуживания и владельцы шагов.",
-        "sections": [
-            {"title": "Подготовка", "chunks": 22, "summary": "Снапшот БД, проверка свободного места, заморозка схемных изменений на время окна."},
-            {"title": "Dry-run", "chunks": 26, "summary": "Прогон миграций на реплике, замер длительности блокировок, отчёт о расхождениях."},
-            {"title": "Применение", "chunks": 30, "summary": "Посервисный rollout, online-DDL для больших таблиц, контроль лага репликации."},
-            {"title": "Откат", "chunks": 18, "summary": "Обратные миграции и восстановление из снапшота, критерии принятия решения об откате."},
-        ],
-    },
-    {
-        "id": "style", "title": "Гайд по код-стайлу", "type": "Markdown", "type_abbr": "MD",
-        "collection": "process", "personal": False,
-        "size": "96 КБ", "pages": 11, "chunk_size": 384, "overlap": 48, "chunks": 64,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "DevEx", "updated": "2 недели назад", "status": "indexed",
-        "summary": "Соглашения по именованию, форматированию и структуре модулей, правила ревью и требования к покрытию тестами. Линтер и форматтер настроены как pre-commit и required-чек в CI.",
-        "sections": [
-            {"title": "Именование", "chunks": 18, "summary": "Единые правила для пакетов, типов и функций, запрет на сокращения вне согласованного списка."},
-            {"title": "Ревью", "chunks": 24, "summary": "Минимум один аппрув, чеклист ревьюера, ограничение размера PR для скорости проверки."},
-            {"title": "Тесты", "chunks": 22, "summary": "Порог покрытия 80%, обязательные тесты на баг-фиксы, изоляция внешних зависимостей."},
-        ],
-    },
-    {
-        "id": "onb", "title": "Onboarding инженера", "type": "Confluence", "type_abbr": "CONF",
-        "collection": "process", "personal": False,
-        "size": "420 КБ", "pages": 18, "chunk_size": 512, "overlap": 64, "chunks": 112,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "People", "updated": "месяц назад", "status": "indexed",
-        "summary": "План первых двух недель: доступы, локальное окружение, первый коммит и знакомство с командами. Чеклист по дням и ответственные наставники для каждого блока.",
-        "sections": [
-            {"title": "Доступы", "chunks": 26, "summary": "Запрос прав через единый портал, минимально необходимый набор на старте, ревизия через месяц."},
-            {"title": "Окружение", "chunks": 48, "summary": "Скрипт быстрой настройки, контейнеры для зависимостей, типовые проблемы и их решения."},
-            {"title": "Первый коммит", "chunks": 38, "summary": "Подобранная good-first-issue, парное ревью, прохождение всего пайплайна до прода."},
-        ],
-    },
-    {
-        "id": "p1", "title": "Заметки: архитектура биллинга", "type": "Markdown", "type_abbr": "MD",
-        "collection": "personal", "personal": True,
-        "size": "64 КБ", "pages": 6, "chunk_size": 384, "overlap": 48, "chunks": 36,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "Влад Логинов", "updated": "сегодня", "status": "indexed",
-        "summary": "Личные заметки по новому сервису биллинга: модель тарифов, идемпотентность начислений, открытые вопросы по сверке с провайдером. Черновик для обсуждения на следующем синке.",
-        "sections": [
-            {"title": "Модель тарифов", "chunks": 14, "summary": "Тарифные планы как версионируемые сущности, расчёт по событиям использования."},
-            {"title": "Идемпотентность", "chunks": 12, "summary": "Ключ операции = (договор, период, тип), защита от двойного начисления при ретраях."},
-            {"title": "Открытые вопросы", "chunks": 10, "summary": "Окно сверки с провайдером и обработка частичных возвратов — нужно решение архитектора."},
-        ],
-    },
-    {
-        "id": "p2", "title": "Чеклист релиза", "type": "PDF", "type_abbr": "PDF",
-        "collection": "personal", "personal": True,
-        "size": "48 КБ", "pages": 3, "chunk_size": 384, "overlap": 48, "chunks": 22,
-        "models": "bge-m3", "dim": 1024, "metric": "cosine",
-        "owner": "Влад Логинов", "updated": "вчера", "status": "indexed",
-        "summary": "Персональный чеклист перед выкаткой: фиче-флаги, миграции, метрики и дежурный. Использую как финальную проверку перед нажатием deploy.",
-        "sections": [
-            {"title": "Перед деплоем", "chunks": 12, "summary": "Состояние фиче-флагов, обратимость миграций, готовность дашбордов."},
-            {"title": "После деплоя", "chunks": 10, "summary": "Контроль ошибок и латентности первые 30 минут, план отката под рукой."},
-        ],
-    },
-]
+    }
+
+
+async def _fetch_documents_from_rag_service() -> list[dict]:
+    async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
+        list_response = await client.get("/documents")
+        list_response.raise_for_status()
+        summaries = list_response.json()
+
+        details = await asyncio.gather(
+            *(client.get(f"/documents/{s['doc_id']}") for s in summaries)
+        )
+
+    return [
+        _to_ui_document(summary, resp.json() if resp.status_code == 200 else None)
+        for summary, resp in zip(summaries, details)
+    ]
 
 _PROJECTS: list[dict] = [
     {
@@ -270,7 +245,8 @@ _PROJECTS: list[dict] = [
 
 @knowledge_router.get("/documents")
 async def list_documents(current_user: CurrentUserDep):
-    return {"documents": _DOCUMENTS, "collections": _COLLECTIONS}
+    documents = await _fetch_documents_from_rag_service()
+    return {"documents": documents, "collections": _COLLECTIONS}
 
 
 @knowledge_router.post("/documents")
