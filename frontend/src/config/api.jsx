@@ -19,5 +19,13 @@ export const ENDPOINTS = {
     },
     KNOWLEDGE_DOCUMENTS: "/api/knowledge/documents",
     KNOWLEDGE_DOCUMENT_STATUS: (id) => `/api/knowledge/documents/${id}`,
+    KNOWLEDGE_DOCUMENT_CHAPTER: (id, idx) => `/api/knowledge/documents/${id}/chapters/${idx}`,
     PROJECTS: "/api/projects",
+    ADMIN_HEALTH: "/admin/system/health",
+    ADMIN_DOCUMENTS: "/admin/documents",
+    ADMIN_DOCUMENT_UPLOAD_LINK: "/admin/documents/upload-link",
+    ADMIN_DOCUMENT_REINDEX: (id) => `/admin/documents/${id}/reindex`,
+    ADMIN_DOCUMENT_DELETE: (id) => `/admin/documents/${id}`,
+    ADMIN_USERS: "/admin/users/repo",
+    ADMIN_USER_ROLE: (id) => `/admin/users/repo/${id}/role`,
 };

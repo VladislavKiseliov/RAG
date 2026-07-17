@@ -1,0 +1,125 @@
+import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const fmt = (v) => (v === null || v === undefined ? '—' : v);
+
+function DocumentReader({
+    doc, chapterIdx, contentMode, chapterContent, chapterContentLoading,
+    onOpenChapter, onBackToOverview, onSetMode, onClose, onReindex,
+}) {
+    const chapter = chapterIdx !== null ? doc.sections[chapterIdx] : null;
+    const isProcessing = doc.status === 'processing';
+    const chapterTables = chapterContent?.tables ?? [];
+
+    return (
+        <div className="kb-reader">
+            <header className="kb-reader-topbar">
+                <div className="kb-reader-badge mono">{doc.type_abbr}</div>
+                <div className="kb-reader-title-wrap">
+                    <div className="kb-reader-title">{doc.title}</div>
+                    <div className="kb-reader-meta">{doc.type} · {doc.owner} · обновлён {doc.updated}</div>
+                </div>
+                <div className="kb-reader-ask" onClick={onClose}>Спросить ассистента →</div>
+                {onReindex && (
+                    <div className="kb-reader-icon-btn" title="Переиндексировать" onClick={onReindex}>↻</div>
+                )}
+                <div className="kb-reader-icon-btn" title="Закрыть" onClick={onClose}>✕</div>
+            </header>
+
+            <div className="kb-reader-body">
+                <aside className="kb-reader-outline">
+                    <div className="kb-reader-chips">
+                        <span className="kb-pill">
+                            <span className={`kb-status-dot${isProcessing ? ' processing' : ''}`} />
+                            {isProcessing ? 'Индексация…' : 'В индексе'}
+                        </span>
+                        <span className="kb-pill mono">{doc.size} · {fmt(doc.pages)} стр.</span>
+                    </div>
+
+                    <div className="kb-drawer-section-title">Векторизация</div>
+                    <div className="kb-vec-grid">
+                        <div className="kb-vec-cell"><div className="kb-vec-label">Размер чанка</div><div className="mono kb-vec-value">{fmt(doc.chunk_size)} <span className="kb-muted">ток.</span></div></div>
+                        <div className="kb-vec-cell"><div className="kb-vec-label">Перекрытие</div><div className="mono kb-vec-value">{fmt(doc.overlap)} <span className="kb-muted">ток.</span></div></div>
+                        <div className="kb-vec-cell"><div className="kb-vec-label">Чанков</div><div className="mono kb-vec-value">{fmt(doc.chunks)}</div></div>
+                        <div className="kb-vec-cell accent"><div className="kb-vec-label">Точек в БД</div><div className="mono kb-vec-value">{fmt(doc.chunks)}</div></div>
+                        <div className="kb-vec-cell span-2"><div className="kb-vec-label">Модель · размерность · метрика</div><div className="mono kb-vec-value">{fmt(doc.models)} · {fmt(doc.dim)}d · {fmt(doc.metric)}</div></div>
+                    </div>
+
+                    <div className="kb-drawer-section-title">Оглавление</div>
+                    <nav className="kb-reader-toc">
+                        <div
+                            className={`kb-reader-toc-item${chapterIdx === null ? ' active' : ''}`}
+                            onClick={onBackToOverview}
+                        >
+                            ▤ Обзор документа
+                        </div>
+                        {doc.sections.map((s, i) => (
+                            <div
+                                key={i}
+                                className={`kb-reader-toc-item${chapterIdx === i ? ' active' : ''}`}
+                                onClick={() => onOpenChapter(i)}
+                            >
+                                <span>{i + 1}</span>
+                                <span className="kb-reader-toc-title">{s.title}</span>
+                                <span className="count mono kb-muted">{fmt(s.chunks)}</span>
+                            </div>
+                        ))}
+                    </nav>
+                </aside>
+
+                <main className="kb-reader-content">
+                    <div className="kb-reader-content-inner">
+                        <div className="kb-reader-content-head">
+                            <h2>{chapter ? chapter.title : 'Обзор документа'}</h2>
+                            {chapter && (
+                                <span className="mono kb-muted">▦ {fmt(chapter.chunks)} чанк. · ◆ {fmt(chapter.chunks)} точ.</span>
+                            )}
+                        </div>
+
+                        {chapter && (
+                            <div className="kb-reader-mode-tabs">
+                                <button className={contentMode === 'summary' ? 'active' : ''} onClick={() => onSetMode('summary')}>Краткое</button>
+                                <button className={contentMode === 'full' ? 'active' : ''} onClick={() => onSetMode('full')}>Весь текст</button>
+                            </div>
+                        )}
+
+                        {!chapter && (
+                            <div className="kb-reader-summary-card">{doc.summary}</div>
+                        )}
+                        {chapter && contentMode === 'summary' && (
+                            <div className="kb-reader-summary-card">{chapter.summary}</div>
+                        )}
+
+                        {chapter && contentMode === 'full' && chapterContentLoading && (
+                            <div className="kb-reader-summary-card kb-muted">Загрузка текста главы…</div>
+                        )}
+
+                        {chapter && contentMode === 'full' && !chapterContentLoading && (
+                            <div>
+                                <div className="kb-reader-full-text message-markdown">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{chapterContent?.text || ''}</ReactMarkdown>
+                                </div>
+                                {chapterTables.map((tb, i) => (
+                                    <div key={i} className="kb-reader-table-card">
+                                        <div className="kb-reader-table-head">▦ {tb.name}</div>
+                                        <table>
+                                            <thead><tr>{tb.cols.map((c, ci) => <th key={ci}>{c}</th>)}</tr></thead>
+                                            <tbody>
+                                                {tb.rows.map((r, ri) => (
+                                                    <tr key={ri}>{r.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </main>
+            </div>
+        </div>
+    );
+}
+
+export default DocumentReader;

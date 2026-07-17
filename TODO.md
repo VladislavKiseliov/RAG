@@ -1,5 +1,42 @@
 # RAGProgramm — TODO
 
+## Приоритетный план (аудит 2026-07-17)
+
+Собран по итогам полного аудита всех 4 сервисов (параллельный обход кода + сверка со всеми
+MD-планами репозитория). Порядок — по риску/зависимостям, не по формальному приоритету ниже.
+Актуальный список известных багов и архитектурного долга rag_service — в `rag_service/ISSUES.md`.
+
+### Фаза 0 — Security (сделать первым)
+- [ ] Хешировать пароли в `UserService` при создании/смене админом (`backend/services/user_service.py`, `dependencies.py`) — сейчас пишутся в БД как есть, созданный админом аккаунт не может залогиниться
+- [ ] Guard от самоудаления (`DELETE /admin/users/repo/{id}`)
+- [ ] Guard от самопонижения/понижения последнего админа (`PATCH .../role`)
+
+### Фаза 1 — Баги, ломающие пайплайн
+- [ ] Таблицы не долетают до ответов ассистента — реконструкция `[→ Таблица N]` есть только в `GET /documents/{id}/chapters/{n}` (читалка), retrieval-путь (`retrieve_service.build_retrieved_items`) отдаёт текст с неразрешёнными маркерами
+- [ ] Ретрай-политика `DBAPIError` в `ingestion_service.py:154-159` всё ещё широкая (см. B5 в ISSUES.md) — сузить до `OperationalError`
+- [ ] Webhook double-dispatch race в `rag_routes.py` (B6 в ISSUES.md) — per-record try/except + идемпотентность
+- [ ] ML-роутер: e5-large захардкожен в `llm_service/infrastructure.py`, классификатор учится на e5-small — несовпадение размерности уронит `/llm/answer`, если переключат путь к модели
+- [ ] `route_node` блокирует event loop синхронным `encode`/`predict_proba` — обернуть в `asyncio.to_thread`
+- [ ] N+1 в списке Базы знаний (`backend/api/stub_routes.py:102-115`) — ограничить конкурентность
+
+### Фаза 2 — Достроить то, что фронт уже показывает как готовое
+- [ ] Админ-панель: health-поллинг, источник Celery-задач (уже поднят `rag_flower`, просто не опрашивается), реальные `scope`/`ownerId` документов, персист rename/role/block, confirm-диалоги
+- [ ] База знаний: upload/patch документа — снять с in-memory `_DOCUMENTS` в `stub_routes.py`
+- [ ] Заметки — бэкенд (таблица + эндпоинт + реальная индексация; сейчас фронт полностью на моках, см. `frontend/handoff_3_экрана/ЗАМЕТКИ - внедрение.md`)
+- [ ] Проекты — полный DDD-бэкенд по `backend/DDD_PLAN_knowledge_projects.md` (Домен 2) — `toggleTask`/`addFile` сейчас не переживают reload
+- [ ] Мессенджер — фронтенд-хвосты: `MessengerPage.jsx`, `MessengerMessage.jsx`, `TypingIndicator.jsx`, роутинг в `App.jsx` (бэкенд полностью готов, см. `backend/MESSENGER_TODO.md`)
+
+### Фаза 3 — Архитектурный долг
+Полный список — `rag_service/ISSUES.md` (A1/A6/A7/A8/A9/A11, A10 миграции/`document_meta_sections`/саммари глав и таблиц, мёртвый код D1/D4/D6/D7/D8, дубль `MLQueryRouter` в llm_service).
+
+### Фаза 4 — Новые фичи
+См. «Дальнейшие планы» ниже — Фича 1 (AI-аудит), Фича 2 (автосаммари, нужен только триггер), Фича 4 (`@gpt` в мессенджере — можно брать сразу, зависимость снята), Фича 5 (= Фаза 2 «Проекты»).
+
+### Фаза 5 — Готовность к релизу
+Тесты, merge `mvp → main`, Grafana/Loki логи, остатки settings/dead-code — см. таблицу ниже пп. 9-15.
+
+---
+
 ## MVP: задачи до релиза
 
 | # | Задача | Сервис | Приоритет | Статус |
@@ -8,7 +45,7 @@
 | 2 | Логи — убрать `print()`, настроить structured JSON logging | все | Высокий | ✅ Готово |
 | 3 | Ошибки — кастомные исключения (ChatNotFoundError, LLMError, LLMUnavailableError), убрать HTTPException из сервисов | llm, backend | Высокий | ✅ Готово |
 | 4 | Summary — ConversationService, count_after по БД, POST /llm/summary, generate_summary() | backend, llm | Высокий | ✅ Готово |
-| 5 | Регистрация — валидация, роли (user/admin) | backend | Средний | 🔄 Частично |
+| 5 | Роли (user/admin) — `is_superuser` как источник правды, гейтинг `/admin/*`, `PATCH .../role` | backend, frontend | Средний | ✅ Готово ⚠️¹ |
 | 6 | Профиль пользователя — расширить модель (имя, роль, аватар, дата) | backend, frontend | Средний | ⬜ Не начато |
 | 7 | `GET /health` для llm_service | llm | Средний | ✅ Готово |
 | 8 | Переименовать `history_massage` → `history_messages` | llm, backend | Низкий | ✅ Готово |
@@ -19,6 +56,19 @@
 | 13 | Тесты — покрыть retrieve, ingestion, chat, LLM pipeline | все | Средний | ⬜ Не начато |
 | 14 | Merge `mvp` → `main` | — | — | ⬜ Не начато |
 | 15 | Grafana — логи не доходят (Loki driver настроен в docker-compose, но записи не поступают) | все | Средний | ⬜ Не начато |
+| 16 | `GET /documents/{doc_id}/chapters/{n}` — текст главы + таблицы (для читалки) | rag, backend, frontend | Средний | ✅ Готово |
+
+¹ Гейтинг `/admin/*` и `PATCH .../role` реально работают, но аудит 2026-07-17 нашёл, что `UserService`
+создаёт/обновляет пароли пользователей через админ-роуты (`POST/PUT /admin/users/repo...`) без хеширования
+(`user_service.py` не получает `auth_handler`, в отличие от `AuthService.register`) — учётка,
+созданная админом, не сможет залогиниться, и в БД лежит plaintext-пароль. Плюс нет guard'ов на
+самоудаление/самопонижение последнего админа. См. полный список багов у аудита в памяти/чате сессии.
+
+---
+
+## Учётки
+
+- Первый (и пока единственный) админ: логин `admin`, пароль `admin1234` (заведён вручную через `/auth/register` + `is_superuser=true` напрямую в БД — самостоятельная регистрация не даёт роль admin, только следующих админов может назначать уже существующий админ через вкладку «Пользователи» в админ-панели). Учётка dev-стенда, для прод-окружения пароль сменить.
 
 ---
 
@@ -66,20 +116,16 @@
 
 ---
 
-### Фича 3 — Корпоративный мессенджер (WebSockets)
-Личные и групповые чаты между сотрудниками с AI как участником.
+### Фича 3 — Корпоративный мессенджер (WebSockets) ✅ бэкенд готов
+Личные чаты между сотрудниками с AI как участником. **Уточнение 2026-07-17:** описанное ниже
+уже реализовано на бэкенде (см. `backend/MESSENGER_TODO.md`, блоки 1–10, 8К, 8Л) — этот раздел
+раньше выглядел как план "с нуля", хотя таблицы/`ConnectionManager`/WS-эндпоинт/`useMessengerSocket.js`
+на фронте уже есть. Push-уведомлений (Celery) нет, но это не блокирует остальное.
 
-**Архитектура:**
-- Загрузка истории: `GET /api/v1/chats/{id}/messages` (HTTP, последние 20 из Postgres)
-- Реальное время: WebSocket `ws://.../chats/{id}/ws`, `ConnectionManager` хранит `active_connections[user_id]`
-- Онлайн: сообщение через вебсокет мгновенно
-- Офлайн: `send_push_notification.delay(recipient_id, text)` через Celery
-
-**Что нужно:**
-- [ ] Новые таблицы: `direct_chats`, `chat_members`, `messages`
-- [ ] `ConnectionManager` — singleton, хранит WebSocket по `user_id`
-- [ ] WebSocket эндпоинт в backend
-- [ ] Push-уведомления (Celery задача)
+**Что реально осталось** (см. Фаза 2 в приоритетном плане выше):
+- [ ] `frontend/src/pages/MessengerPage.jsx`, `MessengerMessage.jsx`, `TypingIndicator.jsx`
+- [ ] Роутинг `MessengerPage` в `App.jsx`
+- [ ] Push-уведомления офлайн-получателю через Celery (`send_push_notification.delay`) — не реализовано
 
 ---
 
@@ -90,7 +136,7 @@
 - Celery: поиск в Qdrant → LLM → запись ответа от `sender_id=UUID_БОТА` → `manager.send_layout_message()`
 - Пользователь видит ответ бота в чате без перезагрузки
 
-**Зависит от Фичи 3.**
+**Зависела от Фичи 3 — та уже готова на бэкенде, можно брать сразу.**
 
 ---
 

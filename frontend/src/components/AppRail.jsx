@@ -1,16 +1,21 @@
 import React from 'react';
+import UserMenu from './UserMenu.jsx';
 
 const SECTIONS = [
     { id: 'chats', icon: '✦', title: 'Чаты' },
     { id: 'knowledge', icon: '▤', title: 'База знаний' },
     { id: 'projects', icon: '◫', title: 'Проекты' },
+    { id: 'notes', icon: '✎', title: 'Заметки' },
 ];
 
-function AppRail({ activeSection, onSelectSection, theme, onToggleTheme }) {
+const ADMIN_SECTION = { id: 'admin', icon: '⚙', title: 'Админ-панель' };
+
+function AppRail({ activeSection, onSelectSection, theme, onToggleTheme, isAdmin, onLogout }) {
+    const sections = isAdmin ? [...SECTIONS, ADMIN_SECTION] : SECTIONS;
     return (
         <nav className="app-rail">
             <div className="app-rail-logo">И</div>
-            {SECTIONS.map((s) => (
+            {sections.map((s) => (
                 <div
                     key={s.id}
                     title={s.title}
@@ -20,13 +25,7 @@ function AppRail({ activeSection, onSelectSection, theme, onToggleTheme }) {
                     {s.icon}
                 </div>
             ))}
-            <div
-                className="app-rail-icon app-rail-theme"
-                title="Тема"
-                onClick={onToggleTheme}
-            >
-                {theme === 'dark' ? '☾' : '☀'}
-            </div>
+            <UserMenu onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} footerClassName="compact-footer" />
         </nav>
     );
 }

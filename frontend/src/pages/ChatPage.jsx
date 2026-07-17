@@ -5,11 +5,14 @@ import Message from '../components/Message.jsx';
 import AppRail from '../components/AppRail.jsx';
 import KnowledgeBasePage from './KnowledgeBasePage.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
+import NotesPage from './NotesPage.jsx';
+import AdminPage from './AdminPage.jsx';
 import { createApiClient } from '../api/client';
 import { useAiChat } from '../hooks/useAiChat';
 import { useMessenger } from '../hooks/useMessenger';
 import { useMessengerSocket } from '../hooks/useMessengerSocket';
 import { useErrorToast } from '../hooks/useErrorToast';
+import { useUserRole } from '../hooks/useUserRole';
 import { formatUserName } from '../utils/formatUserName';
 import { ApiContext } from '../context/ApiContext';
 
@@ -22,6 +25,8 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
     const { error, showError } = useErrorToast();
     const aiChat = useAiChat(api, showError);
     const messenger = useMessenger(api);
+    const role = useUserRole(api);
+    const isAdmin = role === 'admin';
 
     const { sendMessage: wsSendMessage } = useMessengerSocket({
         getAccessToken,
@@ -89,6 +94,8 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                     onSelectSection={setSection}
                     theme={theme}
                     onToggleTheme={onToggleTheme}
+                    isAdmin={isAdmin}
+                    onLogout={onLogout}
                 />
 
                 {section === 'chats' && (
@@ -174,8 +181,17 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                 {section === 'knowledge' && <KnowledgeBasePage api={api} showError={showError} />}
 
                 {section === 'projects' && (
-                    <ProjectsPage api={api} showError={showError} onOpenMessenger={() => setSection('chats')} />
+                    <ProjectsPage
+                        api={api}
+                        showError={showError}
+                        onOpenMessenger={() => setSection('chats')}
+                        onOpenKnowledge={() => setSection('knowledge')}
+                    />
                 )}
+
+                {section === 'notes' && <NotesPage theme={theme} />}
+
+                {section === 'admin' && isAdmin && <AdminPage api={api} showError={showError} />}
             </div>
         </ApiContext.Provider>
     );

@@ -1,7 +1,10 @@
 # План: перевод «Базы знаний» и «Проектов» на DDD-слой
 
-Статус: **план, реализация не начата**. `backend/api/stub_routes.py` пока остаётся как есть —in-memory
-заглушка для двух экранов (`/api/knowledge/*`, `/api/projects`). Этот документ описывает, чем их заменить.
+Статус на 2026-07-17: **частично реализовано, но не через выделенный DDD-слой** — `backend/api/stub_routes.py`
+всё ещё существует и хостит оба роутера напрямую (никакого `RagClient`/`knowledge_routes.py` не заведено).
+Внутри стаба, однако, `GET /api/knowledge/documents` и `GET .../{doc_id}` уже проксируют реальные данные
+`rag_service` (список + детали + главы), а не in-memory-заглушку, как было на момент написания плана —
+см. статус по доменам ниже. `/api/projects` остаётся полностью in-memory-заглушкой (`_PROJECTS`, hardcoded).
 
 Ссылки на уже принятые решения, которые этот план обязан учитывать:
 - `rag_service/ISSUES.md` → A10 (гибридное хранение PostgreSQL + MinIO, 3 доменных бакета: `knowledge-base`, `users`, `projects`)
@@ -36,6 +39,12 @@
 
 ## Домен 1: База знаний (`backend/api/knowledge_routes.py`)
 
+**Статус на 2026-07-17:**
+- ✅ Реальные чтения: `list_documents`/`GET .../{doc_id}` и проксирование глав (`GET .../chapters/{n}`) уже берут данные из `rag_service` (`stub_routes.py:102-115,274-282`) — план описывал это как ещё не сделанное.
+- ❌ Выделение в `RagClient`/`knowledge_routes.py` — не сделано, всё ещё внутри `stub_routes.py`.
+- ❌ Upload/patch документа — всё ещё in-memory `_DOCUMENTS` (`stub_routes.py:42,252-271,285-294`).
+- ❌ `category`, `owner_user_id` на документе — не добавлены в `rag_service`.
+
 Слой в backend минимальный — авторизация, маппинг ответа rag_service под контракт фронта, ничего доменного:
 
 ```
@@ -61,6 +70,10 @@ backend/
 ---
 
 ## Домен 2: Проекты (`backend/domain проекта`)
+
+**Статус на 2026-07-17: ❌ не начато.** `_PROJECTS` в `stub_routes.py:117-243` — hardcoded список, `projects_router`
+просто отдаёт его (line 297-299). Ни `models`, ни `project_repository.py`, ни `project_service.py`,
+ни `project_routes.py`, ни миграции `projects_schema` не существуют.
 
 В отличие от документов, «Проекты» — новый домен, которого нет ни в одном сервисе. Здесь нужен полноценный
 DDD-слой в backend, по образцу `Chats` (`models/database_models.py` → `repository/chat_repository.py` →
@@ -124,7 +137,7 @@ backend/
 ## Критерии приёмки
 
 - [ ] `stub_routes.py` удалён, роуты работают на реальных таблицах/rag_service
-- [ ] Перезапуск backend не сбрасывает документы/проекты (сейчас — сбрасывает, in-memory)
+- [~] Перезапуск backend не сбрасывает документы/проекты — **документы (чтение) уже не сбрасываются** (реальный rag_service), но upload/patch документа и весь домен «Проекты» — по-прежнему in-memory, сбрасываются
 - [ ] Загруженный в «Мою базу знаний» файл реально проходит ingestion-пайплайн rag_service (не таймер на 2.6с)
 - [ ] `toggleTask`/`addFile` в проекте переживают reload страницы
 - [ ] Чат проекта (`✦ Чат проекта` в `ProjectsPage.jsx`) открывает реальный `GROUP`-чат мессенджера, не заглушку `onOpenMessenger`

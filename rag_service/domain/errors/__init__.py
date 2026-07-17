@@ -1,5 +1,6 @@
 from rag_service.domain.errors.base import (
     AppError,
+    ChapterNotFound,
     DuplicateFilenameError,
     InvalidDocumentIdError,
     UploadValidationError,
@@ -35,6 +36,7 @@ from rag_service.domain.errors.vector import (
 
 __all__ = [
     "AppError",
+    "ChapterNotFound",
     "DuplicateFilenameError",
     "UploadValidationError",
     "WebhookAuthorizationError",

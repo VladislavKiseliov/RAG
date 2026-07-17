@@ -5,9 +5,14 @@
 RAGProgramm — локальный корпоративный AI-ассистент для работы с внутренней документацией.
 Self-hosted, развёртывается полностью внутри инфраструктуры компании.
 
-**Текущее состояние:** AI-ассистент с RAG-поиском по загруженным документам, управление чатами, загрузка и индексация файлов через MinIO.
+**Текущее состояние:** AI-ассистент с гибридным RAG-поиском (Docling-парсинг PDF, главы/таблицы,
+Qdrant dense+BM25), корпоративный мессенджер на WebSocket, полноэкранная читалка документов, ролевая
+модель (`is_superuser`) с гейтингом `/admin/*`, встроенная в `frontend` админ-панель, разделы
+«Проекты» и «Заметки» (пока на моках — бэкенда под них ещё нет).
 
-**Направление развития:** корпоративный мессенджер с AI как встроенным участником, управление проектами, AI-аудит документов на соответствие ГОСТам.
+**Направление развития:** AI как участник мессенджер-чата (`@gpt`), AI-аудит документов на
+соответствие ГОСТам, бэкенд для «Проектов» и «Заметок». Актуальный приоритетный план и список
+известных багов — в `TODO.md`; архитектурный долг rag_service — в `rag_service/ISSUES.md`.
 
 ---
 
@@ -18,8 +23,8 @@ Self-hosted, развёртывается полностью внутри инф
 | `backend` | 8000 | Внешний API: auth, чаты, история, proxy в rag_service |
 | `rag_service` | 8001 | Индексация и поиск документов, webhook MinIO |
 | `llm_service` | 8002 | Генерация ответа через LangGraph RAG-агент |
-| `frontend` | 5173 | Chat UI для пользователей |
-| `admin-panel` | 5174 | Управление документами и пользователями |
+| `frontend` | 5173 | Основной UI: чат, мессенджер, база знаний, проекты, заметки, встроенная админ-панель |
+| `admin-panel` | 5174 | Отдельное legacy-приложение управления документами/пользователями (дублирует часть встроенной админки во `frontend`) |
 | `rag-worker` | — | Celery-воркер: парсинг, чанкинг, векторизация |
 | `PostgreSQL` | 5432 | Метаданные, статусы документов, чаты, пользователи |
 | `Qdrant` | 6333 | Векторный индекс (гибридный поиск) |
@@ -169,10 +174,22 @@ docker compose -f docker-compose.full.yml logs -f backend
 - `PATCH /api/chats/{id}/rename`
 - `DELETE /api/chats/{id}`
 
-**Admin**
+**Мессенджер** (гейтится ролью, требует авторизации)
+- `GET /messenger/chats/`
+- `POST /messenger/chats/direct`
+- `GET /messenger/chats/{guid}/messages`
+- `WS /websocket/ws/?token=` — реалтайм-сообщения, typing, read receipts
+
+**База знаний** (proxy в rag_service, частично ещё in-memory-заглушка — см. `backend/DDD_PLAN_knowledge_projects.md`)
+- `GET /api/knowledge/documents`
+- `GET /api/knowledge/documents/{id}`
+- `GET /api/knowledge/documents/{id}/chapters/{n}`
+
+**Admin** (весь роутер гейтится `require_admin_user`, 403 без `is_superuser`)
 - `GET /admin/users/repo`
 - `POST /admin/users/repo`
 - `PUT /admin/users/repo/{user_id}`
+- `PATCH /admin/users/repo/{user_id}/role`
 - `DELETE /admin/users/repo/{user_id}`
 - `GET /admin/documents`
 - `POST /admin/documents/upload-link`
@@ -184,6 +201,8 @@ docker compose -f docker-compose.full.yml logs -f backend
 - `POST /documents/ingest/upload-link`
 - `POST /documents/ingest/webhook`
 - `POST /documents/batch-delete`
+- `GET /documents/{doc_id}`
+- `GET /documents/{doc_id}/chapters/{chapter_idx}` — текст главы + связанные таблицы (для читалки)
 - `GET /health`
 
 ### LLM Service (`:8002`)
@@ -223,15 +242,3 @@ migrations/       — Alembic (users, rag)
 docker-compose.full.yml
 .env.example
 ```
-
----
-
-## Типичные проблемы
-
-| Проблема | Решение |
-|---|---|
-| Webhook не приходит | Проверить `mc event list myminio/rag-documents`, endpoint доступен из контейнера |
-| `Invalid hostname` в mc | Использовать DNS-имя без `_` (например `minio`) |
-| Таблица не рендерится в чате | Убедиться что `remark-gfm` установлен и передан в `<ReactMarkdown>` |
-| `node_modules` в контейнере устарел | `docker compose rm -sv frontend` → rebuild |
-| Qdrant collection schema mismatch | Пересоздать коллекцию: удалить старую, переиндексировать |

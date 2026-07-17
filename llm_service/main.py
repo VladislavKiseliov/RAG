@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from llm_service.api.agent_routers import router as llm_router
 from llm_service.exceptions import LLMServiceError
@@ -20,6 +21,15 @@ REQUEST_DURATION = Histogram(
 )
 
 
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/metrics":
+            return await call_next(request)
+        response = await call_next(request)
+
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.container = build_container()
@@ -28,6 +38,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(llm_router)
+app.add_middleware(RequestLoggingMiddleware)
 
 
 

@@ -7,6 +7,43 @@ export function useKnowledgeBase(api, showError) {
     const [selectedCollection, setSelectedCollection] = useState('all');
     const [query, setQuery] = useState('');
     const [selectedDocId, setSelectedDocId] = useState(null);
+    const [chapterIdx, setChapterIdx] = useState(null);
+    const [contentMode, setContentModeState] = useState('summary');
+    const [chapterContent, setChapterContent] = useState(null);
+    const [chapterContentLoading, setChapterContentLoading] = useState(false);
+
+    const openDoc = useCallback((id) => {
+        setSelectedDocId(id);
+        setChapterIdx(null);
+        setContentModeState('summary');
+    }, []);
+
+    const closeDoc = useCallback(() => {
+        setSelectedDocId(null);
+    }, []);
+
+    const openChapter = useCallback((i) => {
+        setChapterIdx(i);
+        setContentModeState('summary');
+        setChapterContent(null);
+    }, []);
+
+    const backToOverview = useCallback(() => {
+        setChapterIdx(null);
+        setContentModeState('summary');
+    }, []);
+
+    // Текст/таблицы главы грузятся лениво — только когда реально открыт режим «Весь текст».
+    const setContentMode = useCallback((mode) => {
+        setContentModeState(mode);
+        if (mode !== 'full' || chapterContent || selectedDocId == null || chapterIdx == null) return;
+
+        setChapterContentLoading(true);
+        api.get(ENDPOINTS.KNOWLEDGE_DOCUMENT_CHAPTER(selectedDocId, chapterIdx))
+            .then(setChapterContent)
+            .catch((e) => showError(e.message))
+            .finally(() => setChapterContentLoading(false));
+    }, [api, showError, selectedDocId, chapterIdx, chapterContent]);
 
     const loadDocuments = useCallback(async () => {
         try {
@@ -54,6 +91,15 @@ export function useKnowledgeBase(api, showError) {
         setQuery,
         selectedDocId,
         setSelectedDocId,
+        chapterIdx,
+        contentMode,
+        setContentMode,
+        chapterContent,
+        chapterContentLoading,
+        openDoc,
+        closeDoc,
+        openChapter,
+        backToOverview,
         loadDocuments,
         upload,
         reindex,

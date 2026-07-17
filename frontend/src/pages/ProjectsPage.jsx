@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import ProjectCard from '../components/ProjectCard.jsx';
 import { useProjects } from '../hooks/useProjects';
 
-function ProjectsPage({ api, showError, onOpenMessenger }) {
+function ProjectsPage({ api, showError, onOpenMessenger, onOpenKnowledge }) {
     const proj = useProjects(api, showError);
     const fileInputRef = useRef(null);
 
@@ -24,6 +24,7 @@ function ProjectsPage({ api, showError, onOpenMessenger }) {
                             <div className="proj-eyebrow">Рабочее пространство</div>
                             <div className="proj-title">Проекты</div>
                         </div>
+                        <div className="proj-new-btn"><span>＋</span> Новый проект</div>
                     </div>
 
                     <div className="proj-stats-strip">
@@ -134,10 +135,11 @@ function ProjectsPage({ api, showError, onOpenMessenger }) {
 
                 <div className="proj-panel-section-header bordered">
                     <span className="kb-aside-group-title" style={{ padding: 0 }}>Из базы знаний</span>
+                    <span className="proj-doc-open-all" onClick={onOpenKnowledge}>Открыть →</span>
                 </div>
                 <div className="proj-doc-list">
                     {project.docs.map((d, i) => (
-                        <div key={i} className="proj-doc-item" onClick={() => {}}>
+                        <div key={i} className="proj-doc-item" onClick={onOpenKnowledge}>
                             <span className="kb-accent">▤</span>
                             <span className="proj-doc-title">{d.title}</span>
                             <span className="mono kb-muted proj-doc-points">◆ {d.points}</span>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import DocumentCard from '../components/DocumentCard.jsx';
+import DocumentReader from '../components/DocumentReader.jsx';
 import { useKnowledgeBase } from '../hooks/useKnowledgeBase';
 
 function KnowledgeBasePage({ api, showError }) {
@@ -136,7 +137,7 @@ function KnowledgeBasePage({ api, showError }) {
 
                     <div className="kb-grid">
                         {activeSet.map((d) => (
-                            <DocumentCard key={d.id} doc={d} onOpen={kb.setSelectedDocId} />
+                            <DocumentCard key={d.id} doc={d} onOpen={kb.openDoc} />
                         ))}
                     </div>
 
@@ -150,67 +151,18 @@ function KnowledgeBasePage({ api, showError }) {
             </main>
 
             {selectedDoc && (
-                <>
-                    <div className="kb-drawer-overlay" onClick={() => kb.setSelectedDocId(null)} />
-                    <div className="kb-drawer">
-                        <div className="kb-drawer-header">
-                            <div className="kb-drawer-header-row">
-                                <div className="mono kb-drawer-type">{selectedDoc.type_abbr}</div>
-                                <div className="kb-drawer-title-wrap">
-                                    <div className="kb-drawer-title">{selectedDoc.title}</div>
-                                    <div className="kb-drawer-meta">{selectedDoc.type} · {selectedDoc.owner} · обновлён {selectedDoc.updated}</div>
-                                </div>
-                                <span className="kb-drawer-close" onClick={() => kb.setSelectedDocId(null)}>✕</span>
-                            </div>
-                            <div className="kb-drawer-pills">
-                                <span className="kb-pill">
-                                    <span className={`kb-status-dot${selectedDoc.status === 'processing' ? ' processing' : ''}`} />
-                                    {selectedDoc.status === 'processing' ? 'Индексация…' : 'В индексе'}
-                                </span>
-                                <span className="kb-pill mono">{selectedDoc.size}</span>
-                                <span className="kb-pill mono">{selectedDoc.pages} стр.</span>
-                            </div>
-                        </div>
-
-                        <div className="kb-drawer-body">
-                            <div className="kb-drawer-section-title kb-accent">Краткое по документу</div>
-                            <div className="kb-drawer-summary">{selectedDoc.summary}</div>
-
-                            <div className="kb-drawer-section-title">Векторизация</div>
-                            <div className="kb-vec-grid">
-                                <div className="kb-vec-cell"><div className="kb-vec-label">Размер чанка</div><div className="mono kb-vec-value">{selectedDoc.chunk_size} <span className="kb-muted">ток.</span></div></div>
-                                <div className="kb-vec-cell"><div className="kb-vec-label">Перекрытие</div><div className="mono kb-vec-value">{selectedDoc.overlap} <span className="kb-muted">ток.</span></div></div>
-                                <div className="kb-vec-cell"><div className="kb-vec-label">Чанков текста</div><div className="mono kb-vec-value">{selectedDoc.chunks}</div></div>
-                                <div className="kb-vec-cell accent"><div className="kb-vec-label">Точек в векторной БД</div><div className="mono kb-vec-value">{selectedDoc.chunks}</div></div>
-                                <div className="kb-vec-cell"><div className="kb-vec-label">Модель эмбеддингов</div><div className="mono kb-vec-value">{selectedDoc.model}</div></div>
-                                <div className="kb-vec-cell"><div className="kb-vec-label">Размерность · метрика</div><div className="mono kb-vec-value">{selectedDoc.dim}d · {selectedDoc.metric}</div></div>
-                            </div>
-
-                            <div className="kb-drawer-section-header">
-                                <span className="kb-drawer-section-title" style={{ margin: 0 }}>Краткое по разделам</span>
-                                <span className="mono kb-muted">{selectedDoc.sections.length} разд.</span>
-                            </div>
-                            <div className="kb-sections">
-                                {selectedDoc.sections.map((s, i) => (
-                                    <div key={i} className="kb-section-item">
-                                        <div className="kb-section-item-head">
-                                            <span className="kb-section-item-title">{s.title}</span>
-                                            <span className="mono kb-muted">▦ {s.chunks} · ◆ {s.chunks}</span>
-                                        </div>
-                                        <div className="kb-section-item-summary">{s.summary}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="kb-drawer-footer">
-                            <div className="kb-drawer-ask" onClick={() => kb.setSelectedDocId(null)}>Спросить ассистента →</div>
-                            {selectedDoc.personal && (
-                                <div className="kb-drawer-reindex" title="Переиндексировать" onClick={() => kb.reindex(selectedDoc.id)}>↻</div>
-                            )}
-                        </div>
-                    </div>
-                </>
+                <DocumentReader
+                    doc={selectedDoc}
+                    chapterIdx={kb.chapterIdx}
+                    contentMode={kb.contentMode}
+                    chapterContent={kb.chapterContent}
+                    chapterContentLoading={kb.chapterContentLoading}
+                    onOpenChapter={kb.openChapter}
+                    onBackToOverview={kb.backToOverview}
+                    onSetMode={kb.setContentMode}
+                    onClose={kb.closeDoc}
+                    onReindex={selectedDoc.personal ? () => kb.reindex(selectedDoc.id) : undefined}
+                />
             )}
         </>
     );

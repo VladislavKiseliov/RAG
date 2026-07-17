@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum' 1; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.28); border-radius: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .clamp2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .field::placeholder { color: var(--muted,#7c7264); }
+  .noteArea { resize:none; outline:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; }
+  .mdPreview h1 { font-size:22px; font-weight:700; margin:0 0 10px; color:var(--strong,#f3ead9); }
+  .mdPreview h2 { font-size:17px; font-weight:700; margin:20px 0 8px; color:var(--strong,#f3ead9); }
+  .mdPreview h3 { font-size:14.5px; font-weight:600; margin:16px 0 6px; color:var(--strong,#f3ead9); }
+  .mdPreview p { margin:0 0 12px; line-height:1.7; color:var(--text,#cabfae); }
+  .mdPreview ul { margin:0 0 12px; padding-left:20px; color:var(--text,#cabfae); line-height:1.7; }
+  .mdPreview li { margin-bottom:4px; }
+  .mdPreview code { font-family:'IBM Plex Mono',monospace; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); padding:1px 6px; border-radius:5px; font-size:.92em; }
+  .mdPreview pre { background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); border-radius:10px; padding:12px 14px; overflow-x:auto; margin:0 0 14px; }
+  .mdPreview pre code { border:0; background:transparent; padding:0; }
+  .mdPreview strong { color:var(--strong,#f3ead9); }
+</style>
+</helmet>
+
+<div class="app" style="height:100vh; display:flex; overflow:hidden; position:relative; background:var(--bg,#0a0806); color:var(--text,#efe8dd); {{ rootStyle }}">
+
+  <!-- ===================== APP RAIL ===================== -->
+  <nav style="width:62px; flex-shrink:0; background:var(--rail,#0c0907); border-right:1px solid var(--border,rgba(255,255,255,.06)); display:flex; flex-direction:column; align-items:center; padding:16px 0; gap:6px;">
+    <div style="width:32px; height:32px; border-radius:9px; background:var(--accent,#d9a441); display:flex; align-items:center; justify-content:center; color:var(--accent-ink,#1a150f); font-weight:700; font-size:16px; margin-bottom:10px;">И</div>
+    <a href="Мессенджер.dc.html" title="Чаты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">✦</a>
+    <a href="База знаний.dc.html" title="База знаний" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">▤</a>
+    <a href="Проекты.dc.html" title="Проекты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">◫</a>
+    <div title="Заметки" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); color:var(--accent,#d9a441);">✎</div>
+    <a href="Админ-панель.dc.html" title="Админ-панель" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">⚙</a>
+    <div onClick="{{ toggleTheme }}" title="Тема" style="margin-top:auto; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">{{ themeIcon }}</div>
+  </nav>
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside style="width:264px; flex-shrink:0; background:var(--sidebar,#0e0b08); border-right:1px solid var(--border,rgba(255,255,255,.06)); display:flex; flex-direction:column;">
+    <div style="padding:20px 18px 12px; display:flex; align-items:center; gap:10px;">
+      <div>
+        <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Личное</div>
+        <div style="font-size:17px; font-weight:700; margin-top:5px; color:var(--strong,#f3ead9);">Заметки</div>
+      </div>
+      <div onClick="{{ createNote }}" title="Новая заметка" style="margin-left:auto; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); cursor:pointer; flex-shrink:0;" style-hover="filter:brightness(1.08);">＋</div>
+    </div>
+
+    <div style="padding:0 18px 12px;">
+      <div style="display:flex; align-items:center; gap:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); border-radius:9px; padding:7px 10px;">
+        <span style="color:var(--muted,#7c7264); font-size:12.5px;">⌕</span>
+        <input class="field" value="{{ query }}" onInput="{{ onSearch }}" placeholder="Поиск по заметкам" style="border:0; outline:0; background:transparent; color:var(--text,#efe8dd); font-size:12.5px; width:100%; font-family:inherit;" />
+      </div>
+    </div>
+
+    <div style="flex:1; overflow-y:auto; padding:2px 10px 10px;">
+      <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; padding:8px 8px 6px;">Папки</div>
+      <sc-for list="{{ folders }}" as="f" hint-placeholder-count="4">
+        <div onClick="{{ f.onSelect }}" style="padding:8px 10px; border-radius:9px; display:flex; align-items:center; gap:10px; cursor:pointer; background:{{ f.bg }};" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+          <span style="width:20px; text-align:center; font-size:13px; color:{{ f.iconColor }};">{{ f.icon }}</span>
+          <span style="flex:1; font-size:13px; font-weight:{{ f.weight }}; color:{{ f.titleColor }};">{{ f.label }}</span>
+          <span class="mono" style="font-size:11px; color:var(--muted,#7c7264);">{{ f.count }}</span>
+        </div>
+      </sc-for>
+
+      <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; padding:16px 8px 6px;">Теги</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px; padding:2px 8px 4px;">
+        <sc-for list="{{ tagFilters }}" as="tg" hint-placeholder-count="5">
+          <span onClick="{{ tg.onSelect }}" style="display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:7px; font-size:11.5px; font-weight:600; cursor:pointer; white-space:nowrap; background:{{ tg.bg }}; color:{{ tg.color }}; border:1px solid {{ tg.border }};"><span style="width:6px; height:6px; border-radius:50%; background:{{ tg.dot }}; flex-shrink:0;"></span>{{ tg.label }}</span>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="margin:8px 10px 12px; padding:12px 14px; border-radius:12px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06));">
+      <div style="display:flex; align-items:center; gap:7px; margin-bottom:8px;">
+        <span style="width:7px; height:7px; border-radius:50%; background:var(--ok,#86b98c); box-shadow:0 0 0 3px var(--ok-soft,rgba(134,185,140,.15));"></span>
+        <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Индекс заметок</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted,#7c7264); margin-bottom:3px;"><span>Заметок</span><span class="mono" style="color:var(--strong,#f3ead9); font-weight:500;">{{ nCount }}</span></div>
+      <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted,#7c7264);"><span>Точек в БД</span><span class="mono" style="color:var(--accent,#d9a441); font-weight:600;">{{ nPoints }}</span></div>
+    </div>
+  </aside>
+
+  <!-- ===================== NOTE LIST ===================== -->
+  <section style="width:340px; min-width:260px; flex:0 1 340px; border-right:1px solid var(--border,rgba(255,255,255,.06)); display:flex; flex-direction:column; overflow-y:auto; padding:16px 12px 20px;">
+    <sc-if value="{{ hasPinned }}" hint-placeholder-val="{{ false }}">
+      <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent,#d9a441); font-weight:600; padding:4px 8px 8px;">Закреплённые</div>
+      <sc-for list="{{ pinnedNotes }}" as="n" hint-placeholder-count="2">
+        <div onClick="{{ n.onOpen }}" style="padding:12px 13px; border-radius:12px; cursor:pointer; margin-bottom:6px; background:{{ n.bg }}; border:1px solid {{ n.border }};" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.4));">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+            <span style="color:var(--accent,#d9a441); font-size:12px;">★</span>
+            <span style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.title }}</span>
+            <span style="font-size:10.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ n.updated }}</span>
+          </div>
+          <div class="clamp2" style="font-size:12px; line-height:1.5; color:var(--muted,#7c7264); margin-bottom:8px;">{{ n.preview }}</div>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <sc-for list="{{ n.tags }}" as="tg" hint-placeholder-count="2">
+              <span style="display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:600; color:{{ tg.color }}; white-space:nowrap;"><span style="width:5px; height:5px; border-radius:50%; background:{{ tg.dot }};"></span>{{ tg.label }}</span>
+            </sc-for>
+            <sc-if value="{{ n.hasReminder }}" hint-placeholder-val="{{ false }}">
+              <span class="mono" style="margin-left:auto; font-size:10px; color:var(--accent,#d9a441); white-space:nowrap;">⏰ {{ n.reminderLabel }}</span>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </sc-if>
+
+    <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; padding:10px 8px 8px;">{{ listTitle }}</div>
+    <sc-for list="{{ notes }}" as="n" hint-placeholder-count="6">
+      <div onClick="{{ n.onOpen }}" style="padding:12px 13px; border-radius:12px; cursor:pointer; margin-bottom:6px; background:{{ n.bg }}; border:1px solid {{ n.border }};" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.4));">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+          <span onClick="{{ n.onTogglePin }}" style="font-size:12px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="color:var(--accent);">☆</span>
+          <span style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.title }}</span>
+          <span style="font-size:10.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ n.updated }}</span>
+        </div>
+        <div class="clamp2" style="font-size:12px; line-height:1.5; color:var(--muted,#7c7264); margin-bottom:8px;">{{ n.preview }}</div>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          <sc-for list="{{ n.tags }}" as="tg" hint-placeholder-count="2">
+            <span style="display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:600; color:{{ tg.color }}; white-space:nowrap;"><span style="width:5px; height:5px; border-radius:50%; background:{{ tg.dot }};"></span>{{ tg.label }}</span>
+          </sc-for>
+          <sc-if value="{{ n.hasReminder }}" hint-placeholder-val="{{ false }}">
+            <span class="mono" style="margin-left:auto; font-size:10px; color:var(--accent,#d9a441); white-space:nowrap;">⏰ {{ n.reminderLabel }}</span>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align:center; padding:40px 14px; color:var(--muted,#7c7264); font-size:13px;">Ничего не найдено</div>
+    </sc-if>
+  </section>
+
+  <!-- ===================== EDITOR ===================== -->
+  <main style="flex:1; display:flex; flex-direction:column; min-width:0;">
+    <sc-if value="{{ showCapture }}" hint-placeholder-val="{{ false }}">
+      <header style="padding:18px 28px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+        <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent,#d9a441); font-weight:600;">Новая заметка</div>
+        <div style="font-size:19px; font-weight:700; color:var(--strong,#f3ead9); margin-top:4px;">Наговорите или запишите поток мыслей</div>
+        <div style="font-size:12.5px; color:var(--muted,#7c7264); margin-top:5px; max-width:640px; line-height:1.5;">Пишите как есть, без структуры — цифры, обрывки фраз, что угодно. ИИ соберёт из этого аккуратную заметку с заголовками, списками и таблицами.</div>
+      </header>
+      <div style="flex:1; overflow-y:auto; padding:20px 28px 30px; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+          <span onClick="{{ toggleVoice }}" title="Голосовой ввод" style="width:38px; height:38px; flex-shrink:0; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; background:{{ voiceBg }}; color:{{ voiceColor }};" style-hover="filter:brightness(1.08);">{{ voiceIcon }}</span>
+          <span style="font-size:12px; color:var(--muted,#7c7264);">{{ voiceHint }}</span>
+        </div>
+        <textarea class="noteArea" value="{{ rawText }}" onInput="{{ onRawInput }}" placeholder="Так, запиши, вчера тестировали насос на стенде номер два, выставили ШИМ на 1.8 вольта, частоту дали 50 герц…" style="flex:1; min-height:280px; width:100%; font-size:14px; line-height:1.7; color:var(--text,#cabfae); background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); border-radius:14px; padding:16px 18px; max-width:760px;"></textarea>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:16px;">
+          <div onClick="{{ generateNote }}" style="padding:11px 20px; border-radius:10px; background:{{ generateBg }}; color:var(--accent-ink,#1a150f); font-size:13.5px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:8px; white-space:nowrap;" style-hover="filter:brightness(1.07);">
+            <span style="display:inline-block; animation:{{ generateSpin }};">{{ generateIcon }}</span>{{ generateLabel }}
+          </div>
+          <span onClick="{{ cancelCapture }}" style="font-size:12.5px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="color:var(--text);">Отменить</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ true }}">
+      <header style="padding:16px 28px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <input class="field" value="{{ activeTitle }}" onInput="{{ onTitleInput }}" placeholder="Без названия" style="border:0; outline:0; background:transparent; color:var(--strong,#f3ead9); font-size:19px; font-weight:700; width:100%; min-width:0; font-family:inherit;" />
+          <span onClick="{{ activePinToggle }}" title="Закрепить" style="font-size:16px; color:{{ activePinColor }}; cursor:pointer; flex-shrink:0;">{{ activePinIcon }}</span>
+          <span onClick="{{ deleteActive }}" title="Удалить" style="width:32px; height:32px; flex-shrink:0; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:14px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:rgba(214,95,95,.12); color:#d65f5f;">🗑</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap;">
+          <sc-for list="{{ activeTags }}" as="tg" hint-placeholder-count="2">
+            <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:7px; font-size:11px; font-weight:600; white-space:nowrap; background:{{ tg.bg }}; color:{{ tg.color }};"><span style="width:6px; height:6px; border-radius:50%; background:{{ tg.dot }};"></span>{{ tg.label }}<span onClick="{{ tg.onRemove }}" style="cursor:pointer; opacity:.7;">✕</span></span>
+          </sc-for>
+          <span onClick="{{ toggleTagPicker }}" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:7px; font-size:11px; font-weight:600; color:var(--muted,#7c7264); border:1px dashed var(--border,rgba(255,255,255,.15)); cursor:pointer; white-space:nowrap;">＋ тег</span>
+          <span style="margin-left:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <input type="datetime-local" class="field mono" value="{{ reminderValue }}" onInput="{{ onReminderInput }}" style="border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:8px; background:var(--surface,#15100a); color:var(--text,#cabfae); font-size:11.5px; padding:6px 10px; width:180px; min-width:150px; color-scheme:{{ colorScheme }};" />
+            <span onClick="{{ toggleFollowUp }}" style="display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; background:{{ followUpBg }}; color:{{ followUpColor }};">📌 на потом</span>
+          </span>
+        </div>
+        <sc-if value="{{ tagPickerOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+            <sc-for list="{{ tagPalette }}" as="p" hint-placeholder-count="6">
+              <span onClick="{{ p.onAdd }}" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; background:{{ p.bg }}; color:{{ p.color }};"><span style="width:6px; height:6px; border-radius:50%; background:{{ p.dot }};"></span>{{ p.label }}</span>
+            </sc-for>
+          </div>
+        </sc-if>
+      </header>
+
+      <div style="display:flex; align-items:center; gap:10px 4px; flex-wrap:wrap; padding:10px 28px 0; flex-shrink:0;">
+        <div style="display:inline-flex; padding:3px; border-radius:10px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+          <div onClick="{{ editTab.onSelect }}" style="padding:7px 15px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; background:{{ editTab.bg }}; color:{{ editTab.color }};">Редактор</div>
+          <div onClick="{{ previewTab.onSelect }}" style="padding:7px 15px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; background:{{ previewTab.bg }}; color:{{ previewTab.color }};">Превью</div>
+        </div>
+        <span class="mono" style="margin-left:auto; font-size:11px; color:var(--muted,#7c7264); white-space:nowrap; flex-shrink:0;">▦ {{ activeChunks }} чанк. · ◆ {{ activePoints }} точ.</span>
+        <div onClick="{{ saveAndIndex }}" style="padding:8px 15px; border-radius:9px; background:{{ saveBg }}; color:{{ saveColor }}; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.07);">
+          <span style="display:inline-block; animation:{{ saveSpin }};">{{ saveIcon }}</span>{{ saveLabel }}
+        </div>
+      </div>
+
+      <div style="flex:1; overflow-y:auto; padding:16px 28px 40px;">
+        <sc-if value="{{ showEditor }}" hint-placeholder-val="{{ true }}">
+          <textarea class="noteArea" value="{{ activeContent }}" onInput="{{ onContentInput }}" placeholder="Пишите в Markdown: # заголовки, - списки, `код`…" style="width:100%; min-height:420px; font-size:13.5px; line-height:1.7; color:var(--text,#cabfae);"></textarea>
+        </sc-if>
+        <sc-if value="{{ showPreview }}" hint-placeholder-val="{{ false }}">
+          <div class="mdPreview" style="max-width:720px;">
+            <sc-if value="{{ previewEmpty }}" hint-placeholder-val="{{ false }}">
+              <p style="color:var(--muted,#7c7264);">Пусто. Начните писать в редакторе.</p>
+            </sc-if>
+            <sc-for list="{{ previewBlocks }}" as="b" hint-placeholder-count="4">
+              <sc-if value="{{ b.isH1 }}" hint-placeholder-val="{{ false }}"><h1>{{ b.text }}</h1></sc-if>
+              <sc-if value="{{ b.isH2 }}" hint-placeholder-val="{{ false }}"><h2>{{ b.text }}</h2></sc-if>
+              <sc-if value="{{ b.isH3 }}" hint-placeholder-val="{{ false }}"><h3>{{ b.text }}</h3></sc-if>
+              <sc-if value="{{ b.isLi }}" hint-placeholder-val="{{ false }}"><div style="display:flex; gap:8px; margin-bottom:4px;"><span style="color:var(--muted,#7c7264);">•</span><span style="color:var(--text,#cabfae); line-height:1.7;">{{ b.text }}</span></div></sc-if>
+              <sc-if value="{{ b.isCode }}" hint-placeholder-val="{{ false }}"><pre><code class="mono">{{ b.text }}</code></pre></sc-if>
+              <sc-if value="{{ b.isP }}" hint-placeholder-val="{{ false }}"><p>{{ b.text }}</p></sc-if>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasNoActive }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; color:var(--muted,#7c7264);">
+        <div style="font-size:34px; opacity:.5;">✎</div>
+        <div style="font-size:14px;">Выберите заметку слева или создайте новую</div>
+        <div onClick="{{ createNote }}" style="padding:10px 18px; border-radius:10px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; cursor:pointer;" style-hover="filter:brightness(1.07);">＋ Новая заметка</div>
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1360,&quot;height&quot;:860}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    let saved = 'dark';
+    try { saved = localStorage.getItem('msgr-theme') || 'dark'; } catch (e) {}
+    this.state = {
+      theme: saved, folder: 'all', tagFilter: null, query: '',
+      activeId: 'n1', mode: 'editor', tagPickerOpen: false,
+      notes: this.seed(), rawText: '', voiceOn: false, generating: false, saving: false, saveState: 'idle',
+    };
+  }
+
+  themes = {
+    dark: {
+      bg:'#0a0806', rail:'#0c0907', sidebar:'#0e0b08', surface:'#15100a', card:'#110d08',
+      border:'rgba(255,255,255,.06)', cardBorder:'rgba(255,255,255,.06)',
+      text:'#cabfae', strong:'#f3ead9', muted:'#7c7264',
+      accent:'#d9a441', accentInk:'#1a150f', accentSoft:'#241a10', accentSoftBorder:'rgba(217,164,65,.3)',
+      hover:'rgba(255,255,255,.045)', ok:'#86b98c', okSoft:'rgba(134,185,140,.15)',
+    },
+    light: {
+      bg:'#fbfcfc', rail:'#f0f3f3', sidebar:'#f6f8f8', surface:'#ffffff', card:'#ffffff',
+      border:'#e8eaec', cardBorder:'#e8eaec',
+      text:'#374151', strong:'#0e1213', muted:'#8b9197',
+      accent:'#0891b2', accentInk:'#ffffff', accentSoft:'#e6f4f7', accentSoftBorder:'#c5e6ee',
+      hover:'rgba(0,0,0,.035)', ok:'#3f9d54', okSoft:'rgba(63,157,84,.14)',
+    },
+  };
+
+  folderDefs = [
+    { id:'all', label:'Все заметки', icon:'▤' },
+    { id:'work', label:'Работа', icon:'◇' },
+    { id:'ideas', label:'Идеи', icon:'✦' },
+    { id:'personal', label:'Личное', icon:'○' },
+  ];
+
+  tagPalette = [
+    { key:'important', label:'Важное', dot:'#d65f5f' },
+    { key:'idea', label:'Идея', dot:'#d9a441' },
+    { key:'todo', label:'Todo', dot:'#5b9bd5' },
+    { key:'question', label:'Вопрос', dot:'#9c7fd4' },
+    { key:'ref', label:'Референс', dot:'#86b98c' },
+  ];
+
+  seed() {
+    return [
+      { id:'n1', title:'Идея: авто-сверка биллинга', folder:'ideas', tags:['idea','important'], pinned:true,
+        reminder:'2026-07-21T10:00', followUp:false, updated:'сегодня', chunks:9, points:9,
+        content:'# Авто-сверка биллинга\n\nМысль после созвона: сверку с провайдером можно гонять не раз в сутки, а инкрементально по вебхукам.\n\n## Плюсы\n- расхождения видно за минуты, а не на утро\n- меньше нагрузка на батч-джобу в пик\n\n## Риски\n- нужно идемпотентно мёржить события с батч-сверкой\n- провайдер шлёт вебхуки с задержкой до 10 минут\n\nОбсудить с Артёмом на следующем синке.' },
+      { id:'n2', title:'Вопросы к архитектору по идентичности', folder:'work', tags:['question'], pinned:true,
+        reminder:null, followUp:true, updated:'вчера', chunks:6, points:6,
+        content:'# Вопросы по Identity\n\n- Можно ли делегировать скоуп на 2 уровня (сервис → сервис → сервис)?\n- Что с ревокацией токена при смене роли пользователя посреди сессии?\n- TTL access-токена — фиксированный или настраиваемый per-client?\n\nЗадать на архитектурном созвоне.' },
+      { id:'n3', title:'Заметки с ревью PR #482', folder:'work', tags:['todo'], pinned:false,
+        reminder:null, followUp:false, updated:'2 дня назад', chunks:4, points:4,
+        content:'# Ревью PR #482\n\nПопросил Ивана:\n- вынести retry-логику в отдельную функцию\n- добавить тест на idempotency-key конфликт\n\nСам гляну ещё раз после исправлений.' },
+      { id:'n4', title:'Список книг про распределённые системы', folder:'ideas', tags:['ref'], pinned:false,
+        reminder:null, followUp:false, updated:'3 дня назад', chunks:5, points:5,
+        content:'# Почитать\n\n- Designing Data-Intensive Applications\n- Понять Raft на пальцах — статья, не книга\n- Google SRE book, главы про error budget\n\nНачать с первой, остальное по настроению.' },
+      { id:'n5', title:'Идея для onboarding-бота', folder:'ideas', tags:['idea'], pinned:false,
+        reminder:'2026-07-25T09:30', followUp:false, updated:'4 дня назад', chunks:7, points:7,
+        content:'# Onboarding-бот\n\nБот в мессенджере, который в первую неделю сам присылает чеклист онбординга по дням и пингует наставника, если пункт просрочен.\n\nПроверить, не делает ли уже People-команда что-то похожее.' },
+      { id:'n6', title:'Личное: план на отпуск', folder:'personal', tags:[], pinned:false,
+        reminder:null, followUp:false, updated:'неделю назад', chunks:3, points:3,
+        content:'# Отпуск\n\nПодумать про даты в конце августа, до старта нового квартала. Согласовать с Соней передачу редизайна портала.' },
+    ];
+  }
+
+  setTheme(v){ try{localStorage.setItem('msgr-theme',v);}catch(e){} this.setState({theme:v}); }
+  toggleTheme(){ this.setTheme(this.state.theme==='dark'?'light':'dark'); }
+  setFolder(id){ this.setState({ folder:id, tagFilter:null }); }
+  setTagFilter(key){ this.setState(s => ({ tagFilter: s.tagFilter===key ? null : key, folder:'all' })); }
+  onSearch(e){ this.setState({ query: e.target.value }); }
+  open(id){ this.setState({ activeId:id, mode:'editor', tagPickerOpen:false }); }
+  togglePin(id, ev){ ev && ev.stopPropagation && ev.stopPropagation(); this.setState(s => ({ notes: s.notes.map(n => n.id===id ? {...n, pinned:!n.pinned} : n) })); }
+  setMode(m){ this.setState({ mode:m }); }
+  toggleTagPicker(){ this.setState(s => ({ tagPickerOpen: !s.tagPickerOpen })); }
+
+  updateActive(patch){
+    const id = this.state.activeId;
+    this.setState(s => ({ notes: s.notes.map(n => n.id===id ? {...n, ...patch, updated:'только что'} : n) }));
+  }
+  onTitleInput(e){ this.updateActive({ title: e.target.value }); }
+  onContentInput(e){ this.updateActive({ content: e.target.value }); }
+  onReminderInput(e){ this.updateActive({ reminder: e.target.value }); }
+  toggleFollowUp(){ const n = this.state.notes.find(x=>x.id===this.state.activeId); this.updateActive({ followUp: !n.followUp }); }
+  addTag(key){
+    const n = this.state.notes.find(x=>x.id===this.state.activeId);
+    if (n.tags.includes(key)) return;
+    this.updateActive({ tags: [...n.tags, key] });
+    this.setState({ tagPickerOpen:false });
+  }
+  removeTag(key){
+    const n = this.state.notes.find(x=>x.id===this.state.activeId);
+    this.updateActive({ tags: n.tags.filter(k=>k!==key) });
+  }
+  createNote(){
+    const id = 'n' + (Date.now());
+    const note = { id, title:'', folder:'work', tags:[], pinned:false, reminder:null, followUp:false, updated:'только что', chunks:0, points:0, content:'', stage:'capture' };
+    this.setState(s => ({ notes:[note, ...s.notes], activeId:id, mode:'editor', rawText:'', saveState:'idle' }));
+  }
+  cancelCapture(){ this.deleteActive(); }
+  toggleVoice(){ this.setState(s => ({ voiceOn: !s.voiceOn })); }
+  onRawInput(e){ this.setState({ rawText: e.target.value }); }
+
+  generateNote(){
+    if (this.state.generating || !this.state.rawText.trim()) return;
+    this.setState({ generating:true });
+    setTimeout(() => {
+      const { title, content } = this.transformRawText(this.state.rawText);
+      this.updateActive({ title, content, stage:'edit' });
+      this.setState({ generating:false, mode:'preview' });
+    }, 1100);
+  }
+
+  // Mock of the AI transform — in production this calls the note-generation LLM endpoint.
+  transformRawText(raw){
+    const nums = raw.match(/[\d.,]+\s*(вольт|герц|градус\w*|%|мм|см)/gi) || [];
+    const title = 'Заметка: ' + (raw.trim().split(/[.,!?]/)[0].slice(0, 46) || 'Без названия');
+    let content = '# ' + title.replace(/^Заметка:\s*/,'') + '\n\n' + raw.trim().replace(/\s+/g,' ') + '\n\n';
+    if (nums.length) {
+      content += '## Параметры\n\n';
+      nums.forEach(n => { content += '- ' + n.trim() + '\n'; });
+      content += '\n';
+    }
+    content += '## Дальнейшие шаги\n\n- Проверить и уточнить детали при следующем осмотре\n- Обновить связанную документацию, если потребуется\n';
+    return { title: title.replace(/^Заметка:\s*/,''), content };
+  }
+
+  saveAndIndex(){
+    if (this.state.saving) return;
+    this.setState({ saving:true, saveState:'saving' });
+    const id = this.state.activeId;
+    setTimeout(() => {
+      this.setState(s => ({ notes: s.notes.map(n => n.id===id ? {...n, stage:'edit', chunks: Math.max(1, Math.round((n.content||'').length/220)), points: Math.max(1, Math.round((n.content||'').length/220))} : n) }));
+      this.setState({ saving:false, saveState:'saved' });
+      setTimeout(() => this.setState(s => s.saveState==='saved' ? {saveState:'idle'} : {}), 1800);
+    }, 900);
+  }
+  deleteActive(){
+    const id = this.state.activeId;
+    this.setState(s => {
+      const rest = s.notes.filter(n => n.id !== id);
+      return { notes: rest, activeId: rest.length ? rest[0].id : null };
+    });
+  }
+
+  fmtReminder(v){
+    if (!v) return '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v);
+    if (!m) return v;
+    return m[3] + '.' + m[2] + ' ' + m[4] + ':' + m[5];
+  }
+  tagMeta(key, t){
+    const p = this.tagPalette.find(x=>x.key===key);
+    if (!p) return { label:key, dot:t.muted, bg:t.surface, color:t.muted };
+    return { label:p.label, dot:p.dot, bg:t.surface, color:t.text };
+  }
+
+  mdToBlocks(src){
+    const lines = (src||'').split('\n');
+    const blocks = [];
+    let inCode = false, codeBuf = [];
+    for (const raw of lines) {
+      if (raw.trim().startsWith('```')) {
+        if (!inCode) { inCode = true; codeBuf = []; } else { inCode = false; blocks.push({ type:'code', text: codeBuf.join('\n') }); }
+        continue;
+      }
+      if (inCode) { codeBuf.push(raw); continue; }
+      const line = raw;
+      if (/^###\s+/.test(line)) { blocks.push({ type:'h3', text: line.replace(/^###\s+/,'') }); continue; }
+      if (/^##\s+/.test(line)) { blocks.push({ type:'h2', text: line.replace(/^##\s+/,'') }); continue; }
+      if (/^#\s+/.test(line)) { blocks.push({ type:'h1', text: line.replace(/^#\s+/,'') }); continue; }
+      if (/^[-*]\s+/.test(line)) { blocks.push({ type:'li', text: line.replace(/^[-*]\s+/,'') }); continue; }
+      if (line.trim() === '') continue;
+      blocks.push({ type:'p', text: line });
+    }
+    return blocks.map(b => ({
+      isH1: b.type==='h1', isH2: b.type==='h2', isH3: b.type==='h3',
+      isLi: b.type==='li', isCode: b.type==='code', isP: b.type==='p',
+      text: b.text,
+    }));
+  }
+
+  renderVals() {
+    const t = this.themes[this.state.theme] || this.themes.dark;
+    const rootStyle =
+      `--bg:${t.bg};--rail:${t.rail};--sidebar:${t.sidebar};--surface:${t.surface};--card:${t.card};` +
+      `--border:${t.border};--card-border:${t.cardBorder};--text:${t.text};--strong:${t.strong};--muted:${t.muted};` +
+      `--accent:${t.accent};--accent-ink:${t.accentInk};--accent-soft:${t.accentSoft};--accent-soft-border:${t.accentSoftBorder};` +
+      `--hover:${t.hover};--ok:${t.ok};--ok-soft:${t.okSoft};`;
+
+    const all = this.state.notes;
+    const folders = this.folderDefs.map(f => {
+      const count = f.id==='all' ? all.length : all.filter(n=>n.folder===f.id).length;
+      const active = this.state.folder===f.id && !this.state.tagFilter;
+      return { ...f, count, onSelect: () => this.setFolder(f.id), bg: active?'var(--accent-soft)':'transparent', iconColor: active?'var(--accent)':'var(--muted)', titleColor: active?'var(--strong)':'var(--text)', weight: active?600:500 };
+    });
+
+    const tagFilters = this.tagPalette.map(p => {
+      const active = this.state.tagFilter === p.key;
+      return { label:p.label, dot:p.dot, onSelect: () => this.setTagFilter(p.key), bg: active?'var(--accent-soft)':'var(--surface)', color: active?'var(--accent)':'var(--muted)', border: active?'var(--accent-soft-border)':'var(--border)' };
+    });
+
+    let filtered = all;
+    if (this.state.tagFilter) filtered = filtered.filter(n => n.tags.includes(this.state.tagFilter));
+    else if (this.state.folder !== 'all') filtered = filtered.filter(n => n.folder === this.state.folder);
+    const q = this.state.query.trim().toLowerCase();
+    if (q) filtered = filtered.filter(n => (n.title + ' ' + n.content).toLowerCase().includes(q));
+
+    const buildCard = (n) => ({
+      id:n.id, title: n.title || 'Без названия', updated:n.updated,
+      preview: (n.content||'').replace(/^#.*\n?/,'').replace(/[#*`]/g,'').trim().slice(0,110) || 'Пусто',
+      onOpen: () => this.open(n.id),
+      onTogglePin: (e) => this.togglePin(n.id, e),
+      bg: n.id===this.state.activeId ? 'var(--accent-soft)' : 'var(--card)',
+      border: n.id===this.state.activeId ? 'var(--accent-soft-border)' : 'var(--card-border)',
+      tags: n.tags.map(k => this.tagMeta(k, t)),
+      hasReminder: !!n.reminder, reminderLabel: this.fmtReminder(n.reminder),
+    });
+
+    const pinnedNotes = filtered.filter(n=>n.pinned).map(buildCard);
+    const notes = filtered.filter(n=>!n.pinned).map(buildCard);
+
+    const active = all.find(n => n.id === this.state.activeId);
+    const captureVals = (active && active.stage === 'capture') ? {
+      rawText: this.state.rawText, onRawInput: (e) => this.onRawInput(e),
+      voiceOn: this.state.voiceOn, toggleVoice: () => this.toggleVoice(),
+      voiceIcon: this.state.voiceOn ? '⏺' : '🎙',
+      voiceBg: this.state.voiceOn ? 'var(--accent)' : 'var(--surface)',
+      voiceColor: this.state.voiceOn ? 'var(--accent-ink)' : 'var(--muted)',
+      voiceHint: this.state.voiceOn ? 'Слушаю… нажмите ещё раз, чтобы остановить' : 'Нажмите на микрофон для голосового ввода',
+      generateNote: () => this.generateNote(),
+      generateLabel: this.state.generating ? 'Собираю заметку…' : 'Сгенерировать заметку',
+      generateIcon: this.state.generating ? '↻' : '✦',
+      generateSpin: this.state.generating ? 'aSpin .7s linear infinite' : 'none',
+      generateBg: this.state.rawText.trim() ? 'var(--accent)' : 'var(--surface)',
+      cancelCapture: () => this.cancelCapture(),
+    } : {};
+    const activeVals = active ? {
+      activeTitle: active.title,
+      onTitleInput: (e) => this.onTitleInput(e),
+      activePinIcon: active.pinned ? '★' : '☆',
+      activePinColor: active.pinned ? 'var(--accent)' : 'var(--muted)',
+      activePinToggle: () => this.togglePin(active.id),
+      deleteActive: () => this.deleteActive(),
+      activeTags: active.tags.map(k => { const m = this.tagMeta(k,t); return { label:m.label, dot:m.dot, bg:t.surface, color:t.text, onRemove: () => this.removeTag(k) }; }),
+      toggleTagPicker: () => this.toggleTagPicker(),
+      tagPickerOpen: this.state.tagPickerOpen,
+      tagPalette: this.tagPalette.filter(p => !active.tags.includes(p.key)).map(p => ({ label:p.label, dot:p.dot, bg:t.surface, color:t.text, onAdd: () => this.addTag(p.key) })),
+      reminderValue: active.reminder || '',
+      onReminderInput: (e) => this.onReminderInput(e),
+      followUpBg: active.followUp ? 'var(--accent-soft)' : 'var(--surface)',
+      followUpColor: active.followUp ? 'var(--accent)' : 'var(--muted)',
+      toggleFollowUp: () => this.toggleFollowUp(),
+      editTab: { onSelect: () => this.setMode('editor'), bg: this.state.mode==='editor'?'var(--accent)':'transparent', color: this.state.mode==='editor'?'var(--accent-ink)':'var(--muted)' },
+      previewTab: { onSelect: () => this.setMode('preview'), bg: this.state.mode==='preview'?'var(--accent)':'transparent', color: this.state.mode==='preview'?'var(--accent-ink)':'var(--muted)' },
+      showEditor: this.state.mode==='editor', showPreview: this.state.mode==='preview',
+      activeChunks: active.chunks, activePoints: active.points,
+      activeContent: active.content,
+      onContentInput: (e) => this.onContentInput(e),
+      previewBlocks: this.mdToBlocks(active.content),
+      previewEmpty: !(active.content||'').trim(),
+      createNote: () => this.createNote(),
+      saveAndIndex: () => this.saveAndIndex(),
+      saveLabel: this.state.saveState==='saving' ? 'Индексация…' : (this.state.saveState==='saved' ? 'Сохранено ✓' : 'Сохранить и индексировать'),
+      saveIcon: this.state.saveState==='saving' ? '↻' : (this.state.saveState==='saved' ? '✓' : '⬇'),
+      saveSpin: this.state.saveState==='saving' ? 'aSpin .7s linear infinite' : 'none',
+      saveBg: this.state.saveState==='saved' ? 'var(--ok-soft)' : 'var(--accent-soft)',
+      saveColor: this.state.saveState==='saved' ? 'var(--ok)' : 'var(--accent)',
+    } : { createNote: () => this.createNote() };
+
+    const isCapture = !!(active && active.stage === 'capture');
+    return {
+      rootStyle, themeIcon: this.state.theme==='dark'?'☾':'☀', toggleTheme: () => this.toggleTheme(),
+      colorScheme: this.state.theme==='dark' ? 'dark' : 'light',
+      folders, tagFilters,
+      query: this.state.query, onSearch: (e) => this.onSearch(e),
+      nCount: all.length, nPoints: all.reduce((a,n)=>a+n.points,0),
+      hasPinned: pinnedNotes.length > 0, pinnedNotes,
+      listTitle: pinnedNotes.length ? 'Остальные' : 'Заметки',
+      notes, isEmpty: pinnedNotes.length===0 && notes.length===0,
+      hasActive: !!active && !isCapture, hasNoActive: !active, showCapture: isCapture,
+      createNote: () => this.createNote(),
+      ...captureVals,
+      ...activeVals,
+    };
+  }
+}
+</script>
+</body>
+</html>
