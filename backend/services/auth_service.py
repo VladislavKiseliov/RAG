@@ -29,6 +29,7 @@ class CurrentUser:
     login: str
     first_name: str | None
     last_name: str | None
+    is_superuser: bool
 
 
 class AuthService:
@@ -243,4 +244,5 @@ class AuthService:
             login=user.login,
             first_name=user.first_name,
             last_name=user.last_name,
+            is_superuser=user.is_superuser,
         )

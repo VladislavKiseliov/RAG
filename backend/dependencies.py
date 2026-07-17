@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Request, Depends, Query
+from fastapi import Request, Depends, Query, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from starlette.websockets import WebSocket
 
@@ -35,6 +35,11 @@ async def get_current_from_token_user_ws(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> CurrentUser:
     return await auth_service.get_user_from_token(token)
+
+async def require_admin_user(current_user: CurrentUser = Depends(get_current_user_from_token)) -> CurrentUser:
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 
 
 def get_chat_service(container: BackendContainer = Depends(get_container)) -> ChatService:

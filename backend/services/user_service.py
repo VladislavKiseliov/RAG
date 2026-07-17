@@ -1,6 +1,5 @@
 import uuid
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
@@ -18,6 +17,7 @@ class UserService:
         return {
             "id": str(user.id),
             "login": user.login,
+            "role": "admin" if user.is_superuser else "user",
             "created_at": user.created_at,
             "updated_at": user.updated_at,
         }
@@ -31,12 +31,13 @@ class UserService:
                 "page_size": page_size,
             }
 
-    async def get_user_repo_by_id(self, user_id: UUID) -> UserProfile:
+    async def get_user_repo_by_id(self, user_id: int) -> UserProfile:
         async with self._sf() as session:
             user = await UserRepository(session).get_user_by_id(user_id)
             if user is None:
                 return None
-            return UserProfile.model_validate(user)
+            profile = UserProfile.model_validate(user)
+            return profile.model_copy(update={"role": "admin" if user.is_superuser else "user"})
 
     async def create_user_repo(self, login: str, password: str) -> dict[str, Any]:
         async with self._sf() as session:
@@ -64,7 +65,7 @@ class UserService:
         return UserProfile.model_validate(user)
 
 
-    async def update_user_credentials(self, user_id: uuid.UUID, login: str, password: str) -> dict[str, Any] | None:
+    async def update_user_credentials(self, user_id: int, login: str, password: str) -> dict[str, Any] | None:
         """Admin-only: update login and password for a user."""
         async with self._sf() as session:
             existing = await UserRepository(session).get_user_by_login(login)
@@ -79,10 +80,19 @@ class UserService:
                     raise UserNotFoundError()
         return self._to_payload(user)
 
-    async def delete_user_repo(self, user_id: UUID) -> bool:
+    async def delete_user_repo(self, user_id: int) -> bool:
         async with self._sf() as session:
             async with session.begin():
                 return await UserRepository(session).delete_user(user_id)
+
+    async def update_user_role(self, user_id: int, is_superuser: bool) -> dict[str, Any]:
+        """Admin-only: promote or demote a user's admin privileges."""
+        async with self._sf() as session:
+            async with session.begin():
+                user = await UserRepository(session).update_user(user_id, {"is_superuser": is_superuser})
+                if user is None:
+                    raise UserNotFoundError()
+        return self._to_payload(user)
 
     async def search_users(self, query: str, exclude_id: int) -> list[dict]:
         async with self._sf() as session:

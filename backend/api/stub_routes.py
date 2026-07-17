@@ -13,7 +13,7 @@ import asyncio
 import uuid
 
 import httpx
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend.dependencies import CurrentUserDep
@@ -269,6 +269,17 @@ async def upload_document(current_user: CurrentUserDep, file: UploadFile = File(
     }
     _DOCUMENTS.insert(0, doc)
     return doc
+
+
+@knowledge_router.get("/documents/{doc_id}/chapters/{chapter_idx}")
+async def get_document_chapter(doc_id: str, chapter_idx: int, current_user: CurrentUserDep):
+    """Полный текст главы и её таблицы — проксирует rag_service."""
+    async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
+        response = await client.get(f"/documents/{doc_id}/chapters/{chapter_idx}")
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+    response.raise_for_status()
+    return response.json()
 
 
 @knowledge_router.patch("/documents/{doc_id}")

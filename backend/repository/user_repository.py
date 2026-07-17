@@ -1,6 +1,5 @@
 import enum
 from typing import List, Optional, TypedDict, Dict
-import uuid
 from datetime import datetime, timezone
 
 
@@ -29,11 +28,11 @@ class UserRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_user_by_id(self, user_id: uuid.UUID) -> Optional[Users]:
-        """Look up a user by UUID primary key.
+    async def get_user_by_id(self, user_id: int) -> Optional[Users]:
+        """Look up a user by integer primary key.
 
         Args:
-            user_id: The user's UUID.
+            user_id: The user's integer id.
 
         Returns:
             Users object if found, None otherwise.
@@ -42,8 +41,8 @@ class UserRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def delete_user(self, user_id: uuid.UUID) -> bool:
-        """Delete a user row by UUID.
+    async def delete_user(self, user_id: int) -> bool:
+        """Delete a user row by integer id.
 
         Args:
             user_id: The user to delete.
@@ -102,7 +101,7 @@ class UserRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def update_user(self, user_id: uuid.UUID, data: dict) -> Optional[Users]:
+    async def update_user(self, user_id: int, data: dict) -> Optional[Users]:
         """Apply a partial update to a user's profile fields.
 
         Fetches the user, sets only the fields present in data (via setattr),
@@ -110,7 +109,7 @@ class UserRepository(BaseRepository):
         the UPDATE on commit.
 
         Args:
-            user_id: UUID of the user to update.
+            user_id: Integer id of the user to update.
             data: Dict of field names to new values (typically from model_dump(exclude_unset=True)).
 
         Returns:

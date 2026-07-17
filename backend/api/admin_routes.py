@@ -3,17 +3,16 @@ from __future__ import annotations
 
 import asyncio
 import time
-import uuid
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from backend.dependencies import UserServiceDep
+from backend.dependencies import UserServiceDep, require_admin_user
 from backend.settings import settings
 from backend.utils.exceptions import UserAlreadyExistsError
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_user)])
 RAG_SERVICE_URL = settings.RAG_SERVICE_URL.rstrip("/")
 
 
@@ -29,6 +28,10 @@ class AdminUserCreateRequest(BaseModel):
 class AdminUserUpdateRequest(BaseModel):
     login: str
     password: str
+
+
+class AdminUserRoleUpdateRequest(BaseModel):
+    is_superuser: bool
 
 
 class BatchDeleteDocumentsRequest(BaseModel):
@@ -121,10 +124,10 @@ async def admin_users_repo(
 
 @router.get("/users/repo/{user_id}")
 async def admin_user_repo_detail(
-    user_id: uuid.UUID,
+    user_id: int,
     user_service: UserServiceDep,
 ) -> dict[str, Any]:
-    """Get single user details by UUID.
+    """Get single user details by id.
 
     Raises:
         HTTPException: 404 if user is not found.
@@ -153,11 +156,11 @@ async def admin_user_repo_create(
 
 @router.put("/users/repo/{user_id}")
 async def admin_user_repo_update(
-    user_id: uuid.UUID,
+    user_id: int,
     payload: AdminUserUpdateRequest,
     user_service: UserServiceDep,
 ) -> dict[str, Any]:
-    """Update user credentials by UUID.
+    """Update user credentials by id.
 
     Raises:
         HTTPException: 404 if user does not exist.
@@ -171,12 +174,26 @@ async def admin_user_repo_update(
     return user
 
 
-@router.delete("/users/repo/{user_id}")
-async def admin_user_repo_delete(
-    user_id: uuid.UUID,
+@router.patch("/users/repo/{user_id}/role")
+async def admin_user_repo_update_role(
+    user_id: int,
+    payload: AdminUserRoleUpdateRequest,
     user_service: UserServiceDep,
 ) -> dict[str, Any]:
-    """Delete user by UUID.
+    """Promote or demote a user's admin privileges.
+
+    Raises:
+        HTTPException: 404 if user does not exist.
+    """
+    return await user_service.update_user_role(user_id, payload.is_superuser)
+
+
+@router.delete("/users/repo/{user_id}")
+async def admin_user_repo_delete(
+    user_id: int,
+    user_service: UserServiceDep,
+) -> dict[str, Any]:
+    """Delete user by id.
 
     Raises:
         HTTPException: 404 if user does not exist.
