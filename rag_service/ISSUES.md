@@ -9,6 +9,12 @@
 | T1 | `raise e` вместо `raise` — терялся traceback | `application/ingestion_service.py` переписан с явной политикой исключений (retry/no-retry по типу), голого `raise e` не осталось |
 | T5 | Дублирующиеся импорты `uuid`/`Any` | `document_parser.py` → `chunk_builder.py`, файл реструктурирован (датаклассы `ParentChunk`/`ChildChunk`), импорты собраны в одном месте |
 
+## ✅ Исправлено (2026-07-17)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| B4 | Ретрай Celery не идемпотентен: `_store_structural_data` при повторной попытке заново вставляла те же `document_chapters`/`document_tables`/parent chunks → `UniqueViolationError` на `uq_document_chapters_doc_chapter_number`, которая сама классифицировалась как "transient" и ретраилась бесконечно до исчерпания `max_retries` | `DocumentRepository.delete_structural_data()` + `DataBaseDocumentService.reset_structural_data()`, вызывается в начале `IngestionService._store_structural_data()` — ретрай теперь стартует с чистого состояния |
+
 ---
 
 ## 🔴 Баги
@@ -16,6 +22,8 @@
 | # | Описание | Файл | Строка |
 |---|---|---|---|
 | B3 | `score_threshold` в `search()` не доходит до Qdrant — `query_points()` вызывается без этого kwarg (в `batch_search()` передаётся корректно, асимметрия между методами) | `infrastructures/repositories/qdrant_vector_storage.py` | 191–199 |
+| B5 | Ретрай-политика слишком широко ловит `DBAPIError` как "транзиентную инфраструктуру". `DBAPIError` — базовый класс и для `IntegrityError`/`ProgrammingError`/`DataError`, не только connection/timeout. Настоящее нарушение constraint'а (гонка в `update_document_hash_atomically`) или баг в SQL (`ProgrammingError`) будет молча ретраиться Celery вместо немедленного ERROR — тот же класс проблемы, что и уже исправленный B4, но не устранён им | `application/ingestion_service.py` | 154–159 |
+| B6 | Webhook от MinIO обрабатывает `event.records` без per-record try/except — если запись N упадёт (например `DocumentByStorageKeyNotFound`), FastAPI вернёт non-200, MinIO повторит **весь** webhook, и уже задиспатченные записи 1..N-1 (статус уже `UPLOAD`, Celery-таск уже в очереди) продиспатчатся повторно. Если первый `ingest_document_task` ещё выполняется — второй запуск словит `InvalidIngestionStateError` в середине пайплайна или race с `reset_structural_data` первого запуска | `api/rag_routes.py` | `handle_webhook`, 93–96 |
 
 ---
 
@@ -23,11 +31,11 @@
 
 | # | Описание | Файл | Строка |
 |---|---|---|---|
-| A1 | `_ensure_collection` вызывается при каждом upsert — лишний `collection_exists()` к Qdrant на каждый документ | `infrastructures/repositories/qdrant_vector_storage.py` | вызов 104, def 294 |
+| A1 | `_ensure_collection` вызывается при каждом upsert — лишний `collection_exists()` к Qdrant на каждый документ. ⚠️ Частично смягчено: вызов теперь под `asyncio.Lock` (строка 78/295) — race condition из исходного описания устранена, но сам round-trip `collection_exists()` на каждый upsert остаётся | `infrastructures/repositories/qdrant_vector_storage.py` | вызов 104, def 294 |
 | A9 | **OOM при инжекте:** `bm25_sparse_vector` строит инвертированный индекс в RAM → Qdrant крашится и обрывает соединение. Фикс: добавить `index=models.SparseIndexParams(on_disk=True)` в `SparseVectorParams` при `create_collection`. **Важно:** требует пересоздания коллекции и переиндексации всех документов. | `infrastructures/repositories/qdrant_vector_storage.py` | 332 |
 | A5 | Webhook-токен через `os.getenv` вместо `pydantic-settings` — нарушение архитектурного соглашения | `api/rag_routes.py` | 84 |
-| A6 | Глобальный синглтон `v_indexing_service` без thread-safety — `if v_indexing_service is None` без lock, race condition при параллельном старте воркеров | `infrastructure.py` | 71–82 |
-| A7 | Ключ дедупликации в `group_hits_by_parent` — только `parent_id`, а не `(doc_id, parent_id)` | `application/retrieve_service.py` | 217 |
+| A6 | Глобальный синглтон `v_indexing_service` без thread-safety — `if v_indexing_service is None` без lock, race condition при параллельном старте воркеров. Файл переехал (`infrastructure.py` → `container.py` в рамках более позднего рефакторинга), баг всё ещё актуален на новом месте | `container.py` | 80–91 |
+| A7 | Ключ дедупликации в `group_hits_by_parent` — только `parent_id`, а не `(doc_id, parent_id)`. Усугубляется тем, что docstring/тайп-хинт `batch_search()` (строки 126, 150) заявляют ключ `(doc_id, parent_id)`, а по факту используется голый `parent_id` — аннотация врёт | `application/retrieve_service.py` | 217 |
 | A8 | `DocumentStatus` определён в `api/schemas.py` — импортируют напрямую `domain/document.py`, `models/models.py`, `application/task_dispatcher_service.py` | `api/schemas.py` | 8–23 |
 | A10 | Реструктуризация хранения документов — гибридная архитектура PostgreSQL + MinIO. Детали ниже ⬇️ | — | — |
 | A11 | Обработка сокращений (аббревиатур) — отдельно от таблиц, нужна нормализация/расшифровка перед индексацией и поиском | — | — |
@@ -84,11 +92,12 @@
 3. Записать структуру глав, мета-разделов и метаданные таблиц в Postgres. В `raw_json` таблицы упаковать через Pandas (`df.to_json(orient="split")`).
 4. Отправить текст глав в LLM-воркер для асинхронной генерации кратких summary.
 
-**✅ Критерии приемки (Acceptance Criteria)**
-- [ ] Созданы миграции для 4-х таблиц БД.
-- [ ] Настроен клиент MinIO в приложении, созданы методы загрузки папки `scratch1/`.
-- [ ] Пайплайн парсинга завершается успешным Bulk Insert в Postgres и Upload в MinIO.
-- [ ] При удалении документа из `documents` через каскад стираются все связанные строки.
+**✅ Критерии приемки (Acceptance Criteria) — статус на 2026-07-17**
+- [~] Миграции для 4-х таблиц БД — миграций (Alembic и т.п.) вообще нет, схема живёт только в `models/models.py`. И реализовано только **3 из 4** таблиц: `documents`, `document_chapters`, `document_tables`. `document_meta_sections` не создана — мета-разделы (TOC, аббревиатуры) заливаются в S3 (`ingestion_service.py:379-386`), но без индекса в Postgres.
+- [x] Настроен клиент MinIO в приложении — `S3StorageRepository` работает; концепция `scratch1/` как локального стейджинга упразднена целиком (пайплайн работает с bytes в памяти, без временных файлов) — критерий выполнен по духу, не буквально.
+- [x] Пайплайн парсинга завершается успешным Bulk Insert в Postgres и Upload в MinIO — подтверждено (`ingestion_service.py:284-297`, `_store_docling_artifacts`).
+- [x] При удалении документа из `documents` через каскад стираются все связанные строки — подтверждено, `ondelete="CASCADE"` + `cascade="all, delete-orphan"` на всех child-таблицах (`models/models.py:47-61,76,100,122`).
+- [ ] Не в исходном списке, но часть замысла A10: `document_tables`/`document_chapters.summary` — колонка `summary` существует, но никогда не заполняется (LLM-саммари по главам/таблицам не реализовано, см. `PARSING_TABLES_PLAN.md`).
 
 ---
 
@@ -115,3 +124,4 @@
 | D4 | `dispatch_reindexing()` пустой stub | `application/task_dispatcher_service.py` | 25–29 |
 | D6 | `update_metadata_document()` пустой stub (`pass`) | `application/document_service.py` | 198–199 |
 | D7 | `set_status()` дублирует `update_document()`; в проде вызывается только изнутри самого сервиса, воркер (`ingestion_service.py`) использует исключительно `update_document()`. Вызывается лишь из тестов | `application/document_service.py` | 160–169 |
+| D8 | `RequestLoggingMiddleware` — оба ветки `dispatch()` просто вызывают `call_next` и возвращают результат, ничего не логируют и не замеряют. Название вводит в заблуждение — выглядит как логирование запросов, по факту no-op прогонка через лишний слой `BaseHTTPMiddleware` на каждый запрос | `main.py` | 23–29 |

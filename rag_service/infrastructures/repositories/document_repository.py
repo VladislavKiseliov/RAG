@@ -393,6 +393,20 @@ class DocumentRepository:
         )
         return list(result.scalars().all())
 
+    async def delete_structural_data(self, doc_id: uuid.UUID) -> None:
+        """Delete parent chunks, chapters, and tables for a document.
+
+        Used to reset a document's structural data before re-running ingestion
+        (e.g. on a Celery retry), so re-insertion doesn't hit unique constraints
+        on rows already committed by a previous attempt.
+
+        Args:
+            doc_id: Target document UUID.
+        """
+        await self._session.execute(delete(ParentChunks).where(ParentChunks.doc_id == doc_id))
+        await self._session.execute(delete(DocumentChapters).where(DocumentChapters.doc_id == doc_id))
+        await self._session.execute(delete(DocumentTables).where(DocumentTables.doc_id == doc_id))
+
     async def bulk_insert_chapters(self, doc_id: uuid.UUID, chapters: Iterable[dict]) -> None:
         """Bulk insert document chapters (one document has tens of chapters, no batching needed).
 

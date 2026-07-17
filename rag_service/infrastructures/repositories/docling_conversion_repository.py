@@ -20,17 +20,35 @@ from rag_service.domain.chunking.docling_models import ConversionOutput, SavedTa
 _log = logging.getLogger(__name__)
 
 
+def _page_range(item: TableItem) -> tuple[int, int] | None:
+    """Min/max page number the table's provenance spans, or `None` without provenance."""
+    if not item.prov:
+        return None
+    pages = [p.page_no for p in item.prov]
+    return min(pages), max(pages)
+
+
 class _LinkingTableSerializer(BaseTableSerializer):
     """Заменяет таблицу в markdown ссылкой на CSV/HTML и сохраняет сами файлы —
     в один проход, в момент сериализации таблицы Docling'ом. Без отдельного
     regex-поиска таблиц в готовом тексте — рассинхрон между ссылкой и файлом
     невозможен по построению, потому что это один и тот же объект таблицы.
+
+    Docling режет таблицу, переходящую через границу страницы, на несколько
+    отдельных `TableItem` — без склейки получаем 2-3 карточки вместо одной.
+    Продолжение почти всегда без своей подписи и с тем же числом колонок, что
+    и предыдущая таблица — если вдобавок оно на той же/следующей странице
+    (провенанс), считаем это той же таблицей и дописываем строки вместо новой
+    карточки. Эвристика, не гарантия: в теории может ошибочно склеить два
+    разных подряд идущих таблицы одинаковой формы без подписи.
     """
 
     def __init__(self, doc_filename: str) -> None:
         self._doc_filename = doc_filename
         self._next_idx = 0
         self.saved_tables: list[SavedTable] = []
+        self._last_df: pd.DataFrame | None = None
+        self._last_page_range: tuple[int, int] | None = None
 
     def serialize(
         self,
@@ -45,11 +63,46 @@ class _LinkingTableSerializer(BaseTableSerializer):
 
         df: pd.DataFrame = item.export_to_dataframe(doc=doc)
 
-        if df.shape[0] < 2 or df.shape[1] < 2:
+        # Меньше 2 колонок — это не таблица, а мусорная разметка. Число строк
+        # не фильтруем: однострочная таблица (например, одна норма/показатель)
+        # реальна и не должна теряться.
+        if df.shape[1] < 2:
             return create_ser_result(text=caption, span_source=item)
+
+        page_range = _page_range(item)
+        is_continuation = (
+            not cap_res.text
+            and self._last_df is not None
+            and df.shape[1] == self._last_df.shape[1]
+            and self._last_page_range is not None
+            and page_range is not None
+            and page_range[0] - self._last_page_range[1] <= 1
+        )
+
+        if is_continuation:
+            # pd.concat выравнивает по ИМЕНИ колонки, а не по позиции — у фрагментов
+            # одной и той же таблицы на разных страницах имена колонок (первая строка
+            # или авто-индекс) обычно не совпадают, что даёт объединение колонок
+            # вместо склейки строк (3 колонки → 6). Обнуляем имена на позиционные.
+            df_aligned = df.copy()
+            df_aligned.columns = self._last_df.columns
+            merged_df = pd.concat([self._last_df, df_aligned], ignore_index=True)
+            self._last_df = merged_df
+            self._last_page_range = (self._last_page_range[0], page_range[1])
+
+            last = self.saved_tables[-1]
+            self.saved_tables[-1] = SavedTable(
+                index=last.index,
+                csv_bytes=merged_df.to_csv(encoding="utf-8", index=False).encode("utf-8"),
+                html_bytes=merged_df.to_html(index=False).encode("utf-8"),
+            )
+            _log.info("Merged page-break continuation into table %d: now %d rows", last.index, merged_df.shape[0])
+            return create_ser_result(text="", span_source=item)
 
         self._next_idx += 1
         idx = self._next_idx
+        self._last_df = df
+        self._last_page_range = page_range
 
         csv_bytes = df.to_csv(encoding="utf-8", index=False).encode("utf-8")
         html_bytes = item.export_to_html(doc=doc).encode("utf-8")

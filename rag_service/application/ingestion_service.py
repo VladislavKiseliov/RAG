@@ -287,6 +287,9 @@ class IngestionService:
             parent_chunks: List[ParentChunk],
             parsed_document:ParsedDocument,
     )->None:
+        # Ретрай стартует ингест с нуля — чистим то, что успело закоммититься
+        # в предыдущей попытке, иначе bulk-insert упадёт на unique constraint'е.
+        await self._document_service.reset_structural_data(doc_id)
 
         await self._document_service.add_parent_chunks(doc_id,parent_chunks)
         chapter_rows, table_rows = await self._store_docling_artifacts(doc_id, parsed_document)

@@ -31,6 +31,16 @@ class InvalidDocumentIdError(AppError):
         super().__init__(message=message, status_code=status.HTTP_400_BAD_REQUEST)
 
 
+class ChapterNotFound(AppError):
+    """Raised when the requested chapter index is out of range for a document."""
+
+    def __init__(self, doc_id: str, chapter_idx: int):
+        super().__init__(
+            message=f"Chapter {chapter_idx} not found for document '{doc_id}'",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+
 class InvalidIngestionStateError(AppError):
     """Raised when a document state transition is not allowed."""
 

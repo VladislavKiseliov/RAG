@@ -411,6 +411,37 @@ async def test_bulk_insert_tables_persists_rows(
     assert rows[0].title is None
 
 
+async def test_delete_structural_data_removes_chunks_chapters_and_tables(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """delete_structural_data should clear parent chunks, chapters, and tables for the doc, leaving the document row intact."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="reset.pdf")
+
+    await repo.bulk_insert_chunks(
+        doc_id,
+        [{"id": uuid.uuid4(), "content": "alpha", "page_num": "1", "headers": {}, "chunk_index": 0}],
+    )
+    await repo.bulk_insert_chapters(
+        doc_id,
+        [{"chapter_number": "1", "title": "Введение", "s3_md_path": f"{doc_id}/chapters/chapter_1.md"}],
+    )
+    await repo.bulk_insert_tables(
+        doc_id,
+        [{"table_index": 0, "s3_csv_path": f"{doc_id}/tables/table_0.csv", "s3_html_path": f"{doc_id}/tables/table_0.html"}],
+    )
+    await db_session.commit()
+
+    await repo.delete_structural_data(doc_id)
+    await db_session.commit()
+
+    assert await repo.get_parent_chunks_by_doc_id(doc_id) == []
+    assert await repo.get_chapters_by_doc_id(doc_id) == []
+    assert await repo.get_tables_by_doc_id(doc_id) == []
+    assert await repo.get_document_by_id(doc_id) is not None
+
+
 async def test_get_chapters_by_doc_id_returns_in_document_order(
     repo: DocumentRepository,
     db_session: AsyncSession,

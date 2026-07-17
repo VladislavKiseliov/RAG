@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from urllib.parse import unquote_plus
+import asyncio
+import csv
+import io
 import logging
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Annotated
@@ -12,7 +16,9 @@ from fastapi import APIRouter, Depends, status, Query, Header, Response, Request
 from rag_service.api.schemas import (
     BatchDeleteDocumentsRequest,
     BatchDeleteDocumentsResponse,
+    ChapterContentResponse,
     ChapterSummary,
+    ChapterTable,
     DeleteDocumentResponse,
     DocumentDetailResponse,
     DocumentStatusResponse,
@@ -23,6 +29,7 @@ from rag_service.api.schemas import (
 )
 from rag_service.application.task_dispatcher_service import TaskDispatcherService
 from rag_service.domain.errors import (
+    ChapterNotFound,
     DocumentNotFound,
     DuplicateFilenameError,
     InvalidDocumentIdError,
@@ -223,6 +230,62 @@ async def get_document_details(
         chapters=[ChapterSummary(chapter_number=c.chapter_number, title=c.title) for c in chapters],
         tables=[TableSummary(table_index=t.table_index) for t in tables],
     )
+
+
+_TABLE_LINK_RE = re.compile(r"\[→\s*Таблица\s+(\d+)\]\([^)]*\)")
+
+
+def _parse_csv_table(csv_bytes: bytes) -> tuple[list[str], list[list[str]]]:
+    """Split extracted table CSV bytes into a header row and data rows."""
+    rows = list(csv.reader(io.StringIO(csv_bytes.decode("utf-8"))))
+    if not rows:
+        return [], []
+    return rows[0], rows[1:]
+
+
+@router.get("/documents/{doc_id}/chapters/{chapter_idx}", response_model=ChapterContentResponse)
+async def get_document_chapter_content(
+        doc_id: str,
+        chapter_idx: int,
+        document_query_service: DocQueryServiceDep,
+        document_orchestrator: DocumentOrchestratorDep,
+):
+    """Полный текст главы и таблицы, встреченные в её тексте.
+
+    `chapter_idx` — позиция главы в списке из `GET /documents/{doc_id}`
+    (0-based), а не `chapter_number` (произвольная строка вроде "2.1" от Docling).
+    Таблицы для главы находятся по ссылкам `[→ Таблица N](...)`, которые
+    `_LinkingTableSerializer` вставляет в markdown в момент извлечения таблицы —
+    рассинхрон с `document_tables` невозможен по построению (см. её докстринг).
+    """
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError as exc:
+        raise InvalidDocumentIdError() from exc
+
+    chapters = await document_query_service.get_chapters_by_doc_id(doc_uuid)
+    if chapter_idx < 0 or chapter_idx >= len(chapters):
+        raise ChapterNotFound(doc_id, chapter_idx)
+
+    chapter = chapters[chapter_idx]
+    text_bytes = await document_orchestrator.get_file_s3_by_s3key(chapter.s3_md_path)
+    text = text_bytes.decode("utf-8")
+
+    table_indices = {int(m) for m in _TABLE_LINK_RE.findall(text)}
+    text = _TABLE_LINK_RE.sub("", text).strip()
+
+    tables_out: list[ChapterTable] = []
+    if table_indices:
+        all_tables = await document_query_service.get_tables_by_doc_id(doc_uuid)
+        matched = [t for t in all_tables if t.table_index in table_indices]
+        csv_blobs = await asyncio.gather(
+            *(document_orchestrator.get_file_s3_by_s3key(t.s3_csv_path) for t in matched)
+        )
+        for t, csv_bytes in zip(matched, csv_blobs):
+            cols, rows = _parse_csv_table(csv_bytes)
+            tables_out.append(ChapterTable(name=t.title or f"Таблица {t.table_index}", cols=cols, rows=rows))
+
+    return ChapterContentResponse(text=text, tables=tables_out)
 
 #
 # # =============================================================================

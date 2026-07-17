@@ -158,6 +158,12 @@ class DataBaseDocumentService:
             await repo.bulk_insert_chunks(doc_id, rows)
             await session.commit()
 
+    async def reset_structural_data(self, doc_id: uuid.UUID) -> None:
+        """Delete parent chunks, chapters, and tables for a document (retry reset)."""
+        async with self.session_scope() as (session, repo):
+            await repo.delete_structural_data(doc_id)
+            await session.commit()
+
     async def add_document_chapters(self, doc_id: uuid.UUID, chapters: list[dict]) -> None:
         if not chapters:
             return

@@ -1,5 +1,17 @@
 # Парсинг PDF и обработка таблиц — план улучшений
 
+## Статус на 2026-07-17
+
+| Шаг плана | Статус | Комментарий |
+|---|---|---|
+| Docling-парсер | ✅ Готово | реализован, заменил pymupdf4llm |
+| Изоляция таблиц + маркеры вместо inline | ✅ Готово (другой механизм) | не отдельный `extract_tables(markdown)`-regex как в плане, а `_LinkingTableSerializer` (`infrastructures/repositories/docling_conversion_repository.py:31-114`), который сразу при сериализации вставляет `[→ Таблица N](tables/...)` — устойчивее к рассинхрону, но архитектурно отличается от текста плана ниже |
+| LLM-саммари по таблицам | ❌ Не сделано | кода генерации саммари нет, `document_tables` не имеет поля под него |
+| Parent-child chunking | ✅ Готово | `ingestion_service.py:305-341`, `domain/chunking/chunk_builder.py` |
+| **Сборка ответа: подстановка таблицы обратно при retrieval** | ❌ **Не сделано — самый существенный разрыв плана** | Реконструкция таблицы (снять маркер → достать CSV/HTML → вставить) реализована **только** в `GET /documents/{doc_id}/chapters/{n}` — human-facing эндпоинт читалки (`api/rag_routes.py:274-286`). В реальном retrieval-пути, которым пользуется `llm_service` (`application/retrieve_service.py:246-284`, `build_retrieved_items`), `row.content` отдаётся как есть — маркеры `[→ Таблица N]` остаются неразрешёнными в тексте, который видит LLM. То есть таблицы извлекаются и хранятся правильно, но **не попадают в ответы ассистента**. |
+
+---
+
 ## Выбор парсера: Docling (IBM Research)
 
 | Критерий | Docling 🏆 | Marker | LiteParse (LlamaIndex) |

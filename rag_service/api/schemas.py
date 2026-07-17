@@ -80,6 +80,17 @@ class TableSummary(BaseModel):
     table_index: int
 
 
+class ChapterTable(BaseModel):
+    name: str
+    cols: list[str]
+    rows: list[list[str]]
+
+
+class ChapterContentResponse(BaseModel):
+    text: str
+    tables: list[ChapterTable] = Field(default_factory=list)
+
+
 class DocumentDetailResponse(DocumentSummaryResponse):
     file_hash: str | None = None
     s3key: str | None = None
