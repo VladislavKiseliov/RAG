@@ -3,30 +3,32 @@ import MessageInput from '../components/MessageInput.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import Message from '../components/Message.jsx';
 import AppRail from '../components/AppRail.jsx';
+import HomePage from './HomePage.jsx';
 import KnowledgeBasePage from './KnowledgeBasePage.jsx';
 import ProjectsPage from './ProjectsPage.jsx';
 import NotesPage from './NotesPage.jsx';
+import TasksPage from './TasksPage.jsx';
 import AdminPage from './AdminPage.jsx';
 import { createApiClient } from '../api/client';
 import { useAiChat } from '../hooks/useAiChat';
 import { useMessenger } from '../hooks/useMessenger';
 import { useMessengerSocket } from '../hooks/useMessengerSocket';
 import { useErrorToast } from '../hooks/useErrorToast';
-import { useUserRole } from '../hooks/useUserRole';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import { formatUserName } from '../utils/formatUserName';
 import { ApiContext } from '../context/ApiContext';
 
 function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, theme, onToggleTheme }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const [section, setSection] = useState('chats');
+    const [section, setSection] = useState('home');
     const messagesEndRef = useRef(null);
 
     const api = useMemo(() => createApiClient(getAccessToken), [getAccessToken]);
     const { error, showError } = useErrorToast();
     const aiChat = useAiChat(api, showError);
-    const messenger = useMessenger(api);
-    const role = useUserRole(api);
-    const isAdmin = role === 'admin';
+    const messenger = useMessenger(api, showError);
+    const currentUser = useCurrentUser(api);
+    const isAdmin = currentUser.isAdmin;
 
     const { sendMessage: wsSendMessage } = useMessengerSocket({
         getAccessToken,
@@ -87,8 +89,13 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
             : null;
 
     return (
-        <ApiContext.Provider value={api}>
+        <ApiContext.Provider value={{ api, showError }}>
             <div className="app-shell">
+                {error && (
+                    <div className="error-toast">
+                        <span>⚠ {error}</span>
+                    </div>
+                )}
                 <AppRail
                     activeSection={section}
                     onSelectSection={setSection}
@@ -96,6 +103,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                     onToggleTheme={onToggleTheme}
                     isAdmin={isAdmin}
                     onLogout={onLogout}
+                    currentUser={currentUser}
                 />
 
                 {section === 'chats' && (
@@ -118,13 +126,9 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                             onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
                             isCollapsed={sidebarCollapsed}
                             onOpenProjects={() => setSection('projects')}
+                            currentUser={currentUser}
                         />
                         <main className="main-chat">
-                            {error && (
-                                <div className="error-toast">
-                                    <span>⚠ {error}</span>
-                                </div>
-                            )}
                             {chatHeader && (
                                 <header className="chat-header">
                                     <div className={`chat-header-icon ${chatHeader.iconStyle}`}>
@@ -178,12 +182,12 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                     </div>
                 )}
 
-                {section === 'knowledge' && <KnowledgeBasePage api={api} showError={showError} />}
+                {section === 'home' && <HomePage currentUser={currentUser} onSelectSection={setSection} />}
+
+                {section === 'knowledge' && <KnowledgeBasePage />}
 
                 {section === 'projects' && (
                     <ProjectsPage
-                        api={api}
-                        showError={showError}
                         onOpenMessenger={() => setSection('chats')}
                         onOpenKnowledge={() => setSection('knowledge')}
                     />
@@ -191,7 +195,9 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
 
                 {section === 'notes' && <NotesPage theme={theme} />}
 
-                {section === 'admin' && isAdmin && <AdminPage api={api} showError={showError} />}
+                {section === 'tasks' && <TasksPage onSelectSection={setSection} />}
+
+                {section === 'admin' && isAdmin && <AdminPage />}
             </div>
         </ApiContext.Provider>
     );

@@ -1,7 +1,10 @@
 import { useState, useCallback } from 'react';
 import { ENDPOINTS } from '../config/api';
+import { useApi, useShowError } from '../context/ApiContext';
 
-export function useKnowledgeBase(api, showError) {
+export function useKnowledgeBase() {
+    const api = useApi();
+    const showError = useShowError();
     const [documents, setDocuments] = useState([]);
     const [collections, setCollections] = useState([]);
     const [selectedCollection, setSelectedCollection] = useState('all');
@@ -12,11 +15,18 @@ export function useKnowledgeBase(api, showError) {
     const [chapterContent, setChapterContent] = useState(null);
     const [chapterContentLoading, setChapterContentLoading] = useState(false);
 
+    // Список отдаёт только summary — главы (sections) для оглавления читалки грузятся лениво
+    // здесь, только для реально открытого документа, а не для всей библиотеки сразу.
     const openDoc = useCallback((id) => {
         setSelectedDocId(id);
         setChapterIdx(null);
         setContentModeState('summary');
-    }, []);
+        api.get(ENDPOINTS.KNOWLEDGE_DOCUMENT_STATUS(id))
+            .then((detail) => {
+                setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, ...detail } : d)));
+            })
+            .catch((e) => showError(e.message));
+    }, [api, showError]);
 
     const closeDoc = useCallback(() => {
         setSelectedDocId(null);

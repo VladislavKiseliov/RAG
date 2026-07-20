@@ -3,8 +3,8 @@ import DocumentCard from '../components/DocumentCard.jsx';
 import DocumentReader from '../components/DocumentReader.jsx';
 import { useKnowledgeBase } from '../hooks/useKnowledgeBase';
 
-function KnowledgeBasePage({ api, showError }) {
-    const kb = useKnowledgeBase(api, showError);
+function KnowledgeBasePage() {
+    const kb = useKnowledgeBase();
     const fileInputRef = useRef(null);
 
     useEffect(() => {

@@ -69,10 +69,11 @@ class VectorStorageProvider(Protocol):
         """
         ...
 
-    async def delete_points(self, doc_id: uuid.UUID) -> None:
-        """Remove all vector points belonging to a document.
+    async def delete_by_field(self, field: str, value: str) -> None:
+        """Remove all vector points whose payload[field] == value.
 
         Args:
-            doc_id: Document whose points should be deleted.
+            field: Payload field name to match on (e.g. "doc_id", "note_id").
+            value: Value to match.
         """
         ...

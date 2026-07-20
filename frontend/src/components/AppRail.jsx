@@ -2,15 +2,17 @@ import React from 'react';
 import UserMenu from './UserMenu.jsx';
 
 const SECTIONS = [
+    { id: 'home', icon: '⌂', title: 'Главная' },
     { id: 'chats', icon: '✦', title: 'Чаты' },
     { id: 'knowledge', icon: '▤', title: 'База знаний' },
     { id: 'projects', icon: '◫', title: 'Проекты' },
     { id: 'notes', icon: '✎', title: 'Заметки' },
+    { id: 'tasks', icon: '☑', title: 'Задачи на день' },
 ];
 
 const ADMIN_SECTION = { id: 'admin', icon: '⚙', title: 'Админ-панель' };
 
-function AppRail({ activeSection, onSelectSection, theme, onToggleTheme, isAdmin, onLogout }) {
+function AppRail({ activeSection, onSelectSection, theme, onToggleTheme, isAdmin, onLogout, currentUser }) {
     const sections = isAdmin ? [...SECTIONS, ADMIN_SECTION] : SECTIONS;
     return (
         <nav className="app-rail">
@@ -25,7 +27,13 @@ function AppRail({ activeSection, onSelectSection, theme, onToggleTheme, isAdmin
                     {s.icon}
                 </div>
             ))}
-            <UserMenu onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} footerClassName="compact-footer" />
+            <UserMenu
+                initials={currentUser?.initials}
+                onLogout={onLogout}
+                theme={theme}
+                onToggleTheme={onToggleTheme}
+                footerClassName="compact-footer"
+            />
         </nav>
     );
 }

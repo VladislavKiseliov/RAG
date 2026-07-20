@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum' 1; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.28); border-radius: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .clamp1 { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  @keyframes hPulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+  .field::placeholder { color: var(--muted,#7c7264); }
+</style>
+</helmet>
+
+<div class="app" style="height:100vh; display:flex; overflow:hidden; position:relative; background:var(--bg,#0a0806); color:var(--text,#efe8dd); {{ rootStyle }}">
+
+  <!-- ===================== APP RAIL ===================== -->
+  <nav style="width:62px; flex-shrink:0; background:var(--rail,#0c0907); border-right:1px solid var(--border,rgba(255,255,255,.06)); display:flex; flex-direction:column; align-items:center; padding:16px 0; gap:6px;">
+    <div style="width:32px; height:32px; border-radius:9px; background:var(--accent,#d9a441); display:flex; align-items:center; justify-content:center; color:var(--accent-ink,#1a150f); font-weight:700; font-size:16px; margin-bottom:10px;">И</div>
+    <div title="Главная" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); color:var(--accent,#d9a441);">⌂</div>
+    <a href="Мессенджер.dc.html" title="Чаты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">✦</a>
+    <a href="База знаний.dc.html" title="База знаний" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">▤</a>
+    <a href="Проекты.dc.html" title="Проекты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">◫</a>
+    <a href="Заметки.dc.html" title="Заметки" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">✎</a>
+    <a href="Задачи на день.dc.html" title="Задачи на день" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">☑</a>
+    <a href="Админ-панель.dc.html" title="Админ-панель" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">⚙</a>
+    <div onClick="{{ toggleTheme }}" title="Тема" style="margin-top:auto; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">{{ themeIcon }}</div>
+  </nav>
+
+  <!-- ===================== MAIN ===================== -->
+  <main style="flex:1; min-width:0; display:flex; flex-direction:column; padding:22px 32px 20px; overflow:hidden;">
+
+    <!-- header + global search + quick links -->
+    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; flex-shrink:0;">
+      <div>
+        <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; white-space:nowrap;">{{ dateLabel }}</div>
+        <div style="font-size:22px; font-weight:700; color:var(--strong,#f3ead9); margin-top:4px; white-space:nowrap;">{{ greeting }}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); border-radius:11px; padding:9px 14px; width:300px; max-width:100%;">
+        <span style="color:var(--muted,#7c7264); font-size:14px;">⌕</span>
+        <input class="field" value="{{ query }}" onInput="{{ onSearch }}" placeholder="Искать по чатам, документам, заметкам…" style="border:0; outline:0; background:transparent; color:var(--text,#efe8dd); font-size:13px; width:100%; font-family:inherit;" />
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex-wrap:wrap;">
+        <sc-for list="{{ quickLinks }}" as="q" hint-placeholder-count="4">
+          <a href="{{ q.href }}" title="{{ q.label }}" style="text-decoration:none; display:flex; align-items:center; gap:8px; background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:10px; padding:8px 12px;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.45));">
+            <span style="font-size:13px; color:var(--accent,#d9a441);">{{ q.icon }}</span>
+            <span class="mono" style="font-size:11px; color:var(--text,#cabfae); white-space:nowrap;">{{ q.stat }}</span>
+          </a>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- global search results -->
+    <sc-if value="{{ showSearchResults }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:14px; border:1px solid var(--border,rgba(255,255,255,.06)); border-radius:14px; overflow:hidden; overflow-y:auto; max-height:60vh; flex-shrink:0;">
+        <sc-for list="{{ searchResults }}" as="r" hint-placeholder-count="3">
+          <a href="{{ r.href }}" style="display:flex; align-items:center; gap:12px; padding:12px 16px; text-decoration:none; border-top:1px solid var(--border,rgba(255,255,255,.05));" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+            <span class="mono" style="width:34px; height:34px; border-radius:9px; flex-shrink:0; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--accent,#d9a441);">{{ r.icon }}</span>
+            <div style="min-width:0; flex:1;">
+              <div style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.title }}</div>
+              <div style="font-size:12px; color:var(--muted,#7c7264); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.subtitle }}</div>
+            </div>
+            <span class="mono" style="font-size:11px; color:var(--muted,#7c7264); flex-shrink:0; white-space:nowrap;">{{ r.kindLabel }}</span>
+          </a>
+        </sc-for>
+        <sc-if value="{{ noSearchResults }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 16px; text-align:center; font-size:13px; color:var(--muted,#7c7264);">Ничего не найдено по «{{ query }}»</div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- three-column body, fills remaining height, no page scroll -->
+    <sc-if value="{{ hideBelowSearch }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:16px; margin-top:18px; flex:1; min-height:0; min-width:0;">
+
+      <!-- COL 1: notifications, anchored to the lower half with breathing room above -->
+      <div style="display:flex; flex-direction:column; min-height:0; min-width:0;">
+        <div style="flex:1 1 38%;"></div>
+        <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:16px; padding:16px 18px; display:flex; flex-direction:column; flex:1 1 62%; min-height:0; min-width:0;">
+        <div style="display:flex; align-items:center; margin-bottom:8px; flex-shrink:0;">
+          <span style="font-size:14px; font-weight:700; color:var(--strong,#f3ead9); white-space:nowrap; flex-shrink:0;">Уведомления</span>
+          <span class="mono" style="margin-left:auto; font-size:11px; color:var(--accent,#d9a441); white-space:nowrap;">{{ unreadLabel }}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; overflow-y:auto; overflow-x:hidden; min-height:0; min-width:0;">
+          <sc-for list="{{ notifications }}" as="nf" hint-placeholder-count="5">
+            <a href="{{ nf.href }}" style="display:flex; align-items:flex-start; gap:10px; padding:9px 2px; text-decoration:none; border-top:1px solid var(--border,rgba(255,255,255,.05)); flex-shrink:0; min-width:0;" style-hover="background:var(--hover,rgba(255,255,255,.03));">
+              <span style="width:7px; height:7px; border-radius:50%; margin-top:6px; flex-shrink:0; background:{{ nf.dotColor }};"></span>
+              <span class="mono" style="width:26px; height:26px; border-radius:7px; flex-shrink:0; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; justify-content:center; font-size:10.5px; color:var(--muted,#7c7264);">{{ nf.icon }}</span>
+              <div style="min-width:0; flex:1;">
+                <div style="font-size:12.5px; color:var(--text,#cabfae); line-height:1.4;"><b style="color:var(--strong,#f3ead9); font-weight:600;">{{ nf.who }}</b> {{ nf.text }}</div>
+                <div style="font-size:10.5px; color:var(--muted,#7c7264); margin-top:2px;">{{ nf.when }}</div>
+              </div>
+            </a>
+          </sc-for>
+        </div>
+        </div>
+      </div>
+
+      <!-- COL 2: reminders + my tasks — "Мои задачи" top aligned with "Уведомления" top -->
+      <div style="display:flex; flex-direction:column; min-height:0; min-width:0;">
+        <div style="flex:1 1 38%; display:flex; flex-direction:column; justify-content:flex-start; min-height:0;">
+        <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:16px; padding:15px 17px; flex-shrink:0;">
+          <div style="display:flex; align-items:center; margin-bottom:10px;">
+            <span style="font-size:13.5px; font-weight:700; color:var(--strong,#f3ead9); white-space:nowrap; flex-shrink:0;">Напоминания</span>
+            <a href="Заметки.dc.html" style="margin-left:auto; font-size:11px; color:var(--accent,#d9a441); text-decoration:none; white-space:nowrap;">Заметки →</a>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:7px; min-width:0;">
+            <sc-for list="{{ reminders }}" as="r" hint-placeholder-count="2">
+              <a href="Заметки.dc.html" style="display:flex; align-items:flex-start; gap:9px; min-width:0; text-decoration:none; padding:9px 10px; border-radius:9px; background:{{ r.bg }}; border:1px solid {{ r.border }};" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.4));">
+                <span style="font-size:12px; flex-shrink:0; margin-top:1px;">⏰</span>
+                <div style="min-width:0; flex:1;">
+                  <div class="clamp2" style="font-size:12px; line-height:1.4; color:var(--text,#cabfae);">{{ r.title }}</div>
+                  <div class="mono" style="font-size:10.5px; color:{{ r.dueColor }}; margin-top:3px;">{{ r.dueLabel }}</div>
+                </div>
+              </a>
+            </sc-for>
+            <sc-if value="{{ noReminders }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px; color:var(--muted,#7c7264); padding:4px 2px;">Нет активных напоминаний</div>
+            </sc-if>
+          </div>
+        </div>
+        </div>
+
+        <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:16px; padding:15px 17px; display:flex; flex-direction:column; min-height:0; flex:1 1 62%;">
+          <div style="display:flex; align-items:center; margin-bottom:8px; flex-shrink:0;">
+            <span style="font-size:13.5px; font-weight:700; color:var(--strong,#f3ead9); white-space:nowrap; flex-shrink:0;">Мои задачи</span>
+            <span class="mono" style="margin-left:auto; font-size:11px; color:var(--muted,#7c7264); white-space:nowrap;">{{ myTasksLabel }}</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px; overflow-y:auto; overflow-x:hidden; min-height:0; min-width:0;">
+            <sc-for list="{{ myTasks }}" as="tk" hint-placeholder-count="5">
+              <div onClick="{{ tk.onToggle }}" style="display:flex; align-items:flex-start; gap:9px; padding:7px 8px; border-radius:9px; cursor:pointer; flex-shrink:0; min-width:0;" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+                <span style="width:16px; height:16px; border-radius:5px; flex-shrink:0; margin-top:1px; border:1.5px solid {{ tk.boxBorder }}; background:{{ tk.boxBg }}; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--accent-ink,#1a150f);">{{ tk.check }}</span>
+                <div style="min-width:0; flex:1;">
+                  <div class="clamp1" style="font-size:12px; color:{{ tk.textColor }}; text-decoration:{{ tk.strike }}; line-height:1.4;">{{ tk.title }}</div>
+                  <div class="mono" style="font-size:10px; color:var(--muted,#7c7264); margin-top:2px;">{{ tk.project }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1360,&quot;height&quot;:880}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    let saved = 'dark';
+    try { saved = localStorage.getItem('msgr-theme') || 'dark'; } catch (e) {}
+    this.state = { theme: saved, query: '', tasks: this.seedTasks() };
+  }
+
+  themes = {
+    dark: {
+      bg:'#0a0806', rail:'#0c0907', sidebar:'#0e0b08', surface:'#15100a', card:'#110d08',
+      border:'rgba(255,255,255,.06)', cardBorder:'rgba(255,255,255,.06)',
+      text:'#cabfae', strong:'#f3ead9', muted:'#7c7264',
+      accent:'#d9a441', accentInk:'#1a150f', accentSoft:'#241a10', accentSoftBorder:'rgba(217,164,65,.3)',
+      hover:'rgba(255,255,255,.045)', ok:'#86b98c', okSoft:'rgba(134,185,140,.15)', bad:'#d65f5f',
+    },
+    light: {
+      bg:'#fbfcfc', rail:'#f0f3f3', sidebar:'#f6f8f8', surface:'#eef1f1', card:'#ffffff',
+      border:'#e8eaec', cardBorder:'#e8eaec',
+      text:'#374151', strong:'#0e1213', muted:'#8b9197',
+      accent:'#0891b2', accentInk:'#ffffff', accentSoft:'#e6f4f7', accentSoftBorder:'#c5e6ee',
+      hover:'rgba(0,0,0,.035)', ok:'#3f9d54', okSoft:'rgba(63,157,84,.14)', bad:'#c0392b',
+    },
+  };
+
+  searchIndex = [
+    { title:'API Reference — Orders v2', subtitle:'База знаний · Платформа', icon:'▤', kindLabel:'документ', href:'База знаний.dc.html' },
+    { title:'Заметки с ревью PR #482', subtitle:'Заметки · обновлено 2 дня назад', icon:'✎', kindLabel:'заметка', href:'Заметки.dc.html' },
+    { title:'Платёжный шлюз v2', subtitle:'Проекты · в работе', icon:'◫', kindLabel:'проект', href:'Проекты.dc.html' },
+    { title:'Соня Кравец', subtitle:'Чаты · «макеты обновила, гляньте»', icon:'✦', kindLabel:'чат', href:'Мессенджер.dc.html' },
+    { title:'Руководство по CI/CD', subtitle:'База знаний · DevEx', icon:'▤', kindLabel:'документ', href:'База знаний.dc.html' },
+    { title:'Идея: авто-сверка биллинга', subtitle:'Заметки · закреплено', icon:'✎', kindLabel:'заметка', href:'Заметки.dc.html' },
+  ];
+
+  seedTasks() {
+    return [
+      { id:'t1', title:'Обработка частичных возвратов', project:'Платёжный шлюз', done:false },
+      { id:'t2', title:'Финальное ревью миграции v2', project:'Миграция БД', done:false },
+      { id:'t3', title:'Сборка библиотеки компонентов', project:'Редизайн портала', done:false },
+      { id:'t4', title:'Сверка с провайдером', project:'Биллинг', done:false },
+      { id:'t5', title:'Контракт API провайдера', project:'Платёжный шлюз', done:true },
+    ];
+  }
+
+  setTheme(v){ try{localStorage.setItem('msgr-theme',v);}catch(e){} this.setState({theme:v}); }
+  toggleTheme(){ this.setTheme(this.state.theme==='dark'?'light':'dark'); }
+  onSearch(e){ this.setState({ query: e.target.value }); }
+  toggleTask(id){ this.setState(s => ({ tasks: s.tasks.map(t => t.id===id ? {...t, done:!t.done} : t) })); }
+
+  renderVals() {
+    const t = this.themes[this.state.theme] || this.themes.dark;
+    const rootStyle =
+      `--bg:${t.bg};--rail:${t.rail};--sidebar:${t.sidebar};--surface:${t.surface};--card:${t.card};` +
+      `--border:${t.border};--card-border:${t.cardBorder};--text:${t.text};--strong:${t.strong};--muted:${t.muted};` +
+      `--accent:${t.accent};--accent-ink:${t.accentInk};--accent-soft:${t.accentSoft};--accent-soft-border:${t.accentSoftBorder};` +
+      `--hover:${t.hover};--ok:${t.ok};--ok-soft:${t.okSoft};`;
+
+    const q = this.state.query.trim().toLowerCase();
+    const searchResults = q ? this.searchIndex.filter(r => (r.title+' '+r.subtitle).toLowerCase().includes(q)) : [];
+
+    const quickLinks = [
+      { href:'Мессенджер.dc.html', icon:'✦', label:'Чаты', stat:'3 непрочитанных' },
+      { href:'База знаний.dc.html', icon:'▤', label:'База знаний', stat:'1259 точек в БД' },
+      { href:'Проекты.dc.html', icon:'◫', label:'Проекты', stat:'5 на вас' },
+      { href:'Заметки.dc.html', icon:'✎', label:'Заметки', stat:'2 напоминания' },
+    ];
+
+    const activeProjects = [
+      { glyph:'ПШ', name:'Платёжный шлюз v2', tasksLabel:'3/6', progressW:'50%', members:['ВЛ','ИП','СК'], whoLabel:'Ведёт Влад' },
+      { glyph:'БИ', name:'Биллинг', tasksLabel:'1/4', progressW:'25%', members:['ВЛ','АР'], whoLabel:'Ведёт Влад' },
+      { glyph:'РП', name:'Редизайн портала', tasksLabel:'2/5', progressW:'40%', members:['СК','ВЛ'], whoLabel:'Ведёт дизайн' },
+    ];
+
+    const notifDefs = [
+      { icon:'✦', who:'Соня Кравец', text:'упомянула вас в «Редизайн портала»', when:'12 минут назад', dot:t.accent, href:'Мессенджер.dc.html' },
+      { icon:'▤', who:'Иван Петров', text:'загрузил документ «provider-contract.yaml»', when:'40 минут назад', dot:t.ok, href:'База знаний.dc.html' },
+      { icon:'◫', who:'Артём Рыжов', text:'отправил «Миграцию БД» на ревью', when:'2 часа назад', dot:t.accent, href:'Проекты.dc.html' },
+      { icon:'✦', who:'Иван Петров', text:'ответил в общем чате команды', when:'вчера', dot:t.muted, href:'Мессенджер.dc.html' },
+      { icon:'✎', who:'Система', text:'заметка «Вопросы к архитектору» проиндексирована', when:'вчера', dot:t.ok, href:'Заметки.dc.html' },
+    ];
+    const notifications = notifDefs.map(n => ({ icon:n.icon, who:n.who, text:n.text, when:n.when, dotColor:n.dot, href:n.href }));
+
+    const reminderDefs = [
+      { title:'Идея: авто-сверка биллинга', due:'сегодня, 10:00', urgent:true },
+      { title:'Идея для onboarding-бота', due:'25.07', urgent:false },
+    ];
+    const reminders = reminderDefs.map(r => ({
+      title:r.title, dueLabel:r.due,
+      dueColor: r.urgent ? 'var(--accent)' : 'var(--muted)',
+      bg: r.urgent ? 'var(--accent-soft)' : 'var(--surface)',
+      border: r.urgent ? 'var(--accent-soft-border)' : 'var(--border)',
+    }));
+
+    const myTasks = this.state.tasks.map(tk => ({
+      title:tk.title, project:tk.project, onToggle: () => this.toggleTask(tk.id),
+      check: tk.done ? '✓' : '',
+      boxBg: tk.done ? 'var(--accent)' : 'transparent',
+      boxBorder: tk.done ? 'var(--accent)' : 'var(--muted)',
+      textColor: tk.done ? 'var(--muted)' : 'var(--text)',
+      strike: tk.done ? 'line-through' : 'none',
+    }));
+    const doneCount = this.state.tasks.filter(x=>x.done).length;
+
+    const hour = new Date().getHours();
+    const greetWord = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+
+    return {
+      rootStyle, themeIcon: this.state.theme==='dark'?'☾':'☀', toggleTheme: () => this.toggleTheme(),
+      dateLabel: 'Главная · пятница, 17 июля',
+      greeting: greetWord + ', Влад',
+      query: this.state.query, onSearch: (e) => this.onSearch(e),
+      showSearchResults: q.length > 0, searchResults, noSearchResults: q.length>0 && searchResults.length===0,
+      hideBelowSearch: q.length === 0,
+      quickLinks, activeProjects, notifications, unreadLabel: notifDefs.length + ' новых',
+      reminders, noReminders: reminders.length===0,
+      myTasks, myTasksLabel: doneCount + '/' + this.state.tasks.length,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { ENDPOINTS } from '../config/api';
 import { TIMEOUTS } from '../config/constants';
 
-export function useMessenger(api) {
+export function useMessenger(api, showError) {
     const [chats, setChats] = useState([]);
     const [activeChatGuid, setActiveChatGuid] = useState(null);
     const [messages, setMessages] = useState({});
@@ -13,19 +13,19 @@ export function useMessenger(api) {
         try {
             const data = await api.get(ENDPOINTS.MESSENGER_CHATS);
             setChats(data);
-        } catch {
-            // silent
+        } catch (e) {
+            showError(e.message);
         }
-    }, [api]);
+    }, [api, showError]);
 
     const loadMessages = useCallback(async (chatGuid) => {
         try {
             const data = await api.get(ENDPOINTS.MESSENGER_MESSAGES(chatGuid));
             setMessages((prev) => ({ ...prev, [chatGuid]: data }));
-        } catch {
-            // silent
+        } catch (e) {
+            showError(e.message);
         }
-    }, [api]);
+    }, [api, showError]);
 
     const openChat = useCallback((chatGuid) => {
         setActiveChatGuid(chatGuid);

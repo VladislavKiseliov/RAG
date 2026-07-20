@@ -1,7 +1,11 @@
 import { useState, useCallback } from 'react';
 import { ENDPOINTS } from '../config/api';
+import { useApi, useShowError } from '../context/ApiContext';
+import { formatBytes } from '../utils/formatBytes';
 
-export function useProjects(api, showError) {
+export function useProjects() {
+    const api = useApi();
+    const showError = useShowError();
     const [projects, setProjects] = useState([]);
     const [view, setView] = useState('list');
     const [selectedId, setSelectedId] = useState(null);
@@ -38,11 +42,10 @@ export function useProjects(api, showError) {
     const addFile = useCallback((projectId, files) => {
         const added = files.map((f) => {
             const ext = (f.name.split('.').pop() || 'file').toUpperCase().slice(0, 4);
-            const kb = Math.max(1, Math.round(f.size / 1024));
             return {
                 name: f.name,
                 ext,
-                size: kb >= 1024 ? `${(kb / 1024).toFixed(1)} МБ` : `${kb} КБ`,
+                size: formatBytes(f.size),
                 by: 'Вы',
                 when: 'только что',
                 fresh: true,

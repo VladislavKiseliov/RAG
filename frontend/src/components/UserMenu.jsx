@@ -1,26 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { useApi } from '../context/ApiContext';
 import ProfileModal from './ProfileModal.jsx';
-import { ENDPOINTS } from '../config/api';
 
-const getInitials = (login) => {
-    const parts = login.split(/[_\-.]/).filter(Boolean);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return login.slice(0, 2).toUpperCase();
-};
-
-function UserMenu({ onLogout, theme, onToggleTheme, footerClassName = 'sidebar-footer' }) {
-    const api = useApi();
+function UserMenu({ initials = '..', onLogout, theme, onToggleTheme, footerClassName = 'sidebar-footer' }) {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
-    const [initials, setInitials] = useState('...');
-
-    useEffect(() => {
-        api.get(ENDPOINTS.PROFILE)
-            .then((data) => { if (data.login) setInitials(getInitials(data.login)); })
-            .catch(() => {});
-    }, []);
 
     useClickOutside(showUserMenu, ['.user-menu', '.user-menu-button'], useCallback(() => setShowUserMenu(false), []));
 

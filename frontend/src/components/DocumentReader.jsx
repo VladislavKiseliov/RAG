@@ -4,6 +4,27 @@ import remarkGfm from 'remark-gfm';
 
 const fmt = (v) => (v === null || v === undefined ? '—' : v);
 
+// Бэкенд оставляет маркер [→ Таблица N] в тексте главы вместо того чтобы его вырезать —
+// разбиваем текст по маркерам, чтобы вставить карточку таблицы на её реальном месте,
+// а не одним списком в конце.
+const TABLE_LINK_RE = /\[→\s*Таблица\s+(\d+)\]\([^)]*\)/g;
+
+const splitChapterText = (text) => {
+    const segments = [];
+    let lastIndex = 0;
+    let match;
+    TABLE_LINK_RE.lastIndex = 0;
+    while ((match = TABLE_LINK_RE.exec(text)) !== null) {
+        const before = text.slice(lastIndex, match.index).trim();
+        if (before) segments.push({ type: 'text', content: before });
+        segments.push({ type: 'table', index: Number(match[1]) });
+        lastIndex = TABLE_LINK_RE.lastIndex;
+    }
+    const rest = text.slice(lastIndex).trim();
+    if (rest) segments.push({ type: 'text', content: rest });
+    return segments;
+};
+
 function DocumentReader({
     doc, chapterIdx, contentMode, chapterContent, chapterContentLoading,
     onOpenChapter, onBackToOverview, onSetMode, onClose, onReindex,
@@ -97,22 +118,30 @@ function DocumentReader({
 
                         {chapter && contentMode === 'full' && !chapterContentLoading && (
                             <div>
-                                <div className="kb-reader-full-text message-markdown">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{chapterContent?.text || ''}</ReactMarkdown>
-                                </div>
-                                {chapterTables.map((tb, i) => (
-                                    <div key={i} className="kb-reader-table-card">
-                                        <div className="kb-reader-table-head">▦ {tb.name}</div>
-                                        <table>
-                                            <thead><tr>{tb.cols.map((c, ci) => <th key={ci}>{c}</th>)}</tr></thead>
-                                            <tbody>
-                                                {tb.rows.map((r, ri) => (
-                                                    <tr key={ri}>{r.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ))}
+                                {splitChapterText(chapterContent?.text || '').map((seg, i) => {
+                                    if (seg.type === 'text') {
+                                        return (
+                                            <div key={i} className="kb-reader-full-text message-markdown">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.content}</ReactMarkdown>
+                                            </div>
+                                        );
+                                    }
+                                    const tb = chapterTables.find((t) => t.table_index === seg.index);
+                                    if (!tb) return null;
+                                    return (
+                                        <div key={i} className="kb-reader-table-card">
+                                            <div className="kb-reader-table-head">▦ {tb.name}</div>
+                                            <table>
+                                                <thead><tr>{tb.cols.map((c, ci) => <th key={ci}>{c}</th>)}</tr></thead>
+                                                <tbody>
+                                                    {tb.rows.map((r, ri) => (
+                                                        <tr key={ri}>{r.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

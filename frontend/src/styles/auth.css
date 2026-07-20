@@ -1,0 +1,87 @@
+/* =====================================================
+   auth.css — Экран входа/регистрации
+   ===================================================== */
+
+/* =====================================================
+   Auth page
+   ===================================================== */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    background: var(--bg-app);
+}
+
+.auth-box {
+    background: var(--bg-sidebar);
+    padding: 36px 32px;
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    width: 100%;
+    max-width: 380px;
+    box-shadow: var(--shadow-md);
+}
+
+.auth-box h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 24px;
+    text-align: center;
+    letter-spacing: -0.02em;
+}
+
+.auth-box form { display: flex; flex-direction: column; gap: 12px; }
+
+.auth-box input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    outline: none;
+    transition: border-color var(--t);
+}
+.auth-box input:focus { border-color: var(--border-focus); }
+.auth-box input::placeholder { color: var(--text-tertiary); }
+
+.auth-box button[type="submit"] {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--r-md);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--t), opacity var(--t);
+    margin-top: 4px;
+}
+.auth-box button[type="submit"]:hover { background: var(--accent-hover); }
+.auth-box button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.toggle-auth {
+    display: block;
+    width: 100%;
+    margin-top: 16px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+    transition: color var(--t);
+    padding: 4px;
+}
+.toggle-auth:hover { color: var(--accent); }
+
+.auth-error { color: var(--error, #e53e3e); font-weight: 600; margin: 0; }
+

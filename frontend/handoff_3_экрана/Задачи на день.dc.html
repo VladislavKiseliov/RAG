@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum' 1; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.28); border-radius: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .clamp1 { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  .clamp2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .field::placeholder { color: var(--muted,#7c7264); }
+  @keyframes tSpin { from { transform:rotate(0); } to { transform:rotate(360deg); } }
+</style>
+</helmet>
+
+<div class="app" style="height:100vh; display:flex; overflow:hidden; position:relative; background:var(--bg,#0a0806); color:var(--text,#efe8dd); {{ rootStyle }}">
+
+  <!-- ===================== APP RAIL ===================== -->
+  <nav style="width:62px; flex-shrink:0; background:var(--rail,#0c0907); border-right:1px solid var(--border,rgba(255,255,255,.06)); display:flex; flex-direction:column; align-items:center; padding:16px 0; gap:6px;">
+    <div style="width:32px; height:32px; border-radius:9px; background:var(--accent,#d9a441); display:flex; align-items:center; justify-content:center; color:var(--accent-ink,#1a150f); font-weight:700; font-size:16px; margin-bottom:10px;">И</div>
+    <a href="Главная.dc.html" title="Главная" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">⌂</a>
+    <a href="Мессенджер.dc.html" title="Чаты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">✦</a>
+    <a href="База знаний.dc.html" title="База знаний" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">▤</a>
+    <a href="Проекты.dc.html" title="Проекты" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">◫</a>
+    <a href="Заметки.dc.html" title="Заметки" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">✎</a>
+    <div title="Задачи на день" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:15px; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); color:var(--accent,#d9a441);">☑</div>
+    <a href="Админ-панель.dc.html" title="Админ-панель" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">⚙</a>
+    <div onClick="{{ toggleTheme }}" title="Тема" style="margin-top:auto; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">{{ themeIcon }}</div>
+  </nav>
+
+  <!-- ===================== MAIN ===================== -->
+  <main style="flex:1; min-width:0; display:flex; flex-direction:column; padding:22px 30px 20px; overflow:hidden;">
+
+    <div style="display:flex; align-items:center; gap:16px; flex-shrink:0; flex-wrap:wrap;">
+      <div>
+        <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; white-space:nowrap;">Задачи на неделю</div>
+        <div style="font-size:22px; font-weight:700; color:var(--strong,#f3ead9); margin-top:4px; white-space:nowrap;">{{ weekLabel }}</div>
+      </div>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+        <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ weekDoneLabel }}</span>
+        <div style="display:inline-flex; padding:3px; border-radius:10px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06));">
+          <div onClick="{{ prevWeek }}" style="padding:6px 12px; border-radius:8px; font-size:13px; cursor:pointer; color:var(--muted,#7c7264);" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">‹</div>
+          <div onClick="{{ thisWeek }}" style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; color:var(--text,#cabfae); white-space:nowrap;" style-hover="background:var(--hover,rgba(255,255,255,.045));">Эта неделя</div>
+          <div onClick="{{ nextWeek }}" style="padding:6px 12px; border-radius:8px; font-size:13px; cursor:pointer; color:var(--muted,#7c7264);" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">›</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI quick-add -->
+    <div style="display:flex; align-items:center; gap:10px; margin-top:16px; flex-shrink:0; background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:13px; padding:10px 12px;">
+      <span style="font-size:14px; color:var(--accent,#d9a441); flex-shrink:0;">✦</span>
+      <input class="field" value="{{ aiText }}" onInput="{{ onAiInput }}" onKeyDown="{{ onAiKey }}" placeholder="Напишите ИИ, что нужно сделать — например «напомни завтра проверить прошивку STM32»" style="flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--text,#efe8dd); font-size:13px; font-family:inherit;" />
+      <div onClick="{{ createAiTask }}" style="padding:8px 15px; border-radius:9px; background:{{ aiBg }}; color:var(--accent-ink,#1a150f); font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; display:flex; align-items:center; gap:7px;" style-hover="filter:brightness(1.07);">
+        <span style="display:inline-block; animation:{{ aiSpin }};">{{ aiIcon }}</span>{{ aiLabel }}
+      </div>
+    </div>
+
+    <!-- 7-day row, horizontally scrollable, each column wide enough for real titles -->
+    <div style="display:flex; gap:12px; margin-top:18px; flex:1; min-height:0; overflow-x:auto; overflow-y:hidden;">
+      <sc-for list="{{ days }}" as="d" hint-placeholder-count="7">
+        <div style="display:flex; flex-direction:column; flex:1 1 210px; min-width:210px; min-height:0; background:{{ d.bg }}; border:1px solid {{ d.border }}; border-radius:14px; padding:13px 12px;">
+          <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:3px; flex-shrink:0;">
+            <span style="font-size:12.5px; font-weight:700; color:{{ d.nameColor }}; white-space:nowrap;">{{ d.dow }}</span>
+            <span class="mono" style="font-size:11px; color:var(--muted,#7c7264); white-space:nowrap;">{{ d.dateLabel }}</span>
+          </div>
+          <div class="mono" style="font-size:10.5px; color:var(--muted,#7c7264); margin-bottom:10px; flex-shrink:0; white-space:nowrap;">{{ d.doneLabel }}</div>
+
+          <div style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; overflow-x:hidden; min-height:0;">
+            <sc-for list="{{ d.tasks }}" as="tk" hint-placeholder-count="3">
+              <div style="border-radius:10px; padding:8px 9px; background:{{ tk.rowBg }}; border:1px solid {{ tk.rowBorder }}; min-width:0;">
+                <div style="display:flex; align-items:flex-start; gap:8px; min-width:0;">
+                  <span onClick="{{ tk.onToggle }}" style="width:15px; height:15px; border-radius:5px; flex-shrink:0; margin-top:1px; cursor:pointer; border:1.5px solid {{ tk.boxBorder }}; background:{{ tk.boxBg }}; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:var(--accent-ink,#1a150f);">{{ tk.check }}</span>
+                  <div style="min-width:0; flex:1;">
+                    <div style="font-size:11.5px; color:{{ tk.textColor }}; text-decoration:{{ tk.strike }}; line-height:1.4; overflow-wrap:break-word;">{{ tk.title }}</div>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:5px; flex-wrap:wrap;">
+                      <span style="width:6px; height:6px; border-radius:50%; flex-shrink:0; background:{{ tk.prioColor }};" title="{{ tk.prioLabel }}"></span>
+                      <sc-if value="{{ tk.hasSource }}" hint-placeholder-val="{{ false }}">
+                        <a href="{{ tk.sourceHref }}" class="mono" style="font-size:9.5px; color:var(--accent,#d9a441); text-decoration:none;">{{ tk.sourceIcon }} {{ tk.sourceLabel }}</a>
+                      </sc-if>
+                      <sc-if value="{{ tk.carried }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:9px; color:var(--muted,#7c7264); white-space:nowrap;">перенесено</span>
+                      </sc-if>
+                    </div>
+                  </div>
+                  <sc-if value="{{ tk.canDelete }}" hint-placeholder-val="{{ false }}">
+                    <span onClick="{{ tk.onDelete }}" style="font-size:11px; color:var(--muted,#7c7264); cursor:pointer; flex-shrink:0;" style-hover="color:#d65f5f;">✕</span>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="margin-top:8px; flex-shrink:0;">
+            <input class="field" value="{{ d.draft }}" onInput="{{ d.onDraftInput }}" onKeyDown="{{ d.onDraftKey }}" placeholder="+ задача" style="width:100%; border:1px dashed var(--border,rgba(255,255,255,.14)); border-radius:8px; background:transparent; color:var(--text,#cabfae); font-size:11.5px; padding:6px 8px; font-family:inherit;" />
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:860}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    let saved = 'dark';
+    try { saved = localStorage.getItem('msgr-theme') || 'dark'; } catch (e) {}
+    this.state = { theme: saved, weekOffset: 0, drafts: {}, tasks: this.seed(), aiText: '', aiBusy: false };
+  }
+
+  themes = {
+    dark: {
+      bg:'#0a0806', rail:'#0c0907', sidebar:'#0e0b08', surface:'#15100a', card:'#110d08',
+      border:'rgba(255,255,255,.06)', cardBorder:'rgba(255,255,255,.06)',
+      text:'#cabfae', strong:'#f3ead9', muted:'#7c7264',
+      accent:'#d9a441', accentInk:'#1a150f', accentSoft:'#241a10', accentSoftBorder:'rgba(217,164,65,.3)',
+      hover:'rgba(255,255,255,.045)', ok:'#86b98c', bad:'#d65f5f', warn:'#d9a441',
+    },
+    light: {
+      bg:'#fbfcfc', rail:'#f0f3f3', sidebar:'#f6f8f8', surface:'#eef1f1', card:'#ffffff',
+      border:'#e8eaec', cardBorder:'#e8eaec',
+      text:'#374151', strong:'#0e1213', muted:'#8b9197',
+      accent:'#0891b2', accentInk:'#ffffff', accentSoft:'#e6f4f7', accentSoftBorder:'#c5e6ee',
+      hover:'rgba(0,0,0,.035)', ok:'#3f9d54', bad:'#c0392b', warn:'#b8860b',
+    },
+  };
+
+  dowNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  monthNames = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+
+  // day = ISO date string "YYYY-MM-DD"; source: {type:'project'|'note', label, href} | null
+  seed() {
+    const base = this.mondayOf(new Date());
+    const d = (n) => this.addDays(base, n);
+    return [
+      { id:'a1', day:d(0), title:'Финальное ревью миграции v2', priority:'high', manual:false, done:false, source:{type:'project', icon:'◫', label:'Миграция БД', href:'Проекты.dc.html'} },
+      { id:'a2', day:d(0), title:'Идея: авто-сверка биллинга — обсудить', priority:'med', manual:false, done:false, source:{type:'note', icon:'✎', label:'Заметка', href:'Заметки.dc.html'} },
+      { id:'a3', day:d(0), title:'Ответить Соне по макетам', priority:'med', manual:true, done:false, source:null },
+      { id:'a4', day:d(1), title:'Сверка с провайдером', priority:'high', manual:false, done:false, source:{type:'project', icon:'◫', label:'Биллинг', href:'Проекты.dc.html'} },
+      { id:'a5', day:d(1), title:'Подготовить слайды для синка', priority:'low', manual:true, done:true, source:null },
+      { id:'a6', day:d(2), title:'Обработка частичных возвратов', priority:'high', manual:false, done:false, source:{type:'project', icon:'◫', label:'Платёжный шлюз', href:'Проекты.dc.html'} },
+      { id:'a7', day:d(2), title:'Купить билеты на конференцию', priority:'low', manual:true, done:false, source:null },
+      { id:'a8', day:d(3), title:'Идея для onboarding-бота — набросать план', priority:'med', manual:false, done:false, source:{type:'note', icon:'✎', label:'Заметка', href:'Заметки.dc.html'} },
+      { id:'a9', day:d(4), title:'Сборка библиотеки компонентов', priority:'med', manual:false, done:false, source:{type:'project', icon:'◫', label:'Редизайн портала', href:'Проекты.dc.html'} },
+      { id:'a10', day:d(4), title:'Ревью PR #482', priority:'high', manual:true, done:false, source:null },
+    ];
+  }
+
+  mondayOf(date) {
+    const dt = new Date(date); const day = (dt.getDay()+6)%7;
+    dt.setHours(0,0,0,0); dt.setDate(dt.getDate()-day);
+    return this.iso(dt);
+  }
+  addDays(iso, n) { const dt = new Date(iso+'T00:00:00'); dt.setDate(dt.getDate()+n); return this.iso(dt); }
+  iso(dt) { const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
+  todayIso() { return this.iso(new Date()); }
+
+  setTheme(v){ try{localStorage.setItem('msgr-theme',v);}catch(e){} this.setState({theme:v}); }
+  toggleTheme(){ this.setTheme(this.state.theme==='dark'?'light':'dark'); }
+  prevWeek(){ this.setState(s => ({ weekOffset: s.weekOffset-1 })); }
+  nextWeek(){ this.setState(s => ({ weekOffset: s.weekOffset+1 })); }
+  thisWeek(){ this.setState({ weekOffset: 0 }); }
+
+  toggleTask(id){ this.setState(s => ({ tasks: s.tasks.map(t => t.id===id ? {...t, done:!t.done} : t) })); }
+  deleteTask(id){ this.setState(s => ({ tasks: s.tasks.filter(t => t.id!==id) })); }
+  onDraftInput(dayIso, e){ this.setState(s => ({ drafts: {...s.drafts, [dayIso]: e.target.value} })); }
+  onDraftKey(dayIso, e){
+    if (e.key !== 'Enter') return;
+    const val = (this.state.drafts[dayIso]||'').trim();
+    if (!val) return;
+    const id = 'm' + Date.now();
+    this.setState(s => ({
+      tasks: [...s.tasks, { id, day: dayIso, title: val, priority:'med', manual:true, done:false, source:null }],
+      drafts: { ...s.drafts, [dayIso]: '' },
+    }));
+  }
+
+  onAiInput(e){ this.setState({ aiText: e.target.value }); }
+  onAiKey(e){ if (e.key==='Enter') this.createAiTask(); }
+
+  // Mock of the AI parse — on production this calls an LLM to extract {title, day, priority} from free text.
+  createAiTask(){
+    if (this.state.aiBusy || !this.state.aiText.trim()) return;
+    const raw = this.state.aiText.trim();
+    this.setState({ aiBusy:true });
+    setTimeout(() => {
+      const lower = raw.toLowerCase();
+      let dayOffset = 0;
+      if (/завтра/.test(lower)) dayOffset = 1;
+      else if (/послезавтра/.test(lower)) dayOffset = 2;
+      const priority = /срочно|важно|критично|asap/.test(lower) ? 'high' : /потом|когда-нибудь|неважно/.test(lower) ? 'low' : 'med';
+      const title = raw.replace(/^(напомни|напиши|запиши|создай задачу|поставь задачу)[,:]?\s*/i,'')
+        .replace(/^(завтра|послезавтра|сегодня)\s*/i,'')
+        .trim();
+      const day = this.addDays(this.todayIso(), dayOffset);
+      const id = 'ai' + Date.now();
+      this.setState(s => ({
+        tasks: [...s.tasks, { id, day, title: title.charAt(0).toUpperCase()+title.slice(1), priority, manual:true, done:false, source:null }],
+        aiText: '', aiBusy: false,
+      }));
+    }, 850);
+  }
+
+  prioMeta(p, t){
+    if (p==='high') return { color:t.bad, label:'Высокий' };
+    if (p==='low') return { color:t.ok, label:'Низкий' };
+    return { color:t.warn, label:'Средний' };
+  }
+
+  renderVals() {
+    const t = this.themes[this.state.theme] || this.themes.dark;
+    const rootStyle =
+      `--bg:${t.bg};--rail:${t.rail};--sidebar:${t.sidebar};--surface:${t.surface};--card:${t.card};` +
+      `--border:${t.border};--card-border:${t.cardBorder};--text:${t.text};--strong:${t.strong};--muted:${t.muted};` +
+      `--accent:${t.accent};--accent-ink:${t.accentInk};--accent-soft:${t.accentSoft};--accent-soft-border:${t.accentSoftBorder};` +
+      `--hover:${t.hover};--ok:${t.ok};`;
+
+    const weekStartBase = this.mondayOf(new Date());
+    const weekStart = this.addDays(weekStartBase, this.state.weekOffset*7);
+    const todayIso = this.todayIso();
+    const dayIsos = Array.from({length:7}, (_,i) => this.addDays(weekStart, i));
+
+    // build per-day task list including carry-over from the immediately preceding day
+    const byDay = {};
+    dayIsos.forEach(iso => byDay[iso] = []);
+    this.state.tasks.forEach(tk => { if (byDay[tk.day]) byDay[tk.day].push({ ...tk, carried:false }); });
+
+    for (let i=1;i<dayIsos.length;i++){
+      const prevIso = dayIsos[i-1];
+      const prevUndone = this.state.tasks.filter(t => t.day===prevIso && t.manual && !t.done);
+      prevUndone.forEach(t => {
+        if (!byDay[dayIsos[i]].some(x => x.id===t.id)) byDay[dayIsos[i]].push({ ...t, carried:true });
+      });
+    }
+
+    let weekDone = 0, weekTotal = 0;
+    const days = dayIsos.map(iso => {
+      const dt = new Date(iso+'T00:00:00');
+      const isToday = iso === todayIso;
+      const list = byDay[iso];
+      const done = list.filter(x=>x.done).length;
+      weekDone += done; weekTotal += list.length;
+      const tasks = list.map(tk => {
+        const pm = this.prioMeta(tk.priority, t);
+        return {
+          title: tk.title,
+          onToggle: () => this.toggleTask(tk.id),
+          onDelete: () => this.deleteTask(tk.id),
+          canDelete: tk.manual,
+          check: tk.done ? '✓' : '',
+          boxBg: tk.done ? 'var(--accent)' : 'transparent',
+          boxBorder: tk.done ? 'var(--accent)' : 'var(--muted)',
+          textColor: tk.done ? 'var(--muted)' : 'var(--text)',
+          strike: tk.done ? 'line-through' : 'none',
+          prioColor: pm.color, prioLabel: pm.label,
+          hasSource: !!tk.source, sourceIcon: tk.source?tk.source.icon:'', sourceLabel: tk.source?tk.source.label:'', sourceHref: tk.source?tk.source.href:'#',
+          carried: !!tk.carried,
+          rowBg: tk.done ? 'var(--surface)' : (isToday ? 'var(--card)' : 'var(--surface)'),
+          rowBorder: 'var(--border)',
+        };
+      });
+      return {
+        dow: this.dowNames[(dt.getDay()+6)%7],
+        dateLabel: dt.getDate() + ' ' + this.monthNames[dt.getMonth()],
+        nameColor: isToday ? 'var(--accent)' : 'var(--strong)',
+        bg: isToday ? 'var(--accent-soft)' : 'var(--card)',
+        border: isToday ? 'var(--accent-soft-border)' : 'var(--card-border)',
+        doneLabel: done + '/' + list.length,
+        tasks,
+        draft: this.state.drafts[iso] || '',
+        onDraftInput: (e) => this.onDraftInput(iso, e),
+        onDraftKey: (e) => this.onDraftKey(iso, e),
+      };
+    });
+
+    const startDt = new Date(weekStart+'T00:00:00');
+    const endDt = new Date(dayIsos[6]+'T00:00:00');
+    const weekLabel = startDt.getDate()+' '+this.monthNames[startDt.getMonth()]+' — '+endDt.getDate()+' '+this.monthNames[endDt.getMonth()];
+
+    return {
+      rootStyle, themeIcon: this.state.theme==='dark'?'☾':'☀', toggleTheme: () => this.toggleTheme(),
+      weekLabel, weekDoneLabel: weekDone+'/'+weekTotal+' выполнено',
+      prevWeek: () => this.prevWeek(), nextWeek: () => this.nextWeek(), thisWeek: () => this.thisWeek(),
+      days,
+      aiText: this.state.aiText, onAiInput: (e) => this.onAiInput(e), onAiKey: (e) => this.onAiKey(e),
+      createAiTask: () => this.createAiTask(),
+      aiLabel: this.state.aiBusy ? 'Создаю…' : 'Создать задачу',
+      aiIcon: this.state.aiBusy ? '↻' : '＋',
+      aiSpin: this.state.aiBusy ? 'tSpin .7s linear infinite' : 'none',
+      aiBg: this.state.aiText.trim() ? 'var(--accent)' : 'var(--surface)',
+    };
+  }
+}
+</script>
+</body>
+</html>

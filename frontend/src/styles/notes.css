@@ -1,0 +1,242 @@
+/* =====================================================
+   notes.css — Раздел «Заметки»
+   ===================================================== */
+
+/* =====================================================
+   Заметки
+   ===================================================== */
+.nt-aside {
+    width: 264px;
+    min-width: 264px;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+
+.nt-aside-header { padding: 20px 18px 12px; display: flex; align-items: center; gap: 10px; }
+.nt-aside-eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.nt-aside-title { font-size: 17px; font-weight: 700; margin-top: 5px; color: var(--strong); }
+
+.nt-new-btn {
+    margin-left: auto;
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.nt-new-btn:hover { filter: brightness(1.08); }
+
+.nt-aside-search {
+    margin: 0 18px 12px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 7px 10px;
+}
+.nt-aside-search span:first-child { color: var(--muted); font-size: 12.5px; }
+.nt-aside-search input { border: 0; outline: 0; background: transparent; color: var(--text); font-size: 12.5px; width: 100%; }
+
+.nt-aside-body { flex: 1; overflow-y: auto; padding: 2px 10px 10px; }
+.nt-aside-group-title { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 8px 8px 6px; }
+
+.nt-folder-item {
+    padding: 8px 10px;
+    border-radius: 9px;
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer;
+}
+.nt-folder-item:hover { background: var(--hover); }
+.nt-folder-item.active { background: var(--accent-soft); }
+.nt-folder-item.active .nt-folder-icon { color: var(--accent); }
+.nt-folder-item.active .nt-folder-label { color: var(--strong); font-weight: 600; }
+.nt-folder-icon { width: 20px; text-align: center; font-size: 13px; color: var(--muted); }
+.nt-folder-label { flex: 1; font-size: 13px; color: var(--text); }
+.nt-folder-count { font-size: 11px; color: var(--muted); }
+
+.nt-tag-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 8px 4px; }
+.nt-tag-filter {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 7px;
+    font-size: 11.5px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    background: var(--surface);
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+.nt-tag-filter.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft-border); }
+
+.nt-tag-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+
+.nt-index-summary {
+    margin: 8px 10px 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+.nt-index-summary-title {
+    display: flex; align-items: center; gap: 7px;
+    margin-bottom: 8px;
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+}
+
+.nt-list {
+    width: 340px;
+    min-width: 260px;
+    flex: 0 1 340px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 16px 12px 20px;
+}
+
+.nt-list-group-title { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 8px 8px 8px; }
+.nt-list-group-title.accent { color: var(--accent); }
+.nt-list-empty { text-align: center; padding: 40px 14px; color: var(--muted); font-size: 13px; }
+
+.nt-card {
+    padding: 12px 13px;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-bottom: 6px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+}
+.nt-card:hover { border-color: var(--accent-soft-border); }
+.nt-card.active { background: var(--accent-soft); border-color: var(--accent-soft-border); }
+
+.nt-card-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.nt-card-pin { font-size: 12px; color: var(--muted); cursor: pointer; flex-shrink: 0; }
+.nt-card-pin:hover { color: var(--accent); }
+.nt-card-pin.pinned { color: var(--accent); cursor: default; font-size: 12px; }
+.nt-card-title { font-size: 13.5px; font-weight: 600; color: var(--strong); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-card-updated { font-size: 10.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+
+.nt-card-preview {
+    font-size: 12px; line-height: 1.5; color: var(--muted); margin-bottom: 8px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.nt-card-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nt-tag-label { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.nt-card-reminder { margin-left: auto; font-size: 10px; color: var(--accent); white-space: nowrap; }
+
+.nt-main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); overflow: hidden; }
+
+.nt-empty-state { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; color: var(--muted); }
+.nt-empty-icon { font-size: 34px; opacity: .5; }
+.nt-empty-btn { padding: 10px 18px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.nt-empty-btn:hover { filter: brightness(1.07); }
+
+/* --- Захват мысли --- */
+.nt-capture-header { padding: 18px 28px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.nt-eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+.nt-eyebrow.accent { color: var(--accent); }
+.nt-capture-title { font-size: 19px; font-weight: 700; color: var(--strong); margin-top: 4px; }
+.nt-capture-hint { font-size: 12.5px; color: var(--muted); margin-top: 5px; max-width: 640px; line-height: 1.5; }
+
+.nt-capture-body { flex: 1; overflow-y: auto; padding: 20px 28px 30px; display: flex; flex-direction: column; }
+.nt-voice-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.nt-voice-btn {
+    width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; cursor: pointer;
+    background: var(--surface); color: var(--muted);
+}
+.nt-voice-btn:hover { filter: brightness(1.08); }
+.nt-voice-btn.on { background: var(--accent); color: var(--accent-ink); }
+.nt-muted { color: var(--muted); font-size: 12px; }
+
+.nt-capture-area {
+    flex: 1; min-height: 280px; width: 100%; max-width: 760px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px; line-height: 1.7; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 18px; resize: none; outline: 0;
+}
+
+.nt-capture-actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.nt-generate-btn {
+    padding: 11px 20px; border-radius: 10px;
+    background: var(--surface); color: var(--accent-ink);
+    font-size: 13.5px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+}
+.nt-generate-btn.ready { background: var(--accent); }
+.nt-generate-btn:hover { filter: brightness(1.07); }
+.nt-generate-btn.spinning .nt-generate-icon { display: inline-block; animation: admSpin .7s linear infinite; }
+.nt-cancel-link { font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.nt-cancel-link:hover { color: var(--text); }
+
+/* --- Редактор заметки --- */
+.nt-editor-header { padding: 16px 28px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.nt-editor-title-row { display: flex; align-items: center; gap: 12px; }
+.nt-title-input { border: 0; outline: 0; background: transparent; color: var(--strong); font-size: 19px; font-weight: 700; width: 100%; min-width: 0; }
+.nt-pin-toggle { font-size: 16px; color: var(--muted); cursor: pointer; flex-shrink: 0; }
+.nt-pin-toggle.pinned { color: var(--accent); }
+.nt-delete-btn {
+    width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--muted); cursor: pointer;
+}
+.nt-delete-btn:hover { background: rgba(214,95,95,.12); color: var(--bad); }
+
+.nt-editor-meta-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.nt-tag-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 7px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+    background: var(--surface); color: var(--text);
+}
+.nt-tag-chip.pickable { cursor: pointer; }
+.nt-tag-remove { cursor: pointer; opacity: .7; }
+.nt-tag-add {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 7px;
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    border: 1px dashed var(--border); cursor: pointer; white-space: nowrap;
+}
+.nt-meta-spacer { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nt-reminder-input { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 11.5px; padding: 6px 10px; width: 180px; min-width: 150px; }
+.nt-followup-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 7px;
+    font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    background: var(--surface); color: var(--muted);
+}
+.nt-followup-chip.active { background: var(--accent-soft); color: var(--accent); }
+
+.nt-tag-palette { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+.nt-mode-row { display: flex; align-items: center; gap: 10px 4px; flex-wrap: wrap; padding: 10px 28px 0; flex-shrink: 0; }
+.nt-mode-tabs { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); flex-shrink: 0; }
+.nt-mode-tabs button { padding: 7px 15px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; border: 0; background: transparent; color: var(--muted); }
+.nt-mode-tabs button.active { background: var(--accent); color: var(--accent-ink); }
+.nt-chunk-badge { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.nt-save-btn {
+    padding: 8px 15px; border-radius: 9px;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; flex-shrink: 0;
+    display: flex; align-items: center; gap: 7px;
+}
+.nt-save-btn:hover { filter: brightness(1.07); }
+.nt-save-btn.saved { background: var(--ok-soft); color: var(--ok); }
+.nt-save-btn.spinning .nt-save-icon { display: inline-block; animation: admSpin .7s linear infinite; }
+
+.nt-editor-body { flex: 1; overflow-y: auto; padding: 16px 28px 40px; }
+.nt-content-area {
+    width: 100%; min-height: 420px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13.5px; line-height: 1.7; color: var(--text);
+    background: transparent; border: 0; outline: 0; resize: none;
+}
+.nt-preview { max-width: 720px; }

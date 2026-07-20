@@ -1,0 +1,248 @@
+/* =====================================================
+   base.css — Токены темы, reset, layout, App Rail
+   ===================================================== */
+
+/* =====================================================
+   CSS Variables — Dark theme (default)
+   ===================================================== */
+:root {
+    --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Fira Code', monospace;
+
+    /* Design tokens — dark (warm gold) */
+    --bg:               #0a0806;
+    --sidebar:          #0e0b08;
+    --surface:          #15100a;
+    --surface-2:        #15100a;
+    --text:             #efe8dd;
+    --strong:           #f3ead9;
+    --muted:            #7c7264;
+    --accent:           #d9a441;
+    --accent-ink:       #1a150f;
+    --accent-soft:      #241a10;
+    --accent-soft-border: rgba(217,164,65,.28);
+    --accent-strong:    #f3ead9;
+    --bubble-bg:        #1a140d;
+    --bubble-border:    rgba(255,255,255,.04);
+    --bubble-text:      #e7dccb;
+    --chat-bg:          #0a0806;
+    --menu-bg:          #0e0b08;
+    --hover:            rgba(255,255,255,.045);
+    --logo-a:           #d9a441;
+    --logo-b:           #b97e2e;
+    --border:           rgba(255,255,255,.06);
+    --border-focus:     rgba(217,164,65,.5);
+    --card:             #110d08;
+    --card-border:      rgba(255,255,255,.06);
+    --ok:               #86b98c;
+    --ok-soft:          rgba(134,185,140,.15);
+    --warn:             #d9a441;
+    --warn-soft:        rgba(217,164,65,.15);
+    --bad:              #d65f5f;
+    --bad-soft:         rgba(214,95,95,.14);
+
+    /* Legacy aliases — keep existing classes working */
+    --bg-app:      var(--bg);
+    --bg-sidebar:  var(--sidebar);
+    --bg-chat:     var(--chat-bg);
+    --bg-input:    var(--surface);
+    --bg-surface:  var(--surface);
+    --bg-hover:    var(--hover);
+    --bg-active:   var(--accent-soft);
+    --text-primary:   var(--text);
+    --text-secondary: var(--muted);
+    --text-tertiary:  var(--muted);
+    --text-inverse:   var(--accent-ink);
+    --accent-dim:     var(--accent-soft);
+    --accent-hover:   #e8b84d;
+    --user-bg:        var(--accent);
+    --user-border:    transparent;
+    --assistant-bg:   var(--bubble-bg);
+
+    /* Shadows */
+    --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+    --shadow-md:  0 4px 16px rgba(0,0,0,0.5);
+
+    /* Radius */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 16px;
+    --r-xl: 22px;
+
+    --t: 0.15s ease;
+}
+
+/* =====================================================
+   Light theme
+   ===================================================== */
+[data-theme="light"] {
+    /* Design tokens — light (slate/cyan) */
+    --bg:               #ffffff;
+    --sidebar:          #f6f8f8;
+    --surface:          #ffffff;
+    --surface-2:        #e6f4f7;
+    --text:             #1a1d21;
+    --strong:           #0e1213;
+    --muted:            #8b9197;
+    --accent:           #0891b2;
+    --accent-ink:       #ffffff;
+    --accent-soft:      #e6f4f7;
+    --accent-soft-border: #c5e6ee;
+    --accent-strong:    #155e75;
+    --bubble-bg:        #ffffff;
+    --bubble-border:    #e8eaec;
+    --bubble-text:      #374151;
+    --chat-bg:          #fbfcfc;
+    --menu-bg:          #ffffff;
+    --hover:            rgba(0,0,0,.035);
+    --logo-a:           #22b8d6;
+    --logo-b:           #0891b2;
+    --border:           #e8eaec;
+    --border-focus:     rgba(8,145,178,.5);
+    --card:             #ffffff;
+    --card-border:      #e8eaec;
+    --ok:               #3f9d54;
+    --ok-soft:          rgba(63,157,84,.14);
+    --warn:             #b45309;
+    --warn-soft:        rgba(180,83,9,.12);
+    --bad:              #dc2626;
+    --bad-soft:         rgba(220,38,38,.1);
+
+    /* Legacy aliases */
+    --bg-app:      var(--bg);
+    --bg-sidebar:  var(--sidebar);
+    --bg-chat:     var(--chat-bg);
+    --bg-input:    var(--surface);
+    --bg-surface:  var(--surface);
+    --bg-hover:    var(--hover);
+    --bg-active:   var(--accent-soft);
+    --text-primary:   var(--text);
+    --text-secondary: var(--muted);
+    --text-tertiary:  var(--muted);
+    --text-inverse:   var(--accent-ink);
+    --accent-dim:     var(--accent-soft);
+    --accent-hover:   #0ea5c9;
+    --user-bg:        var(--accent);
+    --user-border:    transparent;
+    --assistant-bg:   var(--bubble-bg);
+
+    --shadow-sm:  0 1px 3px rgba(0,0,0,0.1);
+    --shadow-md:  0 4px 16px rgba(0,0,0,0.12);
+}
+
+/* =====================================================
+   Reset & Base
+   ===================================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    height: 100%;
+    font-family: var(--font-sans);
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--bg-active) transparent; }
+*::-webkit-scrollbar { width: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 10px; }
+
+/* =====================================================
+   Layout
+   ===================================================== */
+.app-shell {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.app-layout {
+    display: flex;
+    flex: 1;
+    height: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+
+/* =====================================================
+   Utility
+   ===================================================== */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+
+/* =====================================================
+   App Rail — persistent left icon nav (Чаты / База знаний / Проекты)
+   ===================================================== */
+.mono { font-family: var(--font-mono); }
+.clamp1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+@keyframes kbFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kbPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.app-rail {
+    width: 62px;
+    min-width: 62px;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 6px;
+}
+
+.app-rail-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.app-rail-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background var(--t), color var(--t);
+}
+
+.app-rail-icon:hover { background: var(--hover); color: var(--text); }
+
+.app-rail-icon.active {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-soft-border);
+    color: var(--accent);
+}
+

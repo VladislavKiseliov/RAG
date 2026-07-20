@@ -2,8 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import ProjectCard from '../components/ProjectCard.jsx';
 import { useProjects } from '../hooks/useProjects';
 
-function ProjectsPage({ api, showError, onOpenMessenger, onOpenKnowledge }) {
-    const proj = useProjects(api, showError);
+function ProjectsPage({ onOpenMessenger, onOpenKnowledge }) {
+    const proj = useProjects();
     const fileInputRef = useRef(null);
 
     useEffect(() => {

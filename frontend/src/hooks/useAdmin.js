@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ENDPOINTS } from '../config/api';
+import { useApi, useShowError } from '../context/ApiContext';
+import { formatBytes } from '../utils/formatBytes';
 
 // Пока нет реального источника (Flower/Celery events) — представительные моки для демонстрации вкладки.
 const MOCK_TASKS = [
@@ -17,12 +19,6 @@ const MOCK_PERSONAL_DOCS = [
 
 const MOCK_QDRANT = { collection: 'rag_documents', vectors: 18432, segments: 4, sizeLabel: '145 МБ', optimizerOnline: true };
 
-const fmtSize = (bytes) => {
-    if (!bytes) return '—';
-    const kb = bytes / 1024;
-    return kb >= 1024 ? `${(kb / 1024).toFixed(1)} МБ` : `${Math.round(kb)} КБ`;
-};
-
 const toAdminDoc = (raw) => ({
     id: raw.doc_id,
     title: raw.filename || 'unknown',
@@ -31,7 +27,7 @@ const toAdminDoc = (raw) => ({
     scope: 'shared',
     chunks: raw.chunk_count ?? null,
     points: raw.chunk_count ?? null,
-    size: fmtSize(raw.size),
+    size: formatBytes(raw.size),
     state: raw.status === 'completed' ? 'indexed' : 'processing',
 });
 
@@ -45,7 +41,9 @@ const toAdminUser = (raw) => ({
     active: true,
 });
 
-export function useAdmin(api, showError) {
+export function useAdmin() {
+    const api = useApi();
+    const showError = useShowError();
     const [tab, setTab] = useState('system');
     const [docScope, setDocScope] = useState('shared');
     const [personalUserId, setPersonalUserId] = useState(null);

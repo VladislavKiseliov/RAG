@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ENDPOINTS } from '../config/api';
 import ChatList from './ChatList.jsx';
 import MessengerChatList from './MessengerChatList.jsx';
@@ -48,23 +48,14 @@ function Sidebar({
     theme,
     onToggleTheme,
     onOpenProjects,
+    currentUser,
 }) {
     const api = useApi();
     const [isCreatingAi, setIsCreatingAi] = useState(false);
     const [showUserPicker, setShowUserPicker] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
-    const [userInfo, setUserInfo] = useState({ initials: '..', name: '', role: '', login: '' });
-
-    useEffect(() => {
-        api?.get(ENDPOINTS.PROFILE).then((data) => {
-            const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || data.login || '';
-            const initials = name
-                ? name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-                : (data.login || '?').slice(0, 2).toUpperCase();
-            setUserInfo({ initials, name, role: data.role || '', login: data.login || '' });
-        }).catch(() => {});
-    }, []);
+    const userInfo = currentUser ?? { initials: '..', name: '', role: '', login: '' };
 
     useClickOutside(
         profileOpen,
@@ -100,7 +91,7 @@ function Sidebar({
                     <button className="icon-btn" onClick={() => setShowUserPicker(true)} title="Новый чат">✉</button>
                     <button className="icon-btn" onClick={handleNewAiChat} title="Новый AI чат" disabled={isCreatingAi}>✦</button>
                 </div>
-                <UserMenu onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} footerClassName="compact-footer" />
+                <UserMenu initials={userInfo.initials} onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} footerClassName="compact-footer" />
                 {showUserPicker && (
                     <UserPickerModal onSelect={handleSelectUser} onClose={() => setShowUserPicker(false)} />
                 )}

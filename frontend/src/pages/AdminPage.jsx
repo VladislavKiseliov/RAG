@@ -12,8 +12,8 @@ const TABS = [
     { id: 'stats', label: 'Статистика' },
 ];
 
-function AdminPage({ api, showError }) {
-    const admin = useAdmin(api, showError);
+function AdminPage() {
+    const admin = useAdmin();
 
     useEffect(() => {
         admin.loadAll();
