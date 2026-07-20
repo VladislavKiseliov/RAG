@@ -2,6 +2,7 @@ from backend.repository.chat_repository import ChatRepository
 from backend.repository.messages_repository import MessageRepository
 from backend.repository.auth_repository import AuthRepository
 from backend.repository.messenger_repository import MessengerRepository
+from backend.repository.note_repository import NoteRepository
 
 
 class UnitOfWork:
@@ -28,6 +29,10 @@ class UnitOfWork:
     @property
     def messenger(self):
         return MessengerRepository(self._session)
+
+    @property
+    def notes(self):
+        return NoteRepository(self._session)
 
     async def commit(self):
         await self._session.commit()  # коммитит ВСЁ разом

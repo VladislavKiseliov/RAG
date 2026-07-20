@@ -9,6 +9,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from backend.dependencies import UserServiceDep, require_admin_user
+from backend.services.auth_service import CurrentUser
 from backend.settings import settings
 from backend.utils.exceptions import UserAlreadyExistsError
 
@@ -179,26 +180,30 @@ async def admin_user_repo_update_role(
     user_id: int,
     payload: AdminUserRoleUpdateRequest,
     user_service: UserServiceDep,
+    current_user: CurrentUser = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Promote or demote a user's admin privileges.
 
     Raises:
         HTTPException: 404 if user does not exist.
+        HTTPException: 400 if demoting self or the last remaining admin.
     """
-    return await user_service.update_user_role(user_id, payload.is_superuser)
+    return await user_service.update_user_role(user_id, payload.is_superuser, current_user.id)
 
 
 @router.delete("/users/repo/{user_id}")
 async def admin_user_repo_delete(
     user_id: int,
     user_service: UserServiceDep,
+    current_user: CurrentUser = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Delete user by id.
 
     Raises:
         HTTPException: 404 if user does not exist.
+        HTTPException: 400 if deleting self.
     """
-    deleted = await user_service.delete_user_repo(user_id)
+    deleted = await user_service.delete_user_repo(user_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="User not found")
     return {"status": "deleted", "user_id": str(user_id)}

@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-import asyncio
 import uuid
 
 import httpx
@@ -100,19 +99,19 @@ def _to_ui_document(summary: dict, detail: dict | None) -> dict:
 
 
 async def _fetch_documents_from_rag_service() -> list[dict]:
+    """Только список — без деталей (глав) на каждый документ.
+
+    Список нужен карточкам (title/summary/chunks/size/status — ни одно поле не требует
+    chapters), поэтому раньше N+1-запрос на детали каждого документа был просто не нужен:
+    главы (`sections`) грузятся лениво через GET /documents/{doc_id} только когда юзер
+    реально открывает документ (см. `get_document_detail` ниже, `useKnowledgeBase.js::openDoc`).
+    """
     async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
         list_response = await client.get("/documents")
         list_response.raise_for_status()
         summaries = list_response.json()
 
-        details = await asyncio.gather(
-            *(client.get(f"/documents/{s['doc_id']}") for s in summaries)
-        )
-
-    return [
-        _to_ui_document(summary, resp.json() if resp.status_code == 200 else None)
-        for summary, resp in zip(summaries, details)
-    ]
+    return [_to_ui_document(summary, None) for summary in summaries]
 
 _PROJECTS: list[dict] = [
     {
@@ -269,6 +268,19 @@ async def upload_document(current_user: CurrentUserDep, file: UploadFile = File(
     }
     _DOCUMENTS.insert(0, doc)
     return doc
+
+
+@knowledge_router.get("/documents/{doc_id}")
+async def get_document_detail(doc_id: str, current_user: CurrentUserDep):
+    """Детали одного документа (главы для оглавления читалки) — грузится лениво при открытии,
+    не всей библиотекой сразу (см. _fetch_documents_from_rag_service)."""
+    async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
+        response = await client.get(f"/documents/{doc_id}")
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Document not found")
+    response.raise_for_status()
+    detail = response.json()
+    return _to_ui_document(detail, detail)
 
 
 @knowledge_router.get("/documents/{doc_id}/chapters/{chapter_idx}")

@@ -5,12 +5,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.schemas.schemas import UserProfile, UserProfileUpdateRequest
 from backend.repository.user_repository import UserRepository
-from backend.utils.exceptions import UserAlreadyExistsError, UserNotFoundError
+from backend.utils.exceptions import (
+    UserAlreadyExistsError, UserNotFoundError, SelfActionForbiddenError, LastAdminError,
+)
 
 
 class UserService:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], auth_handler):
         self._sf = session_factory
+        self._auth = auth_handler
 
     @staticmethod
     def _to_payload(user: Any) -> dict[str, Any]:
@@ -46,9 +49,11 @@ class UserService:
         if existing is not None:
             raise UserAlreadyExistsError()
 
+        hashed_password = self._auth.get_password_hash(password)
+
         async with self._sf() as session:
             async with session.begin():
-                user = await UserRepository(session).create_user(login=login, password=password)
+                user = await UserRepository(session).create_user(login=login, password=hashed_password)
             return self._to_payload(user)
 
     async def update_user_repo(self, user_id:uuid.UUID, user_profile:UserProfileUpdateRequest) -> UserProfile:
@@ -73,20 +78,33 @@ class UserService:
         if existing is not None and existing.id != user_id:
             raise UserAlreadyExistsError()
 
+        hashed_password = self._auth.get_password_hash(password)
+
         async with self._sf() as session:
             async with session.begin():
-                user = await UserRepository(session).update_user(user_id, {"login": login, "password": password})
+                user = await UserRepository(session).update_user(user_id, {"login": login, "password": hashed_password})
                 if user is None:
                     raise UserNotFoundError()
         return self._to_payload(user)
 
-    async def delete_user_repo(self, user_id: int) -> bool:
+    async def delete_user_repo(self, user_id: int, current_user_id: int) -> bool:
+        if user_id == current_user_id:
+            raise SelfActionForbiddenError("Cannot delete your own account")
+
         async with self._sf() as session:
             async with session.begin():
                 return await UserRepository(session).delete_user(user_id)
 
-    async def update_user_role(self, user_id: int, is_superuser: bool) -> dict[str, Any]:
+    async def update_user_role(self, user_id: int, is_superuser: bool, current_user_id: int) -> dict[str, Any]:
         """Admin-only: promote or demote a user's admin privileges."""
+        if not is_superuser:
+            if user_id == current_user_id:
+                raise SelfActionForbiddenError("Cannot remove your own admin role")
+            async with self._sf() as session:
+                remaining_admins = await UserRepository(session).count_superusers()
+            if remaining_admins <= 1:
+                raise LastAdminError()
+
         async with self._sf() as session:
             async with session.begin():
                 user = await UserRepository(session).update_user(user_id, {"is_superuser": is_superuser})

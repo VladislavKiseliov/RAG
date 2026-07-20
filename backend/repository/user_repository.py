@@ -101,6 +101,12 @@ class UserRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def count_superusers(self) -> int:
+        """Count users currently flagged as admin (is_superuser=True)."""
+        stmt = select(func.count()).select_from(Users).where(Users.is_superuser == True)
+        result = await self._session.execute(stmt)
+        return result.scalar_one()
+
     async def update_user(self, user_id: int, data: dict) -> Optional[Users]:
         """Apply a partial update to a user's profile fields.
 

@@ -22,6 +22,7 @@ from backend.api.admin_routes import router as admin_router
 from backend.api.websocket_router import websocket_router
 from backend.api.messenger_routes import router as messenger_router
 from backend.api.stub_routes import knowledge_router, projects_router
+from backend.api.notes_routes import router as notes_router, internal_router as notes_internal_router
 from fastapi.responses import Response
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
@@ -104,6 +105,8 @@ app.include_router(websocket_router)
 app.include_router(messenger_router)
 app.include_router(knowledge_router)
 app.include_router(projects_router)
+app.include_router(notes_router)
+app.include_router(notes_internal_router)
 
 # Метрики
 REQUEST_COUNT = Counter(

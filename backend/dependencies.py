@@ -9,6 +9,7 @@ from backend.services.auth_service import AuthService, CurrentUser
 from backend.services.chat_service import ChatService
 from backend.services.ai.conversation_service import ConversationService
 from backend.services.user_service import UserService
+from backend.services.note_service import NoteService
 from backend.services.messenger.messenger_service import MessengerService
 from backend.infrastructure import BackendContainer
 from backend.services.messenger.websocket_manager import WebSocketManager
@@ -49,7 +50,10 @@ def get_conversation_service(container: BackendContainer = Depends(get_container
     return ConversationService(session_factory=container.session_factory, llm_client=container.llm_client)
 
 def get_user_service(container: BackendContainer = Depends(get_container)) -> UserService:
-    return UserService(session_factory=container.session_factory)
+    return UserService(session_factory=container.session_factory, auth_handler=container.auth_handler)
+
+def get_note_service(container: BackendContainer = Depends(get_container)) -> NoteService:
+    return NoteService(session_factory=container.session_factory)
 
 def get_websocket_manager(container: BackendContainer = Depends(get_container)) -> WebSocketManager:
     return container.socket_manager
@@ -66,6 +70,7 @@ CurrentUserWsDep = Annotated[CurrentUser, Depends(get_current_from_token_user_ws
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
+NoteServiceDep = Annotated[NoteService, Depends(get_note_service)]
 MessageServiceDep = Annotated[MessageService, Depends(get_message_service)]
 ConversationServiceDep = Annotated[ConversationService, Depends(get_conversation_service)]
 MessengerServiceDep = Annotated[MessengerService, Depends(get_messenger_service)]

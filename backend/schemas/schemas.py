@@ -110,3 +110,51 @@ class LogoutRequest(BaseModel):
 
 class CreateDirectChatRequest(BaseModel):
     friend_guid: uuid.UUID
+
+
+class NoteBaseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    note_id: int = Field(validation_alias="id")
+    note_guid: uuid.UUID = Field(validation_alias="guid")
+    title: Optional[str] = None
+    content: str
+    meta: dict[str, Any] = Field(default_factory=dict)
+    links: list[Any] = Field(default_factory=list)
+    tags: list[Any] = Field(default_factory=list)
+    folder: Optional[str] = None
+    reminder: Optional[datetime] = None
+    pinned: bool = False
+    follow_up: bool = False
+    status: str = "draft"
+    chunk_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class NoteCreateRequest(BaseModel):
+    title: Optional[str] = None
+    content: str = ""
+    meta: dict[str, Any] = Field(default_factory=dict)
+    links: list[Any] = Field(default_factory=list)
+    tags: list[Any] = Field(default_factory=list)
+    folder: Optional[str] = None
+    reminder: Optional[datetime] = None
+    pinned: bool = False
+    follow_up: bool = False
+
+
+class NoteUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    meta: Optional[dict[str, Any]] = None
+    links: Optional[list[Any]] = None
+    tags: Optional[list[Any]] = None
+    folder: Optional[str] = None
+    reminder: Optional[datetime] = None
+    pinned: Optional[bool] = None
+    follow_up: Optional[bool] = None
+
+
+class NoteIndexCompleteRequest(BaseModel):
+    status: str
+    chunk_count: Optional[int] = None

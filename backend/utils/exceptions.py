@@ -23,6 +23,16 @@ class UserNotFoundError(AppError):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 
+class SelfActionForbiddenError(AppError):
+    def __init__(self, message: str = "Cannot perform this action on your own account"):
+        super().__init__(message, status.HTTP_400_BAD_REQUEST)
+
+
+class LastAdminError(AppError):
+    def __init__(self, message: str = "Cannot remove the last remaining admin"):
+        super().__init__(message, status.HTTP_400_BAD_REQUEST)
+
+
 class AuthenticationError(AppError):
     def __init__(self, message: str = "Invalid or missing token"):
         super().__init__(message, status.HTTP_401_UNAUTHORIZED)
@@ -61,6 +71,11 @@ class TokenExpiredError(AppError):
 
 class ChatNotFoundError(AppError):
     def __init__(self, message: str = "Chat not found"):
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class NoteNotFoundError(AppError):
+    def __init__(self, message: str = "Note not found"):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 

@@ -217,3 +217,40 @@ class Department(Base):
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.departments.id"), nullable=True
     )
+
+
+class Notes(Base):
+    """Личные заметки. backend владеет таблицей целиком; rag_service только
+    векторизует текст (см. NoteVectorizationService) и не хранит метаданные."""
+    __tablename__ = "notes"
+    __table_args__ = (
+        Index("idx_note_on_user_id", "user_id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    guid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, default=uuid6.uuid7)
+    user_id: Mapped[int] = mapped_column(ForeignKey(f"{SCHEMA}.users.id", ondelete="CASCADE"))
+
+    title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    content: Mapped[str] = mapped_column(Text, default="")
+    meta: Mapped[dict] = mapped_column(JSONB, default=dict)
+    links: Mapped[list] = mapped_column(JSONB, default=list)
+    tags: Mapped[list] = mapped_column(JSONB, default=list)
+    folder: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reminder: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    follow_up: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # draft | indexing | indexed | error — см. NoteService.trigger_index/mark_indexed
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
