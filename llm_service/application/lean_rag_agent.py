@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -63,7 +64,10 @@ class LeanRagAgent:
     async def route_node(self, state: LeanAgentState) -> dict[str, str | list[str]]:
         """Определяет тип запроса: smalltalk / domain_rag / out_of_domain."""
         started = time.perf_counter()
-        route = self.query_router.route(state.query)
+        # .route() внутри синхронно гоняет SentenceTransformer.encode + predict_proba (CPU-bound) —
+        # без to_thread это блокирует event loop на всё время эмбеддинга, стопоря остальные
+        # параллельные запросы к сервису.
+        route = await asyncio.to_thread(self.query_router.route, state.query)
 
         logger.info(
             "Router finished",

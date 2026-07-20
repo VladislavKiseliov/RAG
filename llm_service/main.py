@@ -1,10 +1,9 @@
-import time
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from llm_service.api.agent_routers import router as llm_router
 from llm_service.exceptions import LLMServiceError
@@ -13,21 +12,20 @@ from llm_service.utils.logger_config import setup_logger
 
 logger = setup_logger("llm_service")
 
+
+class MetricsEndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/metrics" not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(MetricsEndpointFilter())
+
 REQUEST_COUNT = Counter(
     "llm_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
 )
 REQUEST_DURATION = Histogram(
     "llm_request_duration_seconds", "HTTP request duration", ["method", "endpoint"]
 )
-
-
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/metrics":
-            return await call_next(request)
-        response = await call_next(request)
-
-        return response
 
 
 @asynccontextmanager
@@ -38,8 +36,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(llm_router)
-app.add_middleware(RequestLoggingMiddleware)
-
 
 
 @app.middleware("http")

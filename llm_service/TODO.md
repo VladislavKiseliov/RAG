@@ -33,6 +33,6 @@
 
 - [x] Обучение/классификатор существуют (`ml_router/train.py`, `intent_model_small.pkl`)
 - [x] Роутер реально вызывается в проде: `infrastructure.py` строит `MLQueryRouter` → `LeanRagAgent.route_node` (`application/lean_rag_agent.py`) вызывает `.route()` на каждый запрос — не только автономный скрипт
-- [ ] ⚠️ Несоответствие модели эмбеддера: `infrastructure.py` жёстко использует `intfloat/multilingual-e5-large` (1024-dim), а `ml_router/train.py` обучает классификатор на `multilingual-e5-small` (384-dim). Если `ML_ROUTER_MODEL_PATH` когда-нибудь укажет на `intent_model_small.pkl` — `predict_proba` упадёт с ValueError на первом же запросе (см. отчёт по багам)
-- [ ] `route_node` — `async def`, но `.route()` внутри синхронно гоняет `SentenceTransformer.encode` и `predict_proba` в event loop без `asyncio.to_thread` — блокирует все параллельные запросы на время эмбеддинга
+- [x] ~~Несоответствие модели эмбеддера~~ — ложная тревога (проверено 2026-07-20). `ml_router/train.py` действительно обучает на e5-small (`intent_model_small.pkl`), но `.env`/`.env.example` (`ML_ROUTER_MODEL_PATH`) указывают на `intent_model.pkl` — отдельный артефакт, обученный на e5-large (см. `ml_router/test_model.py:MODEL_NAME`), совпадает с эмбеддером в `infrastructure.py`. `train.py`/`intent_model_small.pkl` — просто старый неиспользуемый скрипт/артефакт, не риск в проде
+- [x] `route_node` блокировал event loop ✅ 2026-07-20 — `.route()` вызывается через `asyncio.to_thread` в `lean_rag_agent.py`
 - [ ] В `application/services/query_service.py` лежит второй, неиспользуемый `MLQueryRouter` с другим порогом (0.5 vs 0.6 в проде) — мёртвый код, вводит в заблуждение
