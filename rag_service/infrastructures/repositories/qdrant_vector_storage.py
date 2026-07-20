@@ -43,7 +43,7 @@ class QdrantVectorStorage():
     def __init__(
         self,
         *,
-        url: str,
+        client: AsyncQdrantClient,
         collection: str,
         distance: str = "Cosine",
         upsert_batch_size: int = 64,
@@ -56,7 +56,7 @@ class QdrantVectorStorage():
     ) -> None:
         """
         Args:
-            url: Qdrant base URL.
+            client: Shared Qdrant client (one connection reused across collections).
             collection: Target collection name.
             fusion: Hybrid search fusion strategy (DBSF or RRF). Default: DBSF.
             distance: Vector distance metric. Default: Cosine.
@@ -68,12 +68,10 @@ class QdrantVectorStorage():
             optimizers_indexing_threshold: Qdrant optimizer setting.
             wal_capacity_mb: Write-ahead log capacity.
         """
-        if not url:
-            raise RuntimeError("QDRANT_URL is not set")
         if not collection:
             raise RuntimeError("COLLECTION_NAME is not set")
 
-        self._client: AsyncQdrantClient = AsyncQdrantClient(url=url, timeout=60)
+        self._client: AsyncQdrantClient = client
         self._collection = collection
         self._collection_lock = asyncio.Lock()
         self._fusion = models.Fusion.DBSF
@@ -268,10 +266,11 @@ class QdrantVectorStorage():
             raise VectorSearchError(f"Failed to execute batch vector search in Qdrant {exc=}") from exc
 
 
-    async def delete_points(self, doc_id: uuid.UUID) -> None:
-        """Delete every vector point that belongs to one document.
+    async def delete_by_field(self, field: str, value: str) -> None:
+        """Delete every vector point whose payload[field] == value.
 
-        Document ownership is resolved by payload field `doc_id`.
+        Generic replacement for a `doc_id`-only delete — lets each domain
+        (documents, notes, ...) key its points by its own payload field.
         """
         try:
             await self._client.delete(
@@ -280,8 +279,8 @@ class QdrantVectorStorage():
                     filter=Filter(
                         must=[
                             FieldCondition(
-                                key="doc_id",
-                                match=MatchValue(value=str(doc_id)),
+                                key=field,
+                                match=MatchValue(value=value),
                             ),
                         ],
                     )
@@ -289,7 +288,7 @@ class QdrantVectorStorage():
                 wait=True,
             )
         except Exception as exc:
-            raise VectorDeleteError(f"Failed to delete vectors for doc_id={doc_id}") from exc
+            raise VectorDeleteError(f"Failed to delete vectors where {field}={value}") from exc
 
     async def _ensure_collection(self, vector_size: int) -> None:
         async with self._collection_lock:

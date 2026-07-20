@@ -26,6 +26,9 @@ def get_s3_storage(container: RagContainer = Depends(get_container)):
 def get_vector_storage(container: RagContainer = Depends(get_container)):
     return container.vector_storage
 
+def get_notes_vector_storage(container: RagContainer = Depends(get_container)):
+    return container.notes_vector_storage
+
 def get_v_indexing_service(container: RagContainer = Depends(get_container)):
     return container.v_indexing_service
 
@@ -35,6 +38,7 @@ ContainerDep = Annotated[RagContainer, Depends(get_container)]
 SessionFactoryDep = Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
 S3StorageDep = Annotated[BucketStorageProvider, Depends(get_s3_storage)]
 VectorStorageDep = Annotated[VectorStorageProvider, Depends(get_vector_storage)]
+NotesVectorStorageDep = Annotated[VectorStorageProvider, Depends(get_notes_vector_storage)]
 VectorIndexingDep = Annotated[VectorIndexingService, Depends(get_v_indexing_service)]
 
 # --- 3. Функции-фабрики для доменных сервисов ---
@@ -51,12 +55,14 @@ async def get_retrieval_service(
     vector_storage: VectorStorageDep,
     database: Annotated[DocumentQueryService, Depends(get_db_query_service)],
     v_indexing: VectorIndexingDep,
+    s3_storage: S3StorageDep,
 ) -> RetrieveService:
     """Сервис поиска (Retrieval Pipeline)."""
     return RetrieveService(
         vector_storage=vector_storage,
         database=database,
-        v_indexing_service=v_indexing
+        v_indexing_service=v_indexing,
+        s3_storage=s3_storage,
     )
 
 async def get_task_dispatcher_service(db_doc_service: Annotated[DataBaseDocumentService, Depends(get_db_doc_service)]) -> TaskDispatcherService:

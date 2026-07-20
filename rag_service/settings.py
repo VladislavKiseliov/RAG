@@ -48,6 +48,7 @@ class RagSettings(BaseSettings):
     # ──────────────────────────────────────────
     qdrant_url: str                          # QDRANT_URL
     collection_name: str = "rag_documents_collection_with_sparse_vector"  # COLLECTION_NAME
+    notes_collection_name: str = "notes_collection_with_sparse_vector"  # NOTES_COLLECTION_NAME
 
     qdrant_upsert_batch_size: int = 64
     qdrant_hnsw_m: int | None = None
@@ -70,6 +71,7 @@ class RagSettings(BaseSettings):
     docs_directory: str = "./docs"           # DOCS_DIRECTORY
     qdrant_path: str = "./qdrant_storage"    # QDRANT_PATH
     redis_url: str = "redis://localhost:6379/0"  # REDIS_URL
+    backend_internal_url: str = "http://backend:8000"  # BACKEND_INTERNAL_URL — колбэк по завершении индексации заметки
     max_context_chars: int = 12000
     vector_timeout_seconds: float = 600.0
 

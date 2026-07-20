@@ -12,11 +12,21 @@ class TaskDispatcherService:
         self.database = database
 
     async def dispatch_ingestion(self, s3key: str) -> None:
-        """Ставит задачу на обработку документа."""
+        """Ставит задачу на обработку документа.
+
+        Идемпотентно: MinIO доставляет вебхуки at-least-once, а `handle_webhook` возвращает
+        200 даже если часть записей батча упала (см. per-record try/except там) — то есть один
+        и тот же s3key может прилететь сюда повторно. Документ уже не в PENDING значит уже
+        задиспатчен/обрабатывается/готов — повторный `.delay()` создал бы гонку с уже идущим
+        `ingest_document_task` (см. B6 в ISSUES.md).
+        """
         from rag_service.workers.task import ingest_document_task
         doc = await self.database.get_document_by_s3key(s3key)
         if doc is None:
             raise DocumentByStorageKeyNotFound(s3key)
+
+        if doc.status != DocumentStatus.PENDING:
+            return
 
         await self.database.update_document(doc.id, update_data={"status": DocumentStatus.UPLOAD})
         ingest_document_task.delay(str(doc.id), s3key)

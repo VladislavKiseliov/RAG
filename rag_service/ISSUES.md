@@ -15,6 +15,13 @@
 |---|---|---|
 | B4 | Ретрай Celery не идемпотентен: `_store_structural_data` при повторной попытке заново вставляла те же `document_chapters`/`document_tables`/parent chunks → `UniqueViolationError` на `uq_document_chapters_doc_chapter_number`, которая сама классифицировалась как "transient" и ретраилась бесконечно до исчерпания `max_retries` | `DocumentRepository.delete_structural_data()` + `DataBaseDocumentService.reset_structural_data()`, вызывается в начале `IngestionService._store_structural_data()` — ретрай теперь стартует с чистого состояния |
 
+## ✅ Исправлено (2026-07-20)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| B5 | Ретрай-политика ловила `DBAPIError` целиком как "транзиентную инфраструктуру" — базовый класс и для `IntegrityError`/`ProgrammingError`/`DataError`, не только connection/timeout. Реальный constraint-баг ретраился бы молча до `max_retries` вместо немедленного ERROR | `ingestion_service.py` — из except-кортежа убран `DBAPIError`, оставлен только `OperationalError` (специфично про соединение/операционные сбои). Всё остальное из `DBAPIError` теперь падает в общий `except Exception` → `doc.fail()` + статус ERROR сразу |
+| B6 | Webhook от MinIO обрабатывал `event.records` без per-record try/except — упавшая запись рвала весь ответ non-200, MinIO ретраил весь вебхук, уже задиспатченные записи продиспатчились бы повторно | `rag_routes.py::handle_webhook` — per-record try/except, 200 всегда (кроме сбоя авторизации), список `failed` в ответе при частичном провале. Плюс идемпотентность в `TaskDispatcherService.dispatch_ingestion` — пропускает диспатч, если `doc.status != PENDING` |
+
 ---
 
 ## 🔴 Баги
@@ -22,8 +29,6 @@
 | # | Описание | Файл | Строка |
 |---|---|---|---|
 | B3 | `score_threshold` в `search()` не доходит до Qdrant — `query_points()` вызывается без этого kwarg (в `batch_search()` передаётся корректно, асимметрия между методами) | `infrastructures/repositories/qdrant_vector_storage.py` | 191–199 |
-| B5 | Ретрай-политика слишком широко ловит `DBAPIError` как "транзиентную инфраструктуру". `DBAPIError` — базовый класс и для `IntegrityError`/`ProgrammingError`/`DataError`, не только connection/timeout. Настоящее нарушение constraint'а (гонка в `update_document_hash_atomically`) или баг в SQL (`ProgrammingError`) будет молча ретраиться Celery вместо немедленного ERROR — тот же класс проблемы, что и уже исправленный B4, но не устранён им | `application/ingestion_service.py` | 154–159 |
-| B6 | Webhook от MinIO обрабатывает `event.records` без per-record try/except — если запись N упадёт (например `DocumentByStorageKeyNotFound`), FastAPI вернёт non-200, MinIO повторит **весь** webhook, и уже задиспатченные записи 1..N-1 (статус уже `UPLOAD`, Celery-таск уже в очереди) продиспатчатся повторно. Если первый `ingest_document_task` ещё выполняется — второй запуск словит `InvalidIngestionStateError` в середине пайплайна или race с `reset_structural_data` первого запуска | `api/rag_routes.py` | `handle_webhook`, 93–96 |
 
 ---
 

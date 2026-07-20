@@ -1,17 +1,25 @@
-import time
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from rag_service.api.exception_handlers import register_exception_handlers
 from rag_service.api.rag_routes import router as rag_router
+from rag_service.api.note_routes import router as note_router
 from rag_service.container import build_rag_infrastructure, RagContainer
 from rag_service.utils.logger_config import setup_logger
 
 setup_logger("rag_service")
+
+
+class MetricsEndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/metrics" not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(MetricsEndpointFilter())
 
 REQUEST_COUNT = Counter(
     "rag_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
@@ -19,16 +27,6 @@ REQUEST_COUNT = Counter(
 REQUEST_DURATION = Histogram(
     "rag_request_duration_seconds", "HTTP request duration", ["method", "endpoint"]
 )
-
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/metrics":
-            return await call_next(request)
-        response = await call_next(request)
-
-        return response
-
-
 
 
 @asynccontextmanager
@@ -41,8 +39,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(rag_router)
+app.include_router(note_router)
 register_exception_handlers(app)
-app.add_middleware(RequestLoggingMiddleware)
 
 @app.middleware("http")
 async def prometheus_middleware(request: Request, call_next):

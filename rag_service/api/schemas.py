@@ -81,6 +81,7 @@ class TableSummary(BaseModel):
 
 
 class ChapterTable(BaseModel):
+    table_index: int
     name: str
     cols: list[str]
     rows: list[list[str]]
@@ -172,5 +173,10 @@ class MinioRecord(BaseModel):
 class MinioWebhookEvent(BaseModel):
     # MinIO присылает список записей в поле "Records"
     records: list[MinioRecord] = Field(..., alias="Records")
+
+
+class NoteIndexRequest(BaseModel):
+    user_id: str
+    text: str
 
 

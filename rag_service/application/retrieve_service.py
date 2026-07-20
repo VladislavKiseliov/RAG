@@ -1,13 +1,33 @@
 ﻿from __future__ import annotations
 
+import asyncio
+import csv
+import io
+import re
 import uuid
 from typing import Any
 
 from rag_service.api.schemas import RetrieveResponse, RetrieveItem
 from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.vector_indexing_service import VectorIndexingService
+from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import  VectorStorageProvider
 from rag_service.models import ParentChunks
+
+# Тот же маркер, что _LinkingTableSerializer вставляет в markdown при извлечении таблицы
+# (см. docling_conversion_repository.py) и что читалка (rag_routes.py) разрешает для UI —
+# здесь разрешаем его же для retrieval-пути, которым пользуется llm_service.
+_TABLE_LINK_RE = re.compile(r"\[→\s*Таблица\s+(\d+)\]\([^)]*\)")
+
+
+def _csv_bytes_to_markdown_table(csv_bytes: bytes) -> str:
+    rows = list(csv.reader(io.StringIO(csv_bytes.decode("utf-8"))))
+    if not rows:
+        return ""
+    header, *data = rows
+    lines = ["| " + " | ".join(header) + " |", "| " + " | ".join(["---"] * len(header)) + " |"]
+    lines += ["| " + " | ".join(row) + " |" for row in data]
+    return "\n".join(lines)
 
 
 class RetrieveService:
@@ -27,7 +47,8 @@ class RetrieveService:
             *,
             vector_storage: VectorStorageProvider,
             database: DocumentQueryService,
-            v_indexing_service: VectorIndexingService
+            v_indexing_service: VectorIndexingService,
+            s3_storage: BucketStorageProvider,
     ) -> None:
         """
         Initialize the retrieval service.
@@ -36,10 +57,52 @@ class RetrieveService:
             vector_storage: Provider for vector database operations (Qdrant, etc.).
             database: Service for querying relational data (Postgres).
             v_indexing_service: Service for text-to-vector transformation.
+            s3_storage: Provider for reading table CSVs referenced by [→ Таблица N] markers.
         """
         self.vector_storage = vector_storage
         self._document_service = database
         self.v_indexing_service = v_indexing_service
+        self._s3_storage = s3_storage
+
+    async def _resolve_tables_in_items(self, items: list[dict]) -> list[dict]:
+        """Заменяет маркеры [→ Таблица N] в parent_chunk на настоящую Markdown-таблицу.
+
+        Без этого LLM видит нерасшифрованную ссылку вместо содержимого таблицы. Собирает
+        все нужные (doc_id, table_index) со всех items разом — один поход в БД/S3 на батч,
+        а не по одному на item.
+        """
+        needed: dict[str, set[int]] = {}
+        for item in items:
+            doc_id = item["metadata"].get("doc_id")
+            indices = {int(m) for m in _TABLE_LINK_RE.findall(item["parent_chunk"])}
+            if doc_id and indices:
+                needed.setdefault(doc_id, set()).update(indices)
+
+        if not needed:
+            return items
+
+        markdown_by_key: dict[tuple[str, int], str] = {}
+        for doc_id_str, indices in needed.items():
+            tables = await self._document_service.get_tables_by_doc_id(uuid.UUID(doc_id_str))
+            matched = [t for t in tables if t.table_index in indices]
+            if not matched:
+                continue
+            csv_blobs = await asyncio.gather(
+                *(self._s3_storage.get_file(t.s3_csv_path) for t in matched)
+            )
+            for t, csv_bytes in zip(matched, csv_blobs):
+                markdown_by_key[(doc_id_str, t.table_index)] = _csv_bytes_to_markdown_table(csv_bytes)
+
+        for item in items:
+            doc_id = item["metadata"].get("doc_id")
+
+            def _replace(match: re.Match, _doc_id: str = doc_id) -> str:
+                table_markdown = markdown_by_key.get((_doc_id, int(match.group(1))))
+                return table_markdown if table_markdown is not None else match.group(0)
+
+            item["parent_chunk"] = _TABLE_LINK_RE.sub(_replace, item["parent_chunk"])
+
+        return items
 
     async def _get_vector_query(self, query: str) -> list[float]:
         """
@@ -109,10 +172,12 @@ class RetrieveService:
             requested_parent_ids,
             doc_id=doc_id,
         )
-        return build_retrieved_items(
+        result = build_retrieved_items(
             group_hits=group_hits,
             parent_chunks=parent_chunks,
         )
+        result["items"] = await self._resolve_tables_in_items(result["items"])
+        return result
 
     async def batch_search(
             self,
@@ -164,7 +229,9 @@ class RetrieveService:
         requested_parent_ids = list(seen.keys())
         parent_chunks = await self._document_service.get_parent_chunks(requested_parent_ids)
 
-        return build_retrieved_items(group_hits=seen, parent_chunks=parent_chunks)
+        result = build_retrieved_items(group_hits=seen, parent_chunks=parent_chunks)
+        result["items"] = await self._resolve_tables_in_items(result["items"])
+        return result
 
     async def retrieve(
             self,

@@ -54,7 +54,7 @@ class DocumentOrchestrator:
             raise ValueError(f"File '{object_key}' not found in storage")
 
         await self.s3_storage.delete_file(object_key)
-        await self.vector_storage.delete_points(doc_id)
+        await self.vector_storage.delete_by_field("doc_id", str(doc_id))
         await self.database.delete_document(doc_id)
 
     async def get_list_document(self) -> list[dict[str, Any]]:

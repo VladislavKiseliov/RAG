@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Dict
 import hashlib
 
-from sqlalchemy.exc import DBAPIError, OperationalError
+from sqlalchemy.exc import OperationalError
 
 from rag_service.domain.errors.base import DuplicateFileError, InvalidIngestionStateError
 from rag_service.domain.errors.storage import StorageDeleteError, StorageReadError, StorageWriteError
@@ -88,8 +88,11 @@ class IngestionService:
             - `DuplicateFileError` — файл с таким хешем уже есть, удаляем эту запись сразу
               (ещё ничего не записано, кроме исходного PDF), не ретраим.
             - `StorageReadError`/`StorageWriteError`/`StorageDeleteError`/`VectorUpsertError`/
-              `OperationalError`/`DBAPIError` — транзиентные инфраструктурные сбои (сеть,
-              S3, Qdrant, БД) — пробрасываем наружу, Celery ретраит (см. `workers/task.py`).
+              `OperationalError` — транзиентные инфраструктурные сбои (сеть, S3, Qdrant, БД-
+              соединение) — пробрасываем наружу, Celery ретраит (см. `workers/task.py`). Не
+              ловим здесь `DBAPIError` (базовый класс и для `IntegrityError`/`ProgrammingError`) —
+              настоящее нарушение constraint'а или баг в SQL должен сразу падать в ERROR, а не
+              молча ретраиться до `max_retries` как будто это временная сеть (см. B5 в ISSUES.md).
             - `ValueError`/`InvalidIngestionStateError` — детерминированная ошибка (пустой/
               битый PDF, нарушение порядка стадий) — ретрай не поможет, статус ERROR.
             - Всё остальное (неизвестная ошибка) — по умолчанию тоже не ретраим: безопаснее
@@ -152,7 +155,7 @@ class IngestionService:
             return IngestionResult(doc_id=doc_id, status=doc.status)
 
         except (StorageReadError, StorageWriteError, StorageDeleteError, VectorUpsertError,
-                OperationalError, DBAPIError) as e:
+                OperationalError) as e:
             # Транзиентная инфраструктура (S3, Qdrant, БД) — статус не трогаем,
             # Celery ретраит саму задачу (см. workers/task.py)
             logger.warning("Transient infrastructure error doc_id=%s: %s", doc_id, e)

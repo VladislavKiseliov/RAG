@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import  Optional
 
+from qdrant_client import AsyncQdrantClient
 from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
@@ -34,6 +35,7 @@ class RagContainer:
     session_factory: async_sessionmaker[AsyncSession]
     s3_storage: BucketStorageProvider
     vector_storage: VectorStorageProvider
+    notes_vector_storage: VectorStorageProvider
     v_indexing_service:VectorIndexingService
 
 
@@ -46,6 +48,8 @@ class WorkerContainer:
     session_factory: async_sessionmaker[AsyncSession]
     s3_storage: BucketStorageProvider
     vector_storage: VectorStorageProvider
+    notes_vector_storage: VectorStorageProvider
+    v_indexing_service: VectorIndexingService
 
 
 # ---------------- Вспомогательные Билдеры ----------------
@@ -109,10 +113,17 @@ def get_docling_conversion_provider() -> PdfConversionProvider:
     return docling_conversion_provider
 
 
-def _build_vector_storage() -> VectorStorageProvider:
+def _build_qdrant_client() -> AsyncQdrantClient:
+    if not settings.qdrant_url:
+        raise RuntimeError("QDRANT_URL is not set")
+    return AsyncQdrantClient(url=settings.qdrant_url, timeout=60)
+
+
+def _build_vector_storage(client: AsyncQdrantClient, collection: str) -> VectorStorageProvider:
+    """Один Qdrant-клиент, разные коллекции — см. QdrantVectorStorage."""
     return QdrantVectorStorage(
-        url=settings.qdrant_url,
-        collection=settings.collection_name,
+        client=client,
+        collection=collection,
         upsert_batch_size=settings.qdrant_upsert_batch_size,
         hnsw_m=settings.qdrant_hnsw_m,
         hnsw_ef_construct=settings.qdrant_hnsw_ef_construct,
@@ -130,7 +141,9 @@ async def build_rag_infrastructure(db_pool_size: int = 10) -> RagContainer:
     """Создает инфраструктуру для FastAPI."""
     engine, session_factory = _create_db_factory(settings.DATABASE_URL, pool_size=db_pool_size)
     v_indexing_service = get_v_indexing_service()
-    v_storage = _build_vector_storage()
+    qdrant_client = _build_qdrant_client()
+    v_storage = _build_vector_storage(qdrant_client, settings.collection_name)
+    notes_v_storage = _build_vector_storage(qdrant_client, settings.notes_collection_name)
     s3_store = _build_knowledge_base_storage()
     await s3_store.ensure_bucket()
 
@@ -139,6 +152,7 @@ async def build_rag_infrastructure(db_pool_size: int = 10) -> RagContainer:
         session_factory=session_factory,
         s3_storage=s3_store,
         vector_storage=v_storage,
+        notes_vector_storage=notes_v_storage,
         v_indexing_service = v_indexing_service,
     )
 
@@ -153,9 +167,11 @@ async def build_worker_infrastructure() -> WorkerContainer:
     s3_store = _build_knowledge_base_storage()
     await s3_store.ensure_bucket()
 
-    # 2. Слой векторов (делим один провайдер эмбеддингов между сервисами)
+    # 2. Слой векторов (делим один провайдер эмбеддингов и один Qdrant-клиент между сервисами)
     v_indexing_service = get_v_indexing_service()
-    v_storage = _build_vector_storage()
+    qdrant_client = _build_qdrant_client()
+    v_storage = _build_vector_storage(qdrant_client, settings.collection_name)
+    notes_v_storage = _build_vector_storage(qdrant_client, settings.notes_collection_name)
 
 
     # 3. Оркестратор обработки (Ingestion)
@@ -173,5 +189,7 @@ async def build_worker_infrastructure() -> WorkerContainer:
         engine=engine,
         session_factory=session_factory,
         s3_storage=s3_store,
-        vector_storage=v_storage
+        vector_storage=v_storage,
+        notes_vector_storage=notes_v_storage,
+        v_indexing_service=v_indexing_service,
     )

@@ -90,10 +90,22 @@ async def handle_webhook(
     if token != os.getenv("MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1"):
         raise WebhookAuthorizationError()
 
+    # Per-record try/except: одна упавшая запись (например DocumentByStorageKeyNotFound) не должна
+    # рвать весь ответ non-200 — иначе MinIO ретраит ВЕСЬ вебхук, и уже успешно задиспатченные
+    # записи 1..N-1 продиспатчатся повторно (см. B6 в ISSUES.md; идемпотентность самого диспатча —
+    # отдельно в TaskDispatcherService.dispatch_ingestion).
+    failed: list[str] = []
     for record in event.records:
         raw_key = record.s3.object.key
         s3key = unquote_plus(raw_key)
-        await dispatcher.dispatch_ingestion(s3key=s3key)
+        try:
+            await dispatcher.dispatch_ingestion(s3key=s3key)
+        except Exception:
+            logger.exception("Webhook record dispatch failed s3key=%s", s3key)
+            failed.append(s3key)
+
+    if failed:
+        return {"status": "partial", "failed": failed}
 
     return {"status": "accepted"}
 
@@ -269,10 +281,11 @@ async def get_document_chapter_content(
 
     chapter = chapters[chapter_idx]
     text_bytes = await document_orchestrator.get_file_s3_by_s3key(chapter.s3_md_path)
-    text = text_bytes.decode("utf-8")
+    # Маркер [→ Таблица N] остаётся в тексте — фронт сам расставляет карточки таблиц на его месте,
+    # а не одним списком в конце (см. table_index в ChapterTable).
+    text = text_bytes.decode("utf-8").strip()
 
     table_indices = {int(m) for m in _TABLE_LINK_RE.findall(text)}
-    text = _TABLE_LINK_RE.sub("", text).strip()
 
     tables_out: list[ChapterTable] = []
     if table_indices:
@@ -283,7 +296,7 @@ async def get_document_chapter_content(
         )
         for t, csv_bytes in zip(matched, csv_blobs):
             cols, rows = _parse_csv_table(csv_bytes)
-            tables_out.append(ChapterTable(name=t.title or f"Таблица {t.table_index}", cols=cols, rows=rows))
+            tables_out.append(ChapterTable(table_index=t.table_index, name=t.title or f"Таблица {t.table_index}", cols=cols, rows=rows))
 
     return ChapterContentResponse(text=text, tables=tables_out)
 
