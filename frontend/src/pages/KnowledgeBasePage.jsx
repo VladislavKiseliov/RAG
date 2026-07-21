@@ -87,9 +87,9 @@ function KnowledgeBasePage() {
                         <span className="kb-ok-dot" />
                         <span>Векторный индекс</span>
                     </div>
-                    <div className="kb-index-row"><span>Документов</span><span className="mono">{kb.documents.length}</span></div>
-                    <div className="kb-index-row"><span>Чанков текста</span><span className="mono">{sum(kb.documents, 'chunks')}</span></div>
-                    <div className="kb-index-row"><span>Точек в БД</span><span className="mono kb-accent">{sum(kb.documents, 'chunks')}</span></div>
+                    <div className="kb-index-row"><span>Документов</span><span key={kb.documents.length} className="mono counter-pop">{kb.documents.length}</span></div>
+                    <div className="kb-index-row"><span>Чанков текста</span><span key={sum(kb.documents, 'chunks')} className="mono counter-pop">{sum(kb.documents, 'chunks')}</span></div>
+                    <div className="kb-index-row"><span>Точек в БД</span><span key={sum(kb.documents, 'chunks')} className="mono kb-accent counter-pop">{sum(kb.documents, 'chunks')}</span></div>
                 </div>
             </aside>
 

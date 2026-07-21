@@ -30,9 +30,17 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
     const currentUser = useCurrentUser(api);
     const isAdmin = currentUser.isAdmin;
 
+    // Единая точка входа для событий из сокета — каждый подписчик сам узнаёт по data.type,
+    // что ему нужно, и игнорирует остальное (messenger.handleWsMessage так уже делает).
+    // Сюда же добавлять будущие обработчики (например, для note.indexed/document.indexed),
+    // не раздувая handleWsMessage чужой для messenger доменной логикой.
+    const handleSocketMessage = useCallback((data) => {
+        messenger.handleWsMessage(data);
+    }, [messenger.handleWsMessage]);
+
     const { sendMessage: wsSendMessage } = useMessengerSocket({
         getAccessToken,
-        onMessage: messenger.handleWsMessage,
+        onMessage: handleSocketMessage,
         enabled: !!accessToken,
     });
 

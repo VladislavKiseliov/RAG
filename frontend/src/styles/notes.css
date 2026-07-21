@@ -109,6 +109,7 @@
     margin-bottom: 6px;
     background: var(--card);
     border: 1px solid var(--card-border);
+    animation: cardIn .18s ease;
 }
 .nt-card:hover { border-color: var(--accent-soft-border); }
 .nt-card.active { background: var(--accent-soft); border-color: var(--accent-soft-border); }

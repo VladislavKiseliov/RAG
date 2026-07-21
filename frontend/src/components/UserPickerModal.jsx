@@ -10,22 +10,28 @@ function UserPickerModal({ onSelect, onClose }) {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const debounceTimer = useRef(null);
+    // Если предыдущий запрос ещё летит, когда пришёл ответ на новый — без этой проверки
+    // более медленный старый ответ может перезаписать актуальные результаты (race condition).
+    const latestQueryRef = useRef('');
 
     useEffect(() => {
         clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(async () => {
-            if (!query.trim()) {
+            const q = query.trim();
+            if (!q) {
                 setUsers([]);
                 return;
             }
+            latestQueryRef.current = q;
             setLoading(true);
             try {
-                const data = await api.get(ENDPOINTS.USERS_SEARCH(query));
+                const data = await api.get(ENDPOINTS.USERS_SEARCH(q));
+                if (latestQueryRef.current !== q) return;
                 setUsers(data);
             } catch {
-                setUsers([]);
+                if (latestQueryRef.current === q) setUsers([]);
             } finally {
-                setLoading(false);
+                if (latestQueryRef.current === q) setLoading(false);
             }
         }, TIMEOUTS.SEARCH_DEBOUNCE);
         return () => clearTimeout(debounceTimer.current);

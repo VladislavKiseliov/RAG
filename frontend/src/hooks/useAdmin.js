@@ -3,14 +3,6 @@ import { ENDPOINTS } from '../config/api';
 import { useApi, useShowError } from '../context/ApiContext';
 import { formatBytes } from '../utils/formatBytes';
 
-// Пока нет реального источника (Flower/Celery events) — представительные моки для демонстрации вкладки.
-const MOCK_TASKS = [
-    { id: 't-1', name: 'ingest_document', subject: 'Регламент_онбординга.pdf', state: 'running', progress: 62 },
-    { id: 't-2', name: 'embed_chunks', subject: 'Договор_поставки.docx', state: 'queued', progress: 0 },
-    { id: 't-3', name: 'ingest_document', subject: 'Инструкция_ИБ.md', state: 'success', progress: 100 },
-    { id: 't-4', name: 'embed_chunks', subject: 'Отчёт_Q2.pdf', state: 'failed', progress: 40 },
-];
-
 // rag_service хранит один общий коллекшн без концепции "личных" документов — моки до появления scope/ownerId.
 const MOCK_PERSONAL_DOCS = [
     { id: 'mock-p1', title: 'Личные заметки по проекту «Аврора»', owner: 'И. Смирнова', ownerId: 'u-1', scope: 'personal', chunks: 34, points: 34, size: '1.1 МБ', state: 'indexed' },
@@ -29,6 +21,25 @@ const toAdminDoc = (raw) => ({
     points: raw.chunk_count ?? null,
     size: formatBytes(raw.size),
     state: raw.status === 'completed' ? 'indexed' : 'processing',
+});
+
+// Состояния Celery -> 4 состояния, под которые уже стилизована вкладка (adm-task-*/task-dot).
+const TASK_STATE_MAP = {
+    PENDING: 'queued',
+    RECEIVED: 'queued',
+    STARTED: 'running',
+    RETRY: 'running',
+    SUCCESS: 'success',
+    FAILURE: 'failed',
+    REVOKED: 'failed',
+};
+
+const toAdminTask = ([id, raw]) => ({
+    id,
+    name: raw.name || 'unknown',
+    subject: (raw.args || '').replace(/^[([]|[)\]]$/g, '').slice(0, 60),
+    state: TASK_STATE_MAP[raw.state] || 'queued',
+    timestamp: raw.timestamp || raw.received || raw.started || 0,
 });
 
 const toAdminUser = (raw) => ({
@@ -55,6 +66,7 @@ export function useAdmin() {
     const [health, setHealth] = useState(null);
     const [documents, setDocuments] = useState([]);
     const [users, setUsers] = useState([]);
+    const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
 
@@ -85,11 +97,31 @@ export function useAdmin() {
         }
     }, [api, showError]);
 
+    const loadTasks = useCallback(async () => {
+        try {
+            const data = await api.get(ENDPOINTS.ADMIN_TASKS);
+            const list = Object.entries(data || {}).map(toAdminTask);
+            list.sort((a, b) => b.timestamp - a.timestamp);
+            setTasks(list);
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError]);
+
+    const revokeTask = useCallback(async (taskId) => {
+        try {
+            await api.post(ENDPOINTS.ADMIN_TASK_REVOKE(taskId));
+            await loadTasks();
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError, loadTasks]);
+
     const loadAll = useCallback(async () => {
         setLoading(true);
-        await Promise.all([loadHealth(), loadDocuments(), loadUsers()]);
+        await Promise.all([loadHealth(), loadDocuments(), loadUsers(), loadTasks()]);
         setLoading(false);
-    }, [loadHealth, loadDocuments, loadUsers]);
+    }, [loadHealth, loadDocuments, loadUsers, loadTasks]);
 
     const reindexDocument = useCallback(async (docId) => {
         try {
@@ -160,7 +192,7 @@ export function useAdmin() {
         documents,
         personalDocuments: MOCK_PERSONAL_DOCS,
         users,
-        tasks: MOCK_TASKS,
+        tasks,
         qdrant: MOCK_QDRANT,
         loadAll,
         reindexDocument,
@@ -169,5 +201,6 @@ export function useAdmin() {
         renameDocumentLocal,
         toggleUserRole,
         toggleUserActiveLocal,
+        revokeTask,
     };
 }
