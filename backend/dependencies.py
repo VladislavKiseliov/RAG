@@ -53,7 +53,7 @@ def get_user_service(container: BackendContainer = Depends(get_container)) -> Us
     return UserService(session_factory=container.session_factory, auth_handler=container.auth_handler)
 
 def get_note_service(container: BackendContainer = Depends(get_container)) -> NoteService:
-    return NoteService(session_factory=container.session_factory)
+    return NoteService(session_factory=container.session_factory, llm_client=container.llm_client)
 
 def get_websocket_manager(container: BackendContainer = Depends(get_container)) -> WebSocketManager:
     return container.socket_manager

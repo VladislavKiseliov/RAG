@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import NoteList from '../components/notes/NoteList.jsx';
 import NoteCapture from '../components/notes/NoteCapture.jsx';
 import NoteEditor from '../components/notes/NoteEditor.jsx';
@@ -6,6 +6,11 @@ import { useNotes, FOLDERS, TAG_PALETTE } from '../hooks/useNotes';
 
 function NotesPage({ theme }) {
     const notes = useNotes();
+
+    useEffect(() => {
+        notes.loadNotes();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const folders = useMemo(() => FOLDERS.map((f) => ({
         ...f,
@@ -86,8 +91,8 @@ function NotesPage({ theme }) {
                         <span className="kb-ok-dot" />
                         <span>Индекс заметок</span>
                     </div>
-                    <div className="kb-index-row"><span>Заметок</span><span className="mono">{notes.notes.length}</span></div>
-                    <div className="kb-index-row"><span>Точек в БД</span><span className="mono kb-accent">{totalPoints}</span></div>
+                    <div className="kb-index-row"><span>Заметок</span><span key={notes.notes.length} className="mono counter-pop">{notes.notes.length}</span></div>
+                    <div className="kb-index-row"><span>Точек в БД</span><span key={totalPoints} className="mono kb-accent counter-pop">{totalPoints}</span></div>
                 </div>
             </aside>
 

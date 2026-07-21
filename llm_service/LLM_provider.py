@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Protocol
 
 from llm_service.ai_config import get_live_config
@@ -26,11 +27,17 @@ SUMMARY_USER_TEMPLATE = """СУЩЕСТВУЮЩЕЕ РЕЗЮМЕ:
 
 Напиши обновлённое резюме."""
 
+NOTE_USER_TEMPLATE = """Сегодняшняя дата: {today}
+
+ИСХОДНЫЙ ТЕКСТ:
+{raw_text}"""
+
 
 class LLMProvider(Protocol):
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str: ...
     async def generate_general(self, *, query: str, context: str) -> str: ...
     async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str: ...
+    async def generate_note(self, *, raw_text: str) -> str: ...
 
 
 class OpenAICompatLLMProvider:
@@ -100,6 +107,21 @@ class OpenAICompatLLMProvider:
         )
         return response.choices[0].message.content or ""
 
+    async def generate_note(self, *, raw_text: str) -> str:
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.note_system_prompt},
+                {"role": "user", "content": NOTE_USER_TEMPLATE.format(
+                    today=date.today().isoformat(),
+                    raw_text=raw_text,
+                )},
+            ],
+            temperature=config.llm.temperature,
+        )
+        return response.choices[0].message.content or ""
+
 
 class GroqLLMProvider:
     def __init__(self, *, api_key: str):
@@ -161,6 +183,21 @@ class GroqLLMProvider:
                 {"role": "user", "content": SUMMARY_USER_TEMPLATE.format(
                     existing_summary=existing_summary or "отсутствует",
                     history=history,
+                )},
+            ],
+            temperature=config.llm.temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_note(self, *, raw_text: str) -> str:
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.note_system_prompt},
+                {"role": "user", "content": NOTE_USER_TEMPLATE.format(
+                    today=date.today().isoformat(),
+                    raw_text=raw_text,
                 )},
             ],
             temperature=config.llm.temperature,

@@ -45,3 +45,21 @@ class SummaryRequest(BaseModel):
 class SummaryResponse(BaseModel):
     summary: str
 
+
+class NoteGenerateRequest(BaseModel):
+    raw_text: str = Field(..., min_length=1)
+
+    @field_validator("raw_text")
+    @classmethod
+    def validate_raw_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("raw_text cannot be empty")
+        return value
+
+
+class NoteGenerateResponse(BaseModel):
+    title: str
+    content: str
+    reminder: str | None = None
+    tags: list[str] = Field(default_factory=list)
+

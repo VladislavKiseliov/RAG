@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from starlette import status
 
 from backend.dependencies import CurrentUserDep, NoteServiceDep
-from backend.schemas.schemas import NoteCreateRequest, NoteUpdateRequest, NoteIndexCompleteRequest
+from backend.schemas.schemas import NoteCreateRequest, NoteUpdateRequest, NoteIndexCompleteRequest, NoteGenerateRequest
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
@@ -60,6 +60,16 @@ async def delete_note(
 ):
     await service.delete_note(note_guid=note_guid, user_id=current_user.id)
     return {"status": "deleted", "note_guid": str(note_guid)}
+
+
+@router.post("/{note_guid}/generate")
+async def generate_note(
+        note_guid: uuid.UUID,
+        payload: NoteGenerateRequest,
+        current_user: CurrentUserDep,
+        service: NoteServiceDep,
+):
+    return await service.generate_note(note_guid=note_guid, user_id=current_user.id, raw_text=payload.raw_text)
 
 
 @router.post("/{note_guid}/index")

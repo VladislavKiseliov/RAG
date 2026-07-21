@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { ENDPOINTS } from '../config/api';
+import { useApi, useShowError } from '../context/ApiContext';
 
 export const FOLDERS = [
     { id: 'all', label: 'Все заметки', icon: '▤' },
@@ -29,68 +31,61 @@ export const fmtReminder = (v) => {
     return `${m[3]}.${m[2]} ${m[4]}:${m[5]}`;
 };
 
-// Мок ИИ-трансформации потока мыслей в Markdown-черновик — на проде заменяется
-// реальным вызовом LLM с промптом из ЗАМЕТКИ - внедрение.md §2.
-const transformRawText = (raw) => {
-    const nums = raw.match(/[\d.,]+\s*(вольт|герц|градус\w*|%|мм|см)/gi) || [];
-    const title = raw.trim().split(/[.,!?]/)[0].slice(0, 46) || 'Без названия';
-    let content = `# ${title}\n\n${raw.trim().replace(/\s+/g, ' ')}\n\n`;
-    if (nums.length) {
-        content += '## Параметры\n\n';
-        nums.forEach((n) => { content += `- ${n.trim()}\n`; });
-        content += '\n';
-    }
-    content += '## Дальнейшие шаги\n\n- Проверить и уточнить детали при следующем осмотре\n- Обновить связанную документацию, если потребуется\n';
-    return { title, content };
-};
+// Бэкенд отдаёт reminder/updated_at как ISO datetime — datetime-local инпуту и fmtReminder
+// нужен голый "YYYY-MM-DDTHH:MM" без секунд/таймзоны.
+const toLocalInput = (iso) => (iso ? iso.slice(0, 16) : null);
 
-const seedNotes = () => [
-    {
-        id: 'n1', title: 'Идея: авто-сверка биллинга', folder: 'ideas', tags: ['idea', 'important'], pinned: true,
-        reminder: '2026-07-21T10:00', followUp: false, updated: 'сегодня', chunks: 9, points: 9, stage: 'edit',
-        content: '# Авто-сверка биллинга\n\nМысль после созвона: сверку с провайдером можно гонять не раз в сутки, а инкрементально по вебхукам.\n\n## Плюсы\n- расхождения видно за минуты, а не на утро\n- меньше нагрузка на батч-джобу в пик\n\n## Риски\n- нужно идемпотентно мёржить события с батч-сверкой\n- провайдер шлёт вебхуки с задержкой до 10 минут\n\nОбсудить с Артёмом на следующем синке.',
-    },
-    {
-        id: 'n2', title: 'Вопросы к архитектору по идентичности', folder: 'work', tags: ['question'], pinned: true,
-        reminder: null, followUp: true, updated: 'вчера', chunks: 6, points: 6, stage: 'edit',
-        content: '# Вопросы по Identity\n\n- Можно ли делегировать скоуп на 2 уровня (сервис → сервис → сервис)?\n- Что с ревокацией токена при смене роли пользователя посреди сессии?\n- TTL access-токена — фиксированный или настраиваемый per-client?\n\nЗадать на архитектурном созвоне.',
-    },
-    {
-        id: 'n3', title: 'Заметки с ревью PR #482', folder: 'work', tags: ['todo'], pinned: false,
-        reminder: null, followUp: false, updated: '2 дня назад', chunks: 4, points: 4, stage: 'edit',
-        content: '# Ревью PR #482\n\nПопросил Ивана:\n- вынести retry-логику в отдельную функцию\n- добавить тест на idempotency-key конфликт\n\nСам гляну ещё раз после исправлений.',
-    },
-    {
-        id: 'n4', title: 'Список книг про распределённые системы', folder: 'ideas', tags: ['ref'], pinned: false,
-        reminder: null, followUp: false, updated: '3 дня назад', chunks: 5, points: 5, stage: 'edit',
-        content: '# Почитать\n\n- Designing Data-Intensive Applications\n- Понять Raft на пальцах — статья, не книга\n- Google SRE book, главы про error budget\n\nНачать с первой, остальное по настроению.',
-    },
-    {
-        id: 'n5', title: 'Идея для onboarding-бота', folder: 'ideas', tags: ['idea'], pinned: false,
-        reminder: '2026-07-25T09:30', followUp: false, updated: '4 дня назад', chunks: 7, points: 7, stage: 'edit',
-        content: '# Onboarding-бот\n\nБот в мессенджере, который в первую неделю сам присылает чеклист онбординга по дням и пингует наставника, если пункт просрочен.\n\nПроверить, не делает ли уже People-команда что-то похожее.',
-    },
-    {
-        id: 'n6', title: 'Личное: план на отпуск', folder: 'personal', tags: [], pinned: false,
-        reminder: null, followUp: false, updated: 'неделю назад', chunks: 3, points: 3, stage: 'edit',
-        content: '# Отпуск\n\nПодумать про даты в конце августа, до старта нового квартала. Согласовать с Соней передачу редизайна портала.',
-    },
-];
+const fromBackend = (n) => ({
+    id: n.note_guid,
+    title: n.title || '',
+    content: n.content || '',
+    folder: n.folder || 'work',
+    tags: n.tags || [],
+    pinned: n.pinned,
+    reminder: toLocalInput(n.reminder),
+    followUp: n.follow_up,
+    updated: toLocalInput(n.updated_at) ? fmtReminder(n.updated_at) : '',
+    chunks: n.chunk_count || 0,
+    points: n.chunk_count || 0,
+    status: n.status,
+    stage: 'edit',
+});
 
-// Заметки — пока полностью на клиенте: у rag_service/backend ещё нет домена "заметка"
-// (нет ни таблицы, ни эндпоинта), как и было решено для черновой версии Проектов/Админки.
+const toPatchBody = (n) => ({
+    title: n.title,
+    content: n.content,
+    folder: n.folder,
+    tags: n.tags,
+    reminder: n.reminder || null,
+    pinned: n.pinned,
+    follow_up: n.followUp,
+});
+
 export function useNotes() {
-    const [notes, setNotes] = useState(seedNotes);
+    const api = useApi();
+    const showError = useShowError();
+    const [notes, setNotes] = useState([]);
     const [folder, setFolderState] = useState('all');
     const [tagFilter, setTagFilterState] = useState(null);
     const [query, setQuery] = useState('');
-    const [activeId, setActiveId] = useState('n1');
+    const [activeId, setActiveId] = useState(null);
     const [mode, setMode] = useState('editor');
     const [tagPickerOpen, setTagPickerOpen] = useState(false);
     const [rawText, setRawText] = useState('');
     const [voiceOn, setVoiceOn] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [saveState, setSaveState] = useState('idle');
+
+    const loadNotes = useCallback(async () => {
+        try {
+            const data = await api.get(ENDPOINTS.NOTES);
+            const mapped = (data.notes || []).map(fromBackend);
+            setNotes(mapped);
+            setActiveId((prev) => prev ?? (mapped[0]?.id ?? null));
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError]);
 
     const setFolder = useCallback((id) => {
         setFolderState(id);
@@ -110,87 +105,128 @@ export function useNotes() {
 
     const togglePin = useCallback((id, e) => {
         e?.stopPropagation?.();
-        setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n)));
-    }, []);
+        let nextPinned;
+        setNotes((prev) => prev.map((n) => {
+            if (n.id !== id) return n;
+            nextPinned = !n.pinned;
+            return { ...n, pinned: nextPinned };
+        }));
+        api.patch(ENDPOINTS.NOTE(id), { pinned: nextPinned }).catch((err) => showError(err.message));
+    }, [api, showError]);
 
     const updateActive = useCallback((patch) => {
         setNotes((prev) => prev.map((n) => (n.id === activeId ? { ...n, ...patch, updated: 'только что' } : n)));
     }, [activeId]);
 
     const toggleFollowUp = useCallback(() => {
-        setNotes((prev) => {
-            const n = prev.find((x) => x.id === activeId);
-            if (!n) return prev;
-            return prev.map((x) => (x.id === activeId ? { ...x, followUp: !x.followUp, updated: 'только что' } : x));
-        });
-    }, [activeId]);
+        let nextFollowUp;
+        setNotes((prev) => prev.map((n) => {
+            if (n.id !== activeId) return n;
+            nextFollowUp = !n.followUp;
+            return { ...n, followUp: nextFollowUp, updated: 'только что' };
+        }));
+        api.patch(ENDPOINTS.NOTE(activeId), { follow_up: nextFollowUp }).catch((err) => showError(err.message));
+    }, [api, showError, activeId]);
 
     const addTag = useCallback((key) => {
-        setNotes((prev) => prev.map((n) => (n.id === activeId && !n.tags.includes(key)
-            ? { ...n, tags: [...n.tags, key], updated: 'только что' }
-            : n)));
+        let nextTags;
+        setNotes((prev) => prev.map((n) => {
+            if (n.id !== activeId || n.tags.includes(key)) return n;
+            nextTags = [...n.tags, key];
+            return { ...n, tags: nextTags, updated: 'только что' };
+        }));
         setTagPickerOpen(false);
-    }, [activeId]);
+        if (nextTags) api.patch(ENDPOINTS.NOTE(activeId), { tags: nextTags }).catch((err) => showError(err.message));
+    }, [api, showError, activeId]);
 
     const removeTag = useCallback((key) => {
-        setNotes((prev) => prev.map((n) => (n.id === activeId
-            ? { ...n, tags: n.tags.filter((k) => k !== key), updated: 'только что' }
-            : n)));
-    }, [activeId]);
+        let nextTags;
+        setNotes((prev) => prev.map((n) => {
+            if (n.id !== activeId) return n;
+            nextTags = n.tags.filter((k) => k !== key);
+            return { ...n, tags: nextTags, updated: 'только что' };
+        }));
+        api.patch(ENDPOINTS.NOTE(activeId), { tags: nextTags }).catch((err) => showError(err.message));
+    }, [api, showError, activeId]);
 
-    const createNote = useCallback(() => {
-        const id = `n${Date.now()}`;
-        const note = {
-            id, title: '', folder: 'work', tags: [], pinned: false, reminder: null, followUp: false,
-            updated: 'только что', chunks: 0, points: 0, content: '', stage: 'capture',
-        };
-        setNotes((prev) => [note, ...prev]);
-        setActiveId(id);
-        setMode('editor');
-        setRawText('');
-        setSaveState('idle');
-    }, []);
+    const createNote = useCallback(async () => {
+        try {
+            const created = await api.post(ENDPOINTS.NOTES, {
+                title: '', content: '', folder: 'work', tags: [], pinned: false, reminder: null, follow_up: false,
+            });
+            const note = { ...fromBackend(created), stage: 'capture' };
+            setNotes((prev) => [note, ...prev]);
+            setActiveId(note.id);
+            setMode('editor');
+            setRawText('');
+            setSaveState('idle');
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError]);
 
-    const deleteActive = useCallback(() => {
-        setNotes((prev) => {
-            const rest = prev.filter((n) => n.id !== activeId);
-            setActiveId(rest.length ? rest[0].id : null);
-            return rest;
-        });
-    }, [activeId]);
+    const deleteActive = useCallback(async () => {
+        const id = activeId;
+        try {
+            await api.delete(ENDPOINTS.NOTE(id));
+            setNotes((prev) => {
+                const rest = prev.filter((n) => n.id !== id);
+                setActiveId(rest.length ? rest[0].id : null);
+                return rest;
+            });
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError, activeId]);
 
     const cancelCapture = useCallback(() => deleteActive(), [deleteActive]);
     const toggleVoice = useCallback(() => setVoiceOn((v) => !v), []);
 
-    const generateNote = useCallback(() => {
-        if (generating || !rawText.trim()) return;
+    // Бэкенд сам зовёт llm_service и сохраняет результат в заметку — сюда возвращается уже
+    // сохранённое состояние, ничего досохранять на фронте не нужно.
+    const generateNote = useCallback(async () => {
+        if (generating || !rawText.trim() || !activeId) return;
         setGenerating(true);
-        setTimeout(() => {
-            const { title, content } = transformRawText(rawText);
-            updateActive({ title, content, stage: 'edit' });
-            setGenerating(false);
+        try {
+            const generated = await api.post(ENDPOINTS.NOTE_GENERATE(activeId), { raw_text: rawText });
+            setNotes((prev) => prev.map((n) => (n.id === activeId ? { ...fromBackend(generated), stage: 'edit' } : n)));
             setMode('preview');
-        }, 1100);
-    }, [generating, rawText, updateActive]);
+        } catch (e) {
+            showError(e.message);
+        } finally {
+            setGenerating(false);
+        }
+    }, [api, showError, generating, rawText, activeId]);
 
-    // На проде тело запроса — то же, что при загрузке файла в Базу знаний (title/content/owner/
-    // chunkSize/overlap), плюс source_type:'note'; chunks/points обновляются из ответа индексатора.
-    const saveAndIndex = useCallback(() => {
+    const saveAndIndex = useCallback(async () => {
         if (saveState === 'saving') return;
-        setSaveState('saving');
         const id = activeId;
-        setTimeout(() => {
-            setNotes((prev) => prev.map((n) => (n.id === id
-                ? { ...n, stage: 'edit', chunks: Math.max(1, Math.round((n.content || '').length / 220)), points: Math.max(1, Math.round((n.content || '').length / 220)) }
-                : n)));
+        const note = notes.find((n) => n.id === id);
+        if (!note) return;
+        setSaveState('saving');
+        try {
+            const saved = await api.patch(ENDPOINTS.NOTE(id), toPatchBody(note));
+            const indexed = await api.post(ENDPOINTS.NOTE_INDEX(id));
+            setNotes((prev) => prev.map((n) => (n.id === id ? { ...fromBackend(indexed || saved), stage: 'edit' } : n)));
             setSaveState('saved');
             setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 1800);
-        }, 900);
-    }, [saveState, activeId]);
+            // Индексация асинхронная (Celery + колбэк в backend) — статус/chunk_count на момент
+            // ответа POST /index ещё не финальные, подтягиваем их одним доп. запросом чуть позже.
+            setTimeout(() => {
+                api.get(ENDPOINTS.NOTE(id))
+                    .then((fresh) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...fromBackend(fresh), stage: 'edit' } : n))))
+                    .catch(() => {});
+            }, 3000);
+        } catch (e) {
+            showError(e.message);
+            setSaveState('idle');
+        }
+    }, [api, showError, saveState, activeId, notes]);
 
     return {
         notes, folder, tagFilter, query, activeId, mode, tagPickerOpen,
         rawText, voiceOn, generating, saveState,
+        loadNotes,
         setFolder, setTagFilter, setQuery, setMode, open, togglePin,
         updateActive, toggleFollowUp, addTag, removeTag,
         createNote, cancelCapture, deleteActive,

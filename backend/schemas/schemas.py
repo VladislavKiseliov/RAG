@@ -158,3 +158,7 @@ class NoteUpdateRequest(BaseModel):
 class NoteIndexCompleteRequest(BaseModel):
     status: str
     chunk_count: Optional[int] = None
+
+
+class NoteGenerateRequest(BaseModel):
+    raw_text: str = Field(..., min_length=1)

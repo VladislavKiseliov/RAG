@@ -1,18 +1,21 @@
 import uuid
+from datetime import datetime
 from typing import List, Optional
 
 import httpx
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.schemas.schemas import NoteBaseSchema
+from backend.services.ai.llm_client import LLMClient
 from backend.services.unit_of_work import UnitOfWork
 from backend.settings import settings
 from backend.utils.exceptions import NoteNotFoundError
 
 
 class NoteService:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], llm_client: LLMClient):
         self._sf = session_factory
+        self._llm = llm_client
 
     async def create_note(self, user_id: int, **fields) -> NoteBaseSchema:
         async with UnitOfWork(self._sf) as uow:
@@ -79,6 +82,29 @@ class NoteService:
                 await uow.commit()
             raise
 
+        return NoteBaseSchema.model_validate(note)
+
+    async def generate_note(self, note_guid: uuid.UUID, user_id: int, raw_text: str) -> NoteBaseSchema:
+        """Гонит поток мыслей через llm_service и сохраняет результат в заметку."""
+        result = await self._llm.generate_note(raw_text=raw_text)
+
+        data = {
+            "title": result.get("title") or "",
+            "content": result.get("content") or "",
+            "tags": result.get("tags") or [],
+        }
+        reminder_raw = result.get("reminder")
+        if reminder_raw:
+            try:
+                data["reminder"] = datetime.fromisoformat(reminder_raw)
+            except ValueError:
+                pass
+
+        async with UnitOfWork(self._sf) as uow:
+            note = await uow.notes.update_note(note_guid, user_id, data)
+            if note is None:
+                raise NoteNotFoundError()
+            await uow.commit()
         return NoteBaseSchema.model_validate(note)
 
     async def mark_index_complete(self, note_guid: uuid.UUID, note_status: str, chunk_count: Optional[int]) -> None:

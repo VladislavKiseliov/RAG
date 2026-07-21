@@ -33,6 +33,22 @@ class LLMClient:
                 logger.error("LLM service unreachable: %s", str(e))
                 raise LLMUnavailableError()
 
+    async def generate_note(self, raw_text: str) -> dict:
+        url = f"{self._base_url}/llm/note"
+        payload = {"raw_text": raw_text}
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=5.0)) as client:
+            try:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error("LLM note generation error %s", e.response.status_code, extra={"body": e.response.text})
+                raise LLMError(f"Note generation failed: {e.response.text}")
+            except httpx.RequestError as e:
+                logger.error("LLM service unreachable: %s", str(e))
+                raise LLMUnavailableError()
+
     async def get_summary(self, messages: List[Dict], existing_summary: str = "") -> str:
         url = f"{self._base_url}/llm/summary"
         payload = {"messages": messages, "existing_summary": existing_summary}

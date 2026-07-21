@@ -4,7 +4,14 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from llm_service.api.schemas import AskRequest, AskResponse, SummaryRequest, SummaryResponse
+from llm_service.api.schemas import (
+    AskRequest,
+    AskResponse,
+    NoteGenerateRequest,
+    NoteGenerateResponse,
+    SummaryRequest,
+    SummaryResponse,
+)
 from llm_service.application.lean_rag_agent import LeanRagAgent
 from llm_service.dependencies import get_lean_rag_agent
 from llm_service.utils.logger_config import setup_logger
@@ -75,3 +82,39 @@ async def summarize_messages(
         raise HTTPException(status_code=502, detail=f"Summary generation failed: {exc}")
 
     return SummaryResponse(summary=summary)
+
+
+# Временный эндпоинт: генерация заметки из потока мыслей. Проксируется через
+# backend/services/ai/llm_client.py (по образцу /llm/answer, /llm/summary) — напрямую с фронта
+# не вызывается, это внутренний вызов backend -> llm_service.
+# Набор тегов зафиксирован под TAG_PALETTE во frontend/src/hooks/useNotes.js — если палитра
+# на фронте поменяется, поправить и здесь, и промпт в ai_config.toml.
+ALLOWED_NOTE_TAGS = {"important", "idea", "todo", "question", "ref"}
+
+
+@router.post("/note", response_model=NoteGenerateResponse)
+async def generate_note(
+    request: NoteGenerateRequest,
+    agent: LeanRagAgent = Depends(get_lean_rag_agent),
+) -> NoteGenerateResponse:
+    try:
+        raw = await agent.llm_provider.generate_note(raw_text=request.raw_text)
+    except Exception as exc:
+        logger.exception("Note generation failed")
+        raise HTTPException(status_code=502, detail=f"Note generation failed: {exc}")
+
+    try:
+        parsed = json.loads(raw)
+        title = str(parsed.get("title") or "").strip()
+        content = str(parsed.get("content") or "").strip()
+        reminder = parsed.get("reminder") or None
+        raw_tags = parsed.get("tags") or []
+        tags = [t for t in raw_tags if t in ALLOWED_NOTE_TAGS]
+    except (json.JSONDecodeError, AttributeError):
+        logger.warning("Note generation returned non-JSON output", extra={"raw": raw})
+        title = next((line.strip() for line in raw.splitlines() if line.strip()), "")[:60]
+        content = raw.strip()
+        reminder = None
+        tags = []
+
+    return NoteGenerateResponse(title=title or "Без названия", content=content, reminder=reminder, tags=tags)

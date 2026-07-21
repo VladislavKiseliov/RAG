@@ -273,6 +273,10 @@ class QdrantVectorStorage():
         (documents, notes, ...) key its points by its own payload field.
         """
         try:
+            # Коллекция создаётся лениво при первом upsert (см. _ensure_collection) — если её ещё
+            # нет, значит и удалять нечего. Без этой проверки delete() бьётся о 404 от Qdrant.
+            if not await self._client.collection_exists(self._collection):
+                return
             await self._client.delete(
                 collection_name=self._collection,
                 points_selector=FilterSelector(

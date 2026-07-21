@@ -23,6 +23,7 @@ class PromptsConfig(BaseModel):
     system_prompt_chat: str
     general_system_prompt: str
     summary_system_prompt: str
+    note_system_prompt: str
     query_expansion_prompt: str
 
 

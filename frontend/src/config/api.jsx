@@ -21,6 +21,10 @@ export const ENDPOINTS = {
     KNOWLEDGE_DOCUMENT_STATUS: (id) => `/api/knowledge/documents/${id}`,
     KNOWLEDGE_DOCUMENT_CHAPTER: (id, idx) => `/api/knowledge/documents/${id}/chapters/${idx}`,
     PROJECTS: "/api/projects",
+    NOTES: "/api/notes",
+    NOTE: (guid) => `/api/notes/${guid}`,
+    NOTE_GENERATE: (guid) => `/api/notes/${guid}/generate`,
+    NOTE_INDEX: (guid) => `/api/notes/${guid}/index`,
     ADMIN_HEALTH: "/admin/system/health",
     ADMIN_DOCUMENTS: "/admin/documents",
     ADMIN_DOCUMENT_UPLOAD_LINK: "/admin/documents/upload-link",
@@ -28,4 +32,6 @@ export const ENDPOINTS = {
     ADMIN_DOCUMENT_DELETE: (id) => `/admin/documents/${id}`,
     ADMIN_USERS: "/admin/users/repo",
     ADMIN_USER_ROLE: (id) => `/admin/users/repo/${id}/role`,
+    ADMIN_TASKS: "/admin/tasks",
+    ADMIN_TASK_REVOKE: (id) => `/admin/tasks/${id}/revoke`,
 };
