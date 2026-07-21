@@ -15,6 +15,7 @@ from backend.utils.exceptions import UserAlreadyExistsError
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_user)])
 RAG_SERVICE_URL = settings.RAG_SERVICE_URL.rstrip("/")
+FLOWER_URL = settings.FLOWER_URL.rstrip("/")
 
 
 class BlockUserRequest(BaseModel):
@@ -67,19 +68,21 @@ async def _measure_tcp(host: str, port: int, timeout_seconds: float = 3.0) -> tu
         return "offline", None
 
 
-async def _proxy_rag_request(
+async def _proxy_request(
+    base_url: str,
     method: str,
     path: str,
     *,
     params: dict[str, Any] | None = None,
     json_body: dict[str, Any] | None = None,
 ) -> Any:
-    """Proxy request to RAG service and normalize transport/HTTP errors.
+    """Proxy request to an internal service and normalize transport/HTTP errors.
 
     Args:
+        base_url: Target service base URL (no trailing slash).
         method: Outbound HTTP method.
-        path: Target path on RAG service, including leading slash.
-        params: Optional query params forwarded to RAG service.
+        path: Target path on the service, including leading slash.
+        params: Optional query params forwarded to the service.
         json_body: Optional JSON payload for outbound request.
 
     Returns:
@@ -87,10 +90,10 @@ async def _proxy_rag_request(
         empty responses.
 
     Raises:
-        HTTPException: If RAG service returns non-success status or is
+        HTTPException: If the service returns non-success status or is
         unreachable.
     """
-    url = f"{RAG_SERVICE_URL}{path}"
+    url = f"{base_url}{path}"
     async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
         try:
             response = await client.request(method=method, url=url, params=params, json=json_body)
@@ -100,10 +103,10 @@ async def _proxy_rag_request(
             try:
                 detail = exc.response.json()
             except Exception:
-                detail = exc.response.text or "RAG service error"
+                detail = exc.response.text or "Upstream service error"
             raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
         except httpx.RequestError as exc:
-            raise HTTPException(status_code=503, detail=f"RAG service unavailable: {exc}") from exc
+            raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}") from exc
 
     if not response.content:
         return None
@@ -111,6 +114,25 @@ async def _proxy_rag_request(
         return response.json()
     except ValueError:
         return response.text
+
+
+async def _proxy_rag_request(
+    method: str,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+) -> Any:
+    return await _proxy_request(RAG_SERVICE_URL, method, path, params=params, json_body=json_body)
+
+
+async def _proxy_flower_request(
+    method: str,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+) -> Any:
+    return await _proxy_request(FLOWER_URL, method, path, params=params)
 
 
 @router.get("/users/repo")
@@ -231,6 +253,27 @@ async def admin_documents_list(
     return await _proxy_rag_request("GET", "/documents", params=clean_params)
 
 
+@router.get("/tasks")
+async def admin_tasks_list(limit: int = Query(200, ge=1, le=1000)) -> Any:
+    """List recent Celery tasks known to Flower (dict keyed by task id)."""
+    return await _proxy_flower_request("GET", "/api/tasks", params={"limit": limit})
+
+
+@router.post("/tasks/{task_id}/revoke")
+async def admin_task_revoke(task_id: str) -> Any:
+    """Revoke a Celery task via Flower.
+
+    terminate=True sends SIGTERM to stop a task that's already running, not just
+    prevent one still queued from starting. Note: rag_worker runs a solo pool, so
+    terminating its currently running task kills the worker process itself —
+    docker restarts it (`restart: unless-stopped`), but any other task it was
+    about to process gets interrupted too.
+    """
+    return await _proxy_flower_request(
+        "POST", f"/api/task/revoke/{task_id}", params={"terminate": "true"}
+    )
+
+
 @router.get("/system/health")
 async def admin_system_health() -> Any:
     """Return real-time health and response latency for core services."""
@@ -239,6 +282,7 @@ async def admin_system_health() -> Any:
     minio_status, minio_latency = await _measure_http("http://minio:9000/minio/health/live")
     postgres_status, postgres_latency = await _measure_tcp("postgres", 5432)
     redis_status, redis_latency = await _measure_tcp("redis", 6379)
+    flower_status, flower_latency = await _measure_http(f"{FLOWER_URL}/api/workers")
 
     return {
         "services": [
@@ -248,6 +292,7 @@ async def admin_system_health() -> Any:
             {"name": "qdrant", "status": qdrant_status, "latency_ms": qdrant_latency},
             {"name": "postgres", "status": postgres_status, "latency_ms": postgres_latency},
             {"name": "redis", "status": redis_status, "latency_ms": redis_latency},
+            {"name": "flower", "status": flower_status, "latency_ms": flower_latency},
         ],
         "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }

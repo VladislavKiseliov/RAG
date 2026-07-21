@@ -196,6 +196,10 @@ services:
     container_name: rag_flower
     env_file:
       - .env
+    environment:
+      # Веб-UI и так без пароля (dev-стенд) — этот флаг открывает только REST API,
+      # который backend/api/admin_routes.py проксирует для вкладки задач в админке.
+      FLOWER_UNAUTHENTICATED_API: "true"
     command: celery --broker=${REDIS_URL:-redis://redis:6379/0} flower --port=5555
     ports:
       - "${FLOWER_PORT:-5555}:5555"

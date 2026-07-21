@@ -15,4 +15,9 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     worker_pool="solo",  # ← для Windows
+    # Без этих двух Flower не видит ни одной задачи вообще — по умолчанию Celery не шлёт
+    # событий: воркер не репортит started/succeeded/failed, а продюсер (.delay()) не шлёт
+    # sent-событие, из-за чего задачи не видны даже в очереди до того, как их подхватит воркер.
+    worker_send_task_events=True,
+    task_send_sent_event=True,
 )

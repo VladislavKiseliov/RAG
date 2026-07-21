@@ -1,10 +1,10 @@
 import React from 'react';
 
-const SERVICE_LABEL = { backend: 'Backend', rag: 'RAG Service', minio: 'MinIO', qdrant: 'Qdrant', postgres: 'PostgreSQL', redis: 'Redis' };
+const SERVICE_LABEL = { backend: 'Backend', rag: 'RAG Service', minio: 'MinIO', qdrant: 'Qdrant', postgres: 'PostgreSQL', redis: 'Redis', flower: 'Flower' };
 const STATUS_LABEL = { online: 'В сети', degraded: 'Задержка', offline: 'Недоступен' };
 const TASK_STATE_LABEL = { running: 'Выполняется', queued: 'В очереди', success: 'Готово', failed: 'Ошибка' };
 
-function SystemStatusTab({ health, qdrant, tasks }) {
+function SystemStatusTab({ health, qdrant, tasks, onRevokeTask }) {
     return (
         <div>
             <div className="adm-status-grid">
@@ -33,14 +33,15 @@ function SystemStatusTab({ health, qdrant, tasks }) {
             <div className="adm-card">
                 <div className="adm-card-title">Задачи Celery</div>
                 <div className="adm-task-list">
+                    {tasks.length === 0 && <div className="adm-empty">Нет задач</div>}
                     {tasks.map((t) => (
                         <div key={t.id} className="adm-task-row">
                             <span className={`task-dot ${t.state}`} />
                             <span className="adm-task-name mono">{t.name}</span>
                             <span className="adm-task-subject">{t.subject}</span>
                             <span className={`adm-task-state ${t.state}`}>{TASK_STATE_LABEL[t.state] || t.state}</span>
-                            {t.state === 'running' && (
-                                <div className="adm-task-progress"><div style={{ width: `${t.progress}%` }} /></div>
+                            {(t.state === 'running' || t.state === 'queued') && (
+                                <span className="adm-task-cancel" title="Отменить задачу" onClick={() => onRevokeTask(t.id)}>✕</span>
                             )}
                         </div>
                     ))}

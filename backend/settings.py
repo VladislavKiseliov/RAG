@@ -57,6 +57,7 @@ class BackendSettings(BaseSettings):
     # Internal services
     LLM_SERVICE_URL: str = "http://llm-service:8002"
     RAG_SERVICE_URL: str = "http://rag-service:8001"
+    FLOWER_URL: str = "http://flower:5555"
 
 
 settings = BackendSettings()

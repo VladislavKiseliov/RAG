@@ -43,7 +43,7 @@ function AdminPage() {
             </nav>
 
             <div className="adm-content">
-                {admin.tab === 'system' && <SystemStatusTab health={admin.health} qdrant={admin.qdrant} tasks={admin.tasks} />}
+                {admin.tab === 'system' && <SystemStatusTab health={admin.health} qdrant={admin.qdrant} tasks={admin.tasks} onRevokeTask={admin.revokeTask} />}
                 {admin.tab === 'docs' && <DocumentsTab admin={admin} />}
                 {admin.tab === 'users' && <UsersTab admin={admin} />}
                 {admin.tab === 'stats' && <StatsTab admin={admin} />}
