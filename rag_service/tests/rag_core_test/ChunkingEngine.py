@@ -1,4 +1,4 @@
-﻿"""PDF chunking engine with optional ingestion into Postgres and Qdrant."""
+"""PDF chunking engine with optional ingestion into Postgres and Qdrant."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import pymupdf4llm
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-# Allow running this file directly: python rag_service/rag_core_test/ChinkingEngine.py
+# Allow running this file directly: python rag_service/rag_core_test/ChunkingEngine.py
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parents[2]
     if str(project_root) not in sys.path:
@@ -263,7 +263,7 @@ if __name__ == "__main__":
 
     from rag_service.db.session import create_engine, create_session_factory
     from rag_service.infrastructures.providers.hf_embedding_provider import HuggingFaceEmbeddingProvider
-    from rag_service.infrastructures.repositories.local_embedding_reposittory import LocalEmbeddingProvider
+    from rag_service.infrastructures.repositories.local_embedding_repository import LocalEmbeddingProvider
     from rag_service.infrastructures.repositories.qdrant_vector_storage import QdrantVectorStorage
 
     def _load_env_file(path: Path) -> None:

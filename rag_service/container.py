@@ -21,7 +21,7 @@ from rag_service.infrastructures.providers.vector_storage_provider import Vector
 from rag_service.application.ingestion_service import IngestionService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.infrastructures.repositories.local_embedding_reposittory import LocalEmbeddingProvider
+from rag_service.infrastructures.repositories.local_embedding_repository import LocalEmbeddingProvider
 from rag_service.infrastructures.repositories.bm25_embedding_service import BM25EmbeddingService
 from rag_service.settings import settings
 
