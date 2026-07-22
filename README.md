@@ -70,7 +70,6 @@
 | `rag_service` | 8001 | Индексация и поиск документов/заметок, webhook MinIO |
 | `llm_service` | 8002 | Генерация ответов и заметок через LangGraph RAG-агент |
 | `frontend` | 5173 | Основной UI: чат, мессенджер, база знаний, заметки, проекты, встроенная админ-панель |
-| `admin-panel` | 5174 | Отдельное legacy-приложение управления документами/пользователями (дублирует часть встроенной админки во `frontend`) |
 | `rag-worker` | — | Celery-воркер: парсинг, чанкинг, векторизация документов и заметок |
 | `PostgreSQL` | 5432 | Метаданные: документы, чаты, пользователи, заметки |
 | `Qdrant` | 6333 | Векторный индекс (гибридный поиск), отдельные коллекции для документов и заметок |
@@ -314,7 +313,6 @@ backend/          — FastAPI: auth, чаты, мессенджер, замет�
 rag_service/      — ingestion, retrieval, Qdrant, MinIO webhook
 llm_service/      — LangGraph RAG agent, ML router, генерация заметок
 frontend/         — React UI: чат, мессенджер, база знаний, заметки, проекты, админка
-admin-panel/      — React admin UI (legacy, частично дублирует frontend)
 migrations/       — Alembic (users, rag)
 docker-compose.full.yml
 .env.example

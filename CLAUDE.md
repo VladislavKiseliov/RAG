@@ -58,7 +58,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 Local enterprise AI assistant for internal company documentation. Self-hosted, monorepo.
 
 ### Services & Communication
-- `frontend` / `admin-panel` → `backend` :8000 (HTTP, все внешние запросы через него)
+- `frontend` → `backend` :8000 (HTTP, все внешние запросы через него)
 - `backend` → `llm_service` :8002 (генерация ответа)
 - `backend` → `rag_service` :8001 (управление документами, proxy)
 - `llm_service` → `rag_service` :8001 (поиск по базе знаний)
