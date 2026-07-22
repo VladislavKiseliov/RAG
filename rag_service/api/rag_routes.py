@@ -245,6 +245,21 @@ async def get_document_details(
     )
 
 
+@router.post("/documents/{doc_id}/reindex", status_code=status.HTTP_202_ACCEPTED)
+async def reindex_document(
+        doc_id: str,
+        task_dispatcher: TaskDispatcherServiceDep,
+):
+    """Полная переиндексация уже загруженного документа (Docling-парсинг + Qdrant заново)."""
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError as exc:
+        raise InvalidDocumentIdError() from exc
+
+    await task_dispatcher.dispatch_reindexing(doc_uuid)
+    return {"status": "queued", "doc_id": doc_id}
+
+
 @router.post("/documents/{doc_id}/summarize", status_code=status.HTTP_202_ACCEPTED)
 async def summarize_document(
         doc_id: str,

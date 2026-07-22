@@ -13,7 +13,7 @@ from sqlalchemy.exc import OperationalError
 
 from rag_service.domain.errors.base import DuplicateFileError, InvalidIngestionStateError
 from rag_service.domain.errors.storage import StorageDeleteError, StorageReadError, StorageWriteError
-from rag_service.domain.errors.vector import VectorUpsertError
+from rag_service.domain.errors.vector import VectorUpsertError, VectorDeleteError
 from rag_service.domain.models.vector_point import VectorPoint
 
 logger = logging.getLogger(__name__)
@@ -88,8 +88,8 @@ class IngestionService:
             - `DuplicateFileError` — файл с таким хешем уже есть, удаляем эту запись сразу
               (ещё ничего не записано, кроме исходного PDF), не ретраим.
             - `StorageReadError`/`StorageWriteError`/`StorageDeleteError`/`VectorUpsertError`/
-              `OperationalError` — транзиентные инфраструктурные сбои (сеть, S3, Qdrant, БД-
-              соединение) — пробрасываем наружу, Celery ретраит (см. `workers/task.py`). Не
+              `VectorDeleteError`/`OperationalError` — транзиентные инфраструктурные сбои (сеть,
+              S3, Qdrant, БД-соединение) — пробрасываем наружу, Celery ретраит (см. `workers/task.py`). Не
               ловим здесь `DBAPIError` (базовый класс и для `IntegrityError`/`ProgrammingError`) —
               настоящее нарушение constraint'а или баг в SQL должен сразу падать в ERROR, а не
               молча ретраиться до `max_retries` как будто это временная сеть (см. B5 в ISSUES.md).
@@ -137,6 +137,12 @@ class IngestionService:
             # ШАГ 4: Индексация в векторной базе (Qdrant)
             async with self._lifecycle_step(doc):
                 doc.start_indexing()
+                # Сносим старые векторы документа перед вставкой новых — без этого
+                # реиндексация (см. dispatch_reindexing) плодила бы в Qdrant дубликаты
+                # под новыми point_id рядом со старыми чанками того же doc_id. Безопасно
+                # и для первой индексации: удалять нечего, delete_by_field на пустом
+                # результате — no-op (см. B7 в ISSUES.md).
+                await self.vector_storage.delete_by_field("doc_id", str(doc_id))
                 await self._run_pipeline(doc_id, children_chunks)
 
             # ШАГ 5: Финализация
@@ -155,7 +161,7 @@ class IngestionService:
             return IngestionResult(doc_id=doc_id, status=doc.status)
 
         except (StorageReadError, StorageWriteError, StorageDeleteError, VectorUpsertError,
-                OperationalError) as e:
+                VectorDeleteError, OperationalError) as e:
             # Транзиентная инфраструктура (S3, Qdrant, БД) — статус не трогаем,
             # Celery ретраит саму задачу (см. workers/task.py)
             logger.warning("Transient infrastructure error doc_id=%s: %s", doc_id, e)

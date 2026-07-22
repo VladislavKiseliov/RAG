@@ -32,11 +32,22 @@ class TaskDispatcherService:
         ingest_document_task.delay(str(doc.id), s3key)
 
 
-    async def dispatch_reindexing(self, doc_id: uuid.UUID):
-        """Ставит задачу на переиндексацию (будущий метод)."""
-        # from rag_service.workers.task import reindex_task
-        # reindex_task.delay(str(doc_id))
-        pass
+    async def dispatch_reindexing(self, doc_id: uuid.UUID) -> None:
+        """Ставит задачу на полную переиндексацию уже загруженного документа.
+
+        Переиспользует ту же Celery-таску, что и первичная загрузка (`ingest_document_task`) —
+        `process_document` идемпотентен: сбрасывает главы/таблицы/parent chunks в Postgres
+        (`reset_structural_data`) и старые векторы в Qdrant (`delete_by_field`) перед повторной
+        обработкой. В отличие от `dispatch_ingestion` (webhook), здесь нет проверки на
+        `status == PENDING` — реиндекс осмысленно вызывается именно для уже обработанного
+        документа.
+        """
+        from rag_service.workers.task import ingest_document_task
+        doc = await self.database.get_document_by_id(doc_id)
+        if doc is None:
+            raise DocumentNotFound(str(doc_id))
+
+        ingest_document_task.delay(str(doc_id), doc.s3key)
 
     async def dispatch_summarization(self, doc_id: uuid.UUID) -> None:
         """Пересобрать саммари глав + документа отдельно от полной переиндексации.
