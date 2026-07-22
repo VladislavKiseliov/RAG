@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import httpx
@@ -64,14 +64,9 @@ class TestRetrieveSuccess:
     async def test_returns_retrieval_result(self):
         service = make_service()
         raw = make_raw_response(items=[make_raw_item()], total=1)
+        service._client.post = AsyncMock(return_value=self._mock_response(raw))
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(return_value=self._mock_response(raw))
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await service.retrieve(["запрос"])
+        result = await service.retrieve(["запрос"])
 
         assert result.total == 1
         assert len(result.items) == 1
@@ -90,13 +85,9 @@ class TestRetrieveSuccess:
             mock_resp.raise_for_status = MagicMock()
             return mock_resp
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(side_effect=capture_post)
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        service._client.post = AsyncMock(side_effect=capture_post)
 
-            await service.retrieve(["q1", "q2", "q3", "q4", "q5"])
+        await service.retrieve(["q1", "q2", "q3", "q4", "q5"])
 
         assert len(captured["payload"]["queries"]) == 3
 
@@ -105,14 +96,9 @@ class TestRetrieveSuccess:
         service = make_service()
         items = [make_raw_item(f"раздел {i}") for i in range(10)]
         raw = make_raw_response(items=items, total=10)
+        service._client.post = AsyncMock(return_value=self._mock_response(raw))
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(return_value=self._mock_response(raw))
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await service.retrieve(["запрос"], max_parents=4)
+        result = await service.retrieve(["запрос"], max_parents=4)
 
         assert len(result.items) == 4
 
@@ -120,14 +106,9 @@ class TestRetrieveSuccess:
     async def test_empty_response_returns_empty_items(self):
         service = make_service()
         raw = make_raw_response(items=[], total=0)
+        service._client.post = AsyncMock(return_value=self._mock_response(raw))
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(return_value=self._mock_response(raw))
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await service.retrieve(["запрос"])
+        result = await service.retrieve(["запрос"])
 
         assert result.items == []
         assert result.total == 0
@@ -148,27 +129,17 @@ class TestRetrieveErrors:
         mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "500", request=MagicMock(), response=mock_resp
         )
+        service._client.post = AsyncMock(return_value=mock_resp)
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(return_value=mock_resp)
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            with pytest.raises(RagResponseError):
-                await service.retrieve(["запрос"])
+        with pytest.raises(RagResponseError):
+            await service.retrieve(["запрос"])
 
     @pytest.mark.asyncio
     async def test_connection_error_raises_rag_unavailable(self):
         service = make_service()
+        service._client.post = AsyncMock(
+            side_effect=httpx.RequestError("connection refused")
+        )
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(
-                side_effect=httpx.RequestError("connection refused")
-            )
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            with pytest.raises(RagUnavailableError):
-                await service.retrieve(["запрос"])
+        with pytest.raises(RagUnavailableError):
+            await service.retrieve(["запрос"])

@@ -32,11 +32,11 @@ class AuthHandler:
         }
         return jwt.encode(payload, self.SECRET_KEY, algorithm=self.ALGORITHM)
 
-    def decode_token(self, token: str) -> Optional[str]:
+    def decode_token(self, token: str) -> dict:
         """
-        Декодирует токен и возвращает user_id (sub).
-        Если токен невалиден или просрочен — возвращает None.
-        Логику 'raise HTTPException' мы вынесли в AuthService/Middleware.
+        Декодирует токен и возвращает весь payload (включая 'sub').
+        Если токен просрочен — кидает AccessTokenExpiredError, если невалиден
+        (битый, чужой) — AuthenticationError. Никогда не возвращает None.
         """
         try:
             payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])

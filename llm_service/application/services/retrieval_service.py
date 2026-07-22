@@ -16,8 +16,14 @@ class RetrievalService:
         max_queries: int = 6,
     ) -> None:
         self._url = f"{base_url.rstrip('/')}/documents/retrieve"
-        self._timeout = timeout
         self.max_queries = max_queries
+        # Один клиент на весь жизненный цикл сервиса — переиспользует connection
+        # pool/keep-alive к rag_service, вместо нового TCP+TLS хендшейка на каждый
+        # запрос. Закрывается в main.py::lifespan при остановке приложения.
+        self._client = httpx.AsyncClient(timeout=timeout)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
     async def retrieve(self, expanded_queries: list[str],top_k_per_query:int = 3,max_parents:int = 6) -> RetrievalResult:
         payload = {
@@ -27,9 +33,7 @@ class RetrievalService:
         logger.info("RAG retrieve", extra={"payload": payload})
 
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                response= await client.post(self._url, json=payload)
-
+            response = await self._client.post(self._url, json=payload)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             logger.error(

@@ -95,7 +95,7 @@ class LeanRagAgent:
                                                                                                       query = state.query),
                                                                   context="")).strip()
         expanded_pack = await QueryExpansionService.expand(original_query=state.query,
-                                                           row_query=raw_expansion)
+                                                           raw_query=raw_expansion)
         logger.info(
             "Expand queries finished",
             extra={

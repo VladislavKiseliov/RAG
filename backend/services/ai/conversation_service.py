@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID
 from typing import Dict, Any
 
@@ -16,6 +17,19 @@ class ConversationService:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession], llm_client: LLMClient):
         self._sf = session_factory
         self._llm = llm_client
+        # Сериализует update_summary по chat_id — без лока два параллельных сообщения в один
+        # чат, оба пересёкшие SUMMARY_THRESHOLD, читают одинаковый устаревший summary_link,
+        # шлют overlapping batch в LLM и в конце перезаписывают chat.summary друг за другом
+        # (last-write-wins), теряя более полную версию. Ключи по chat_id копятся на весь
+        # процесс — не проблема при масштабе этого проекта (self-hosted, конечное число чатов).
+        self._summary_locks: dict[int, asyncio.Lock] = {}
+
+    def _get_summary_lock(self, chat_id: int) -> asyncio.Lock:
+        lock = self._summary_locks.get(chat_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._summary_locks[chat_id] = lock
+        return lock
 
     async def _maybe_trigger_summary(self, chat_id: int, summary_link: int | None) -> None:
         async with self._sf() as session:
@@ -35,40 +49,41 @@ class ConversationService:
         return {"summary": chat.summary, "messages": short_messages}
 
     async def update_summary(self, chat_id: int) -> None:
-        async with self._sf() as session:
-            async with session.begin():
+        async with self._get_summary_lock(chat_id):
+            async with self._sf() as session:
+                async with session.begin():
+                    chat = await ChatRepository(session).get_chat(chat_id)
+                    if chat is None:
+                        raise ChatNotFoundError()
+                    batch = await MessageRepository(session).get_messages_after(
+                        chat_id=chat.id,
+                        after_id=chat.summary_link,
+                        limit=SUMMARY_THRESHOLD - HISTORY_WINDOW,
+                    )
+
+            if not batch:
+                return
+
+            new_summary_link = batch[-1].id
+            messages_dicts = [{"role": m.role, "content": m.content} for m in batch]
+
+            async with self._sf() as session:
                 chat = await ChatRepository(session).get_chat(chat_id)
                 if chat is None:
                     raise ChatNotFoundError()
-                batch = await MessageRepository(session).get_messages_after(
-                    chat_id=chat.id,
-                    after_id=chat.summary_link,
-                    limit=SUMMARY_THRESHOLD - HISTORY_WINDOW,
-                )
 
-        if not batch:
-            return
+            result = await self._llm.get_summary(
+                messages=messages_dicts,
+                existing_summary=chat.summary or "",
+            )
 
-        new_summary_link = batch[-1].id
-        messages_dicts = [{"role": m.role, "content": m.content} for m in batch]
-
-        async with self._sf() as session:
-            chat = await ChatRepository(session).get_chat(chat_id)
-            if chat is None:
-                raise ChatNotFoundError()
-
-        result = await self._llm.get_summary(
-            messages=messages_dicts,
-            existing_summary=chat.summary or "",
-        )
-
-        async with self._sf() as session:
-            async with session.begin():
-                chat = await ChatRepository(session).get_chat(chat_id)
-                if chat is None:
-                    raise ChatNotFoundError()
-                chat.summary_link = new_summary_link
-                chat.summary = result
+            async with self._sf() as session:
+                async with session.begin():
+                    chat = await ChatRepository(session).get_chat(chat_id)
+                    if chat is None:
+                        raise ChatNotFoundError()
+                    chat.summary_link = new_summary_link
+                    chat.summary = result
 
     async def process_message(self, user_id: int, chat_guid: UUID, content: str) -> Dict:
         async with self._sf() as session:

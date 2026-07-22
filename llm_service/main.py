@@ -32,6 +32,7 @@ REQUEST_DURATION = Histogram(
 async def lifespan(app: FastAPI):
     app.state.container = build_container()
     yield
+    await app.state.container.agent.retrieval_service.aclose()
 
 
 app = FastAPI(lifespan=lifespan)
