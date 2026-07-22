@@ -38,6 +38,8 @@ class LLMProvider(Protocol):
     async def generate_general(self, *, query: str, context: str) -> str: ...
     async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str: ...
     async def generate_note(self, *, raw_text: str) -> str: ...
+    async def generate_chapter_summary(self, *, chapter_text: str) -> str: ...
+    async def generate_document_summary(self, *, chapter_summaries: str) -> str: ...
 
 
 class OpenAICompatLLMProvider:
@@ -122,6 +124,30 @@ class OpenAICompatLLMProvider:
         )
         return response.choices[0].message.content or ""
 
+    async def generate_chapter_summary(self, *, chapter_text: str) -> str:
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm_summary.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.chapter_summary_system_prompt},
+                {"role": "user", "content": chapter_text},
+            ],
+            temperature=config.llm_summary.temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_document_summary(self, *, chapter_summaries: str) -> str:
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm_summary.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.document_summary_system_prompt},
+                {"role": "user", "content": chapter_summaries},
+            ],
+            temperature=config.llm_summary.temperature,
+        )
+        return response.choices[0].message.content or ""
+
 
 class GroqLLMProvider:
     def __init__(self, *, api_key: str):
@@ -201,6 +227,30 @@ class GroqLLMProvider:
                 )},
             ],
             temperature=config.llm.temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_chapter_summary(self, *, chapter_text: str) -> str:
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm_summary.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.chapter_summary_system_prompt},
+                {"role": "user", "content": chapter_text},
+            ],
+            temperature=config.llm_summary.temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_document_summary(self, *, chapter_summaries: str) -> str:
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm_summary.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.document_summary_system_prompt},
+                {"role": "user", "content": chapter_summaries},
+            ],
+            temperature=config.llm_summary.temperature,
         )
         return response.choices[0].message.content or ""
 

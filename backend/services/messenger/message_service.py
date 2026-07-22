@@ -46,10 +46,7 @@ class MessageService:
     async def mark_message_read(
         self, message_guid: str, chat_guid: str, chats: dict, user_id: int
     ) -> Messages | None:
-        if chat_guid not in chats:
-            raise ChatNotFoundError(chat_guid)
-
-        chat_id = chats[chat_guid]
+        chat_id, _ = await self.resolve_chat(chat_guid, chats)
 
         async with UnitOfWork(self._sf) as uow:
             message = await uow.messenger.get_message_by_guid(uuid.UUID(message_guid))

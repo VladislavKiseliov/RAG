@@ -115,11 +115,11 @@ async def user_typing_handler(
     user_typing_schema = UserTypingSchema(**incoming_message)
     chat_guid = str(user_typing_schema.chat_guid)
 
-    if chat_guid not in chats:
+    try:
+        chat_id, _ = await message_service.resolve_chat(chat_guid, chats)
+    except ChatNotFoundError:
         await socket_manager.send_error(f"Chat {chat_guid} does not exist", websocket)
         return
-
-    chat_id = chats[chat_guid]
     member_guids = await message_service.get_chat_member_guids(chat_id)
     await socket_manager.broadcast_to_users(member_guids, user_typing_schema.model_dump_json())
 

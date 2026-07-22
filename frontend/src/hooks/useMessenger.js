@@ -75,7 +75,7 @@ export function useMessenger(api, showError) {
                     return {
                         ...prev,
                         [data.chat_guid]: chatMsgs.map((m) =>
-                            m.guid === data.message_guid ? { ...m, is_read: true } : m
+                            (m.guid ?? m.message_guid) === data.last_read_message_guid ? { ...m, is_read: true } : m
                         ),
                     };
                 });

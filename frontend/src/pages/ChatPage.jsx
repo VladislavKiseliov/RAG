@@ -38,7 +38,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
         messenger.handleWsMessage(data);
     }, [messenger.handleWsMessage]);
 
-    const { sendMessage: wsSendMessage } = useMessengerSocket({
+    const { sendMessage: wsSendMessage, sendTyping, markRead } = useMessengerSocket({
         getAccessToken,
         onMessage: handleSocketMessage,
         enabled: !!accessToken,
@@ -84,11 +84,22 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
         aiChat.setCurrentConversationId(null);
     }, [messenger.openChat, aiChat.setCurrentConversationId]);
 
-    const messengerMessages = activeMessengerMessages ?? [];
+    const messengerMessages = useMemo(() => activeMessengerMessages ?? [], [activeMessengerMessages]);
     const activeChat = messenger.chats.find(c => String(c.chat_guid) === messenger.activeChatGuid);
     const friendName = formatUserName(activeChat);
     const isMessengerMode = !!messenger.activeChatGuid;
     const activeConversation = aiChat.conversations.find(c => c.chat_guid === aiChat.currentConversationId);
+    const othersTyping = isMessengerMode
+        && [...(messenger.typingUsers[messenger.activeChatGuid] ?? [])].some((g) => g !== currentUserGuid);
+
+    // Отмечаем последнее сообщение прочитанным при открытии чата и при приходе новых сообщений,
+    // пока чат открыт — backend upsert идемпотентен, повторные вызовы безвредны.
+    useEffect(() => {
+        if (!isMessengerMode || messengerMessages.length === 0) return;
+        const last = messengerMessages[messengerMessages.length - 1];
+        const lastGuid = last.guid ?? last.message_guid;
+        if (lastGuid) markRead(messenger.activeChatGuid, lastGuid);
+    }, [isMessengerMode, messengerMessages, messenger.activeChatGuid, markRead]);
 
     const chatHeader = isMessengerMode
         ? { icon: (friendName[0] ?? '?').toUpperCase(), title: friendName || 'Чат', sub: 'Личные сообщения', iconStyle: 'dm' }
@@ -179,11 +190,13 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                                         ))
                                     )}
                                     {aiChat.isTyping && !isMessengerMode && <Message isTyping />}
+                                    {othersTyping && <Message isTyping />}
                                     <div ref={messagesEndRef} />
                                 </div>
                                 <MessageInput
                                     onSendMessage={handleSendMessage}
                                     disabled={aiChat.isTyping && !isMessengerMode}
+                                    onTyping={isMessengerMode ? () => sendTyping(messenger.activeChatGuid, currentUserGuid) : undefined}
                                 />
                             </div>
                         </main>

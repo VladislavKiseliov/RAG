@@ -1,9 +1,10 @@
 // src/components/MessageInput.jsx
 import React, { useState, useRef, useEffect } from 'react';
 
-function MessageInput({ onSendMessage, disabled }) {
+function MessageInput({ onSendMessage, disabled, onTyping }) {
     const [message, setMessage] = useState('');
     const textareaRef = useRef(null);
+    const lastTypingRef = useRef(0);
 
     useEffect(() => {
         const textarea = textareaRef.current;
@@ -27,6 +28,16 @@ function MessageInput({ onSendMessage, disabled }) {
         }
     };
 
+    const handleChange = (e) => {
+        setMessage(e.target.value);
+        if (!onTyping) return;
+        const now = Date.now();
+        if (now - lastTypingRef.current > 2000) {
+            lastTypingRef.current = now;
+            onTyping();
+        }
+    };
+
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -42,7 +53,7 @@ function MessageInput({ onSendMessage, disabled }) {
                     placeholder={disabled ? 'Получаю ответ...' : 'Напишите сообщение...'}
                     rows="1"
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     disabled={disabled}
                     autoFocus
