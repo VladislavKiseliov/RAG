@@ -22,6 +22,21 @@
 | B5 | Ретрай-политика ловила `DBAPIError` целиком как "транзиентную инфраструктуру" — базовый класс и для `IntegrityError`/`ProgrammingError`/`DataError`, не только connection/timeout. Реальный constraint-баг ретраился бы молча до `max_retries` вместо немедленного ERROR | `ingestion_service.py` — из except-кортежа убран `DBAPIError`, оставлен только `OperationalError` (специфично про соединение/операционные сбои). Всё остальное из `DBAPIError` теперь падает в общий `except Exception` → `doc.fail()` + статус ERROR сразу |
 | B6 | Webhook от MinIO обрабатывал `event.records` без per-record try/except — упавшая запись рвала весь ответ non-200, MinIO ретраил весь вебхук, уже задиспатченные записи продиспатчились бы повторно | `rag_routes.py::handle_webhook` — per-record try/except, 200 всегда (кроме сбоя авторизации), список `failed` в ответе при частичном провале. Плюс идемпотентность в `TaskDispatcherService.dispatch_ingestion` — пропускает диспатч, если `doc.status != PENDING` |
 
+## ✅ Исправлено (2026-07-21)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| B7 | `delete_by_field` падал, если целевая Qdrant-коллекция ещё не существует (первый когда-либо апсерт в неё, например самая первая заметка пользователя) — Celery ретраил 3 раза и сдавался, сущность навсегда оставалась неиндексированной | `infrastructures/repositories/qdrant_vector_storage.py` — отсутствующую коллекцию теперь просто пропускают (нечего удалять), а не бросают исключение. Найдено по ходу работы над Заметками, не отдельная задача |
+
+## ✅ Исправлено (2026-07-22)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| D4 | `dispatch_reindexing()` пустой stub — кнопка «↻ Переиндексировать» в админке ничего не делала, роута в rag_service не было вообще | Переиспользует ту же `ingest_document_task`, что и первичная загрузка (`process_document` уже идемпотентен по Postgres). Добавлен `POST /documents/{doc_id}/reindex` в `rag_routes.py`. Попутно закрыт скрытый баг: `_run_pipeline` вставлял новые чанки под новыми `point_id`, не трогая старые — реиндекс плодил бы в Qdrant дубликаты. Перед индексацией теперь `vector_storage.delete_by_field("doc_id", ...)` сносит старые векторы документа (`ingestion_service.py`), `VectorDeleteError` добавлен в список транзиентных ошибок, которые ретраит Celery |
+| T14 | UTF-8 BOM в начале файла (`ef bb bf`) | BOM снят напрямую (`open(...,"rb")`, срез первых 3 байт) — `git diff` подтверждает единственное реальное изменение (первая строка), `py_compile` чисто |
+| T15 | BOM + CRLF-концовки строк | BOM снят, `\r\n` → `\n`; `git diff` показал, что CRLF был лишь локальным артефактом Windows-чекаута (`core.autocrlf`) — в самом блобе строки уже хранились как LF, реально изменилась только первая строка |
+| T16 | Опечатки в именах файлов | `git mv local_embedding_reposittory.py → local_embedding_repository.py`, `git mv ChinkingEngine.py → ChunkingEngine.py` (история сохранена через `git mv`). Импорты поправлены в `container.py` и внутри самого файла (`if __name__ == "__main__"` блок). Заодно снят найденный по ходу BOM в `ChunkingEngine.py` (не был в исходном списке ревью) |
+
 ---
 
 ## 🔴 Баги
@@ -102,7 +117,9 @@
 - [x] Настроен клиент MinIO в приложении — `S3StorageRepository` работает; концепция `scratch1/` как локального стейджинга упразднена целиком (пайплайн работает с bytes в памяти, без временных файлов) — критерий выполнен по духу, не буквально.
 - [x] Пайплайн парсинга завершается успешным Bulk Insert в Postgres и Upload в MinIO — подтверждено (`ingestion_service.py:284-297`, `_store_docling_artifacts`).
 - [x] При удалении документа из `documents` через каскад стираются все связанные строки — подтверждено, `ondelete="CASCADE"` + `cascade="all, delete-orphan"` на всех child-таблицах (`models/models.py:47-61,76,100,122`).
-- [ ] Не в исходном списке, но часть замысла A10: `document_tables`/`document_chapters.summary` — колонка `summary` существует, но никогда не заполняется (LLM-саммари по главам/таблицам не реализовано, см. `PARSING_TABLES_PLAN.md`).
+- [x] `document_chapters.summary` ✅ 2026-07-21 — теперь заполняется реальным LLM-саммари (`POST /llm/chapter-summary`, синтез документа через `POST /llm/document-summary`), плюс новая колонка `documents.summary` (миграция `447772e59ca2`). Ручной ре-триггер — `POST /documents/{doc_id}/summarize`. Подробности — `TODO.md`, раздел «Саммари документов и глав»
+- [ ] `document_tables.summary` — по-прежнему не реализовано (только главы/документ, не таблицы)
+- [ ] `document_meta_sections` — таблица по-прежнему не создана
 
 ---
 
@@ -119,6 +136,8 @@
 | T12 | `GET /documents` без `response_model` — схема `DocumentSummaryResponse` есть (`api/schemas.py:66`), но не подключена | `api/rag_routes.py` | 123 |
 | T13 | `PlaceholderActionResponse.detail` — обязательное поле без дефолта (используется только внутри закомментированных роутов D1, поэтому в рантайме не стреляет) | `api/schemas.py` | 133 |
 
+Всё найденное внешним код-ревью 2026-07-21 (лично перепроверено `grep`/прямым чтением файлов) закрыто 2026-07-22: rag_service-часть — T14–T16 (см. таблицу «Исправлено (2026-07-22)» выше); часть по другим сервисам, у которых нет своего ISSUES.md — `llm_service`: `retrieval_service.py` теперь держит один переиспользуемый `httpx.AsyncClient` вместо нового на каждый запрос (закрывается в `main.py::lifespan`), задвоенный `MLQueryRouter` в `query_service.py` удалён (мёртвый код), опечатка `row_query` → `raw_query`; `backend`: `auth_handler.decode_token` докстринг/тайп-хинт приведены в соответствие с реальным поведением (возвращает `dict`, кидает исключения, никогда не возвращает `None`), `ConversationService.update_summary` теперь сериализуется per-chat `asyncio.Lock`, чтобы два параллельных пересечения `SUMMARY_THRESHOLD` не гонялись за перезаписью `chat.summary`. Плюс `.idea/` untracked из git (`git rm --cached`, файлы на диске остались, изменение застейджено).
+
 ---
 
 ## 🗑️ Мёртвый код
@@ -126,7 +145,8 @@
 | # | Описание | Файл | Строка |
 |---|---|---|---|
 | D1 | ~180 строк закомментированных роутов (`/documents/{doc_id}/status`, detail, `/admin/storage/files*`, placeholder-роуты) | `api/rag_routes.py` | 94–275 |
-| D4 | `dispatch_reindexing()` пустой stub | `application/task_dispatcher_service.py` | 25–29 |
 | D6 | `update_metadata_document()` пустой stub (`pass`) | `application/document_service.py` | 198–199 |
 | D7 | `set_status()` дублирует `update_document()`; в проде вызывается только изнутри самого сервиса, воркер (`ingestion_service.py`) использует исключительно `update_document()`. Вызывается лишь из тестов | `application/document_service.py` | 160–169 |
 | D8 | `RequestLoggingMiddleware` — оба ветки `dispatch()` просто вызывают `call_next` и возвращают результат, ничего не логируют и не замеряют. Название вводит в заблуждение — выглядит как логирование запросов, по факту no-op прогонка через лишний слой `BaseHTTPMiddleware` на каждый запрос | `main.py` | 23–29 |
+| D9 | Dev-скретчи не на своём месте в тестовой директории — `server_docling.py`, `rag_core_test/ChunkingEngine.py`, `rag_core_test/chunking.py` не являются тестами (сам файл переименован при исправлении T16, но местоположение/статус мёртвого кода не менялись) | `tests/` | — |
+| D10 | Корневой (не `rag_service/tests/`) `tests/test_chinking_engine.py` — импортирует `ChinkingEngine` из `rag_service.workers.ingestion_service`, которого не существует (модуль удалён в рамках Docling-рефакторинга, остался только stale `.pyc` в `__pycache__`). Файл вдобавок содержит синтаксическую ошибку (`engine.process_document(,` — незакрытый вызов) — упадёт на импорте/парсинге, не только на логике. Найдено случайно при проверке T16 (похожее имя, другой модуль), не исправлялось — не было в скоупе сессии | `tests/test_chinking_engine.py` | 3, 18 |
