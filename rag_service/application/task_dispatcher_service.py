@@ -1,8 +1,12 @@
+import logging
 import uuid
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.application.document_service import DataBaseDocumentService
 from rag_service.domain.errors import DocumentByStorageKeyNotFound, DocumentNotFound
+from rag_service.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class TaskDispatcherService:
@@ -56,11 +60,18 @@ class TaskDispatcherService:
         summary, не накапливает), поэтому безопасно звать вручную, если саммари не
         сформировалось с первого раза (например, llm_service был недоступен).
         """
-        from rag_service.workers.task import summarize_document_chapters_task
         doc = await self.database.get_document_by_id(doc_id)
         if doc is None:
             raise DocumentNotFound(str(doc_id))
 
+        if not settings.enable_document_summarization:
+            logger.info(
+                "Chapter summarization disabled (ENABLE_DOCUMENT_SUMMARIZATION=false), "
+                "ignoring manual trigger doc_id=%s", doc_id,
+            )
+            return
+
+        from rag_service.workers.task import summarize_document_chapters_task
         summarize_document_chapters_task.delay(str(doc_id))
 
 

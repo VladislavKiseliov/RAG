@@ -17,7 +17,13 @@ class VectorIndexingService:
         - Orchestrate batching logic for heavy embedding tasks.
         - Validate input strings before processing.
         - Provide a clean interface for single query and batch document vectorization.
+        - Apply the e5 instruction prefix ("query: " / "passage: ") the embedding model
+          was trained with — the provider only sees raw text, so the prefix has to be
+          added here, where the caller's intent (query vs. passage) is actually known.
     """
+
+    _QUERY_PREFIX = "query: "
+    _PASSAGE_PREFIX = "passage: "
 
     def __init__(self,
                  embedding_provider: EmbeddingProvider,
@@ -32,6 +38,28 @@ class VectorIndexingService:
         self._embedding_provider = embedding_provider
         self._sparse_provider= sparse_provider # Наш BM25 (FastEmbed)
 
+    async def embed_queries(self, texts: list[str]) -> list[list[float]]:
+        """Эмбеддинг поисковых запросов — префикс "query: " (обязателен для e5-семейства).
+
+        Использовать только для текста, которым ищут. Никогда не звать для контента
+        документов/заметок — перепутанный префикс тихо портит качество retrieval,
+        без единой ошибки в рантайме.
+        """
+        if not texts:
+            return []
+        prefixed = [f"{self._QUERY_PREFIX}{t}" for t in texts]
+        return await self._embedding_provider.embed(prefixed)
+
+    async def embed_passages(self, texts: list[str]) -> list[list[float]]:
+        """Эмбеддинг контента для индексации — префикс "passage: " (обязателен для e5-семейства).
+
+        Использовать только для текста документов/заметок, который попадёт в индекс.
+        Никогда не звать для запросов — см. предупреждение в embed_queries().
+        """
+        if not texts:
+            return []
+        prefixed = [f"{self._PASSAGE_PREFIX}{t}" for t in texts]
+        return await self._embedding_provider.embed(prefixed)
 
     async def get_query_embedding(self, query: str) -> list[float]:
         """
@@ -47,7 +75,7 @@ class VectorIndexingService:
         if not clean_query:
             raise RuntimeError("Query text cannot be empty or whitespace only.")
 
-        vectors = await self._embedding_provider.embed([clean_query])
+        vectors = await self.embed_queries([clean_query])
 
         if not vectors:
             raise RuntimeError("Embedding provider failed to generate a vector.")
@@ -56,7 +84,9 @@ class VectorIndexingService:
 
     async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
         """
-        Converts a list of document chunks into embeddings using batching.
+        Converts a batch of search queries into embeddings (query-side only — see
+        embed_queries()). Despite the generic name, this is not for document/note
+        content; that path is get_dense_vectors()/get_hybrid_vectors().
 
         Args:
             texts: List of strings to vectorize.
@@ -72,17 +102,18 @@ class VectorIndexingService:
             raise ValueError("Input list contains empty or invalid strings.")
 
 
-        vectors = await self._embedding_provider.embed(texts)
+        vectors = await self.embed_queries(texts)
 
         return vectors
 
 
     async def get_dense_vectors(self, texts: List[str]) -> List[List[float]]:
-        """Получить только плотные вектора (например, для специфичных задач)"""
+        """Плотные вектора для контента, который индексируется (passage-side only —
+        см. embed_passages()). Не использовать для запросов."""
         if not texts:
             return []
 
-        return await self._embedding_provider.embed(texts)
+        return await self.embed_passages(texts)
 
     async def get_sparse_vectors(self, texts: List[str]) -> List[SparseVectorValue]:
         if not texts:

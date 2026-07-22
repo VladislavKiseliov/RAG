@@ -31,7 +31,10 @@ def ingest_document_task(self, doc_id: str, s3key: str):
     # Саммари глав — второстепенное дополнение поверх готового документа, не часть
     # критического пути индексации. Отдельная таска: падение/задержка LLM не должно
     # ни блокировать, ни ретраить сам ingest_document.
-    summarize_document_chapters_task.delay(doc_id)
+    if settings.enable_document_summarization:
+        summarize_document_chapters_task.delay(doc_id)
+    else:
+        logger.info("Chapter summarization disabled (ENABLE_DOCUMENT_SUMMARIZATION=false), skipping doc_id=%s", doc_id)
 
 
 async def _summarize_chapter(chapter_text: str) -> str | None:

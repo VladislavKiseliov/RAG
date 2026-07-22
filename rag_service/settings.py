@@ -73,6 +73,9 @@ class RagSettings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"  # REDIS_URL
     backend_internal_url: str = "http://backend:8000"  # BACKEND_INTERNAL_URL — колбэк по завершении индексации заметки
     llm_service_url: str = "http://llm-service:8002"  # LLM_SERVICE_URL — саммари глав отдельной Celery-таской после индексации
+    enable_document_summarization: bool = True  # ENABLE_DOCUMENT_SUMMARIZATION — временный выключатель:
+    # на время массовой переиндексации (смена эмбеддера) не тратить LLM-вызовы на саммари каждого документа.
+    # Гасит и авто-триггер после ingest (workers/task.py), и ручной POST /documents/{id}/summarize.
     max_context_chars: int = 12000
     vector_timeout_seconds: float = 600.0
 
