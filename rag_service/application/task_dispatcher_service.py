@@ -2,7 +2,7 @@ import uuid
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.application.document_service import DataBaseDocumentService
-from rag_service.domain.errors import DocumentByStorageKeyNotFound
+from rag_service.domain.errors import DocumentByStorageKeyNotFound, DocumentNotFound
 
 
 class TaskDispatcherService:
@@ -37,5 +37,19 @@ class TaskDispatcherService:
         # from rag_service.workers.task import reindex_task
         # reindex_task.delay(str(doc_id))
         pass
+
+    async def dispatch_summarization(self, doc_id: uuid.UUID) -> None:
+        """Пересобрать саммари глав + документа отдельно от полной переиндексации.
+
+        Та же таска, что и авто-триггер после ingest — идемпотентна (перезаписывает
+        summary, не накапливает), поэтому безопасно звать вручную, если саммари не
+        сформировалось с первого раза (например, llm_service был недоступен).
+        """
+        from rag_service.workers.task import summarize_document_chapters_task
+        doc = await self.database.get_document_by_id(doc_id)
+        if doc is None:
+            raise DocumentNotFound(str(doc_id))
+
+        summarize_document_chapters_task.delay(str(doc_id))
 
 

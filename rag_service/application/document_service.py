@@ -172,6 +172,20 @@ class DataBaseDocumentService:
             await repo.bulk_insert_chapters(doc_id, chapters)
             await session.commit()
 
+    async def get_chapters_by_doc_id(self, doc_id: uuid.UUID) -> list:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_chapters_by_doc_id(doc_id)
+
+    async def update_chapter_summary(self, chapter_id: uuid.UUID, summary: str) -> None:
+        async with self.session_scope() as (session, repo):
+            await repo.update_chapter_summary(chapter_id, summary)
+            await session.commit()
+
+    async def update_document_summary(self, doc_id: uuid.UUID, summary: str) -> None:
+        async with self.session_scope() as (session, repo):
+            await repo.update_document_summary(doc_id, summary)
+            await session.commit()
+
     async def add_document_tables(self, doc_id: uuid.UUID, tables: list[dict]) -> None:
         if not tables:
             return

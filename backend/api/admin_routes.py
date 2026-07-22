@@ -353,6 +353,12 @@ async def admin_document_reindex(doc_id: str) -> Any:
     return await _proxy_rag_request("POST", f"/documents/{doc_id}/reindex")
 
 
+@router.post("/documents/{doc_id}/summarize")
+async def admin_document_summarize(doc_id: str) -> Any:
+    """Re-run chapter + document summarization only, without full reindex."""
+    return await _proxy_rag_request("POST", f"/documents/{doc_id}/summarize")
+
+
 @router.get("/documents/{doc_id}/download")
 async def admin_document_download(doc_id: str) -> Response:
     """Download original document bytes through backend proxy.

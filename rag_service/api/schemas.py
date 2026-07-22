@@ -74,6 +74,7 @@ class DocumentSummaryResponse(BaseModel):
 class ChapterSummary(BaseModel):
     chapter_number: str
     title: str
+    summary: str | None = None
 
 
 class TableSummary(BaseModel):
@@ -96,6 +97,7 @@ class DocumentDetailResponse(DocumentSummaryResponse):
     file_hash: str | None = None
     s3key: str | None = None
     meta: dict[str, Any] | None = None
+    summary: str | None = None
     chapters: list[ChapterSummary] = Field(default_factory=list)
     tables: list[TableSummary] = Field(default_factory=list)
 

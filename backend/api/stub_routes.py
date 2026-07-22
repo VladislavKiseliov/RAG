@@ -86,12 +86,12 @@ def _to_ui_document(summary: dict, detail: dict | None) -> dict:
         "owner": "—",
         "updated": summary["created_at"][:10],
         "status": _STATUS_TO_UI.get(summary["status"], "processing"),
-        "summary": "Автоматическое резюме документа пока не сформировано.",
+        "summary": detail.get("summary") or "Автоматическое резюме документа пока не сформировано.",
         "sections": [
             {
                 "title": chapter["title"],
                 "chunks": None,
-                "summary": "Саммари главы пока не сформировано.",
+                "summary": chapter.get("summary") or "Саммари главы пока не сформировано.",
             }
             for chapter in chapters
         ],

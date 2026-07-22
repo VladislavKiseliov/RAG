@@ -99,6 +99,8 @@ class NoteService:
                 data["reminder"] = datetime.fromisoformat(reminder_raw)
             except ValueError:
                 pass
+        if result.get("folder"):
+            data["folder"] = result["folder"]
 
         async with UnitOfWork(self._sf) as uow:
             note = await uow.notes.update_note(note_guid, user_id, data)

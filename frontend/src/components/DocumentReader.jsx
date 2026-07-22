@@ -106,10 +106,14 @@ function DocumentReader({
                         )}
 
                         {!chapter && (
-                            <div className="kb-reader-summary-card">{doc.summary}</div>
+                            <div className="kb-reader-summary-card message-markdown">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.summary}</ReactMarkdown>
+                            </div>
                         )}
                         {chapter && contentMode === 'summary' && (
-                            <div className="kb-reader-summary-card">{chapter.summary}</div>
+                            <div className="kb-reader-summary-card message-markdown">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{chapter.summary}</ReactMarkdown>
+                            </div>
                         )}
 
                         {chapter && contentMode === 'full' && chapterContentLoading && (

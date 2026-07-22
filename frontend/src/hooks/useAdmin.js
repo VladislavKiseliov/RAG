@@ -132,6 +132,14 @@ export function useAdmin() {
         }
     }, [api, showError, loadDocuments]);
 
+    const summarizeDocument = useCallback(async (docId) => {
+        try {
+            await api.post(ENDPOINTS.ADMIN_DOCUMENT_SUMMARIZE(docId));
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError]);
+
     const deleteDocument = useCallback(async (docId) => {
         try {
             await api.delete(ENDPOINTS.ADMIN_DOCUMENT_DELETE(docId));
@@ -196,6 +204,7 @@ export function useAdmin() {
         qdrant: MOCK_QDRANT,
         loadAll,
         reindexDocument,
+        summarizeDocument,
         deleteDocument,
         uploadDocuments,
         renameDocumentLocal,

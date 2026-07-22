@@ -29,6 +29,7 @@ export const ENDPOINTS = {
     ADMIN_DOCUMENTS: "/admin/documents",
     ADMIN_DOCUMENT_UPLOAD_LINK: "/admin/documents/upload-link",
     ADMIN_DOCUMENT_REINDEX: (id) => `/admin/documents/${id}/reindex`,
+    ADMIN_DOCUMENT_SUMMARIZE: (id) => `/admin/documents/${id}/summarize`,
     ADMIN_DOCUMENT_DELETE: (id) => `/admin/documents/${id}`,
     ADMIN_USERS: "/admin/users/repo",
     ADMIN_USER_ROLE: (id) => `/admin/users/repo/${id}/role`,

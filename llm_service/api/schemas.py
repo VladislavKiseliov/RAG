@@ -62,4 +62,21 @@ class NoteGenerateResponse(BaseModel):
     content: str
     reminder: str | None = None
     tags: list[str] = Field(default_factory=list)
+    folder: str | None = None
+
+
+class ChapterSummaryRequest(BaseModel):
+    chapter_text: str = Field(..., min_length=1)
+
+
+class ChapterSummaryResponse(BaseModel):
+    summary: str
+
+
+class DocumentSummaryRequest(BaseModel):
+    chapter_summaries: str = Field(..., min_length=1)
+
+
+class DocumentSummaryResponse(BaseModel):
+    summary: str
 

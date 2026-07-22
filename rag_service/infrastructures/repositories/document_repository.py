@@ -393,6 +393,28 @@ class DocumentRepository:
         )
         return list(result.scalars().all())
 
+    async def update_chapter_summary(self, chapter_id: uuid.UUID, summary: str) -> None:
+        """Set the LLM-generated summary for one already-inserted chapter row.
+
+        Args:
+            chapter_id: `document_chapters.id` of the target chapter.
+            summary: Generated summary text.
+        """
+        await self._session.execute(
+            update(DocumentChapters).where(DocumentChapters.id == chapter_id).values(summary=summary)
+        )
+
+    async def update_document_summary(self, doc_id: uuid.UUID, summary: str) -> None:
+        """Set the LLM-synthesized summary for the whole document.
+
+        Args:
+            doc_id: Target document UUID.
+            summary: Generated summary text (synthesized from chapter summaries).
+        """
+        await self._session.execute(
+            update(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id).values(summary=summary)
+        )
+
     async def delete_structural_data(self, doc_id: uuid.UUID) -> None:
         """Delete parent chunks, chapters, and tables for a document.
 

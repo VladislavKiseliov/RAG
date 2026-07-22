@@ -123,6 +123,7 @@ function DocumentsTab({ admin }) {
                             </td>
                             <td className="adm-row-actions">
                                 {!isPersonal && <span title="Переиндексировать" onClick={() => admin.reindexDocument(d.id)}>↻</span>}
+                                {!isPersonal && <span title="Пересобрать саммари" onClick={() => admin.summarizeDocument(d.id)}>✎</span>}
                                 {!isPersonal && <span title="Удалить" onClick={() => admin.deleteDocument(d.id)}>🗑</span>}
                             </td>
                         </tr>

@@ -72,6 +72,7 @@ class RagSettings(BaseSettings):
     qdrant_path: str = "./qdrant_storage"    # QDRANT_PATH
     redis_url: str = "redis://localhost:6379/0"  # REDIS_URL
     backend_internal_url: str = "http://backend:8000"  # BACKEND_INTERNAL_URL — колбэк по завершении индексации заметки
+    llm_service_url: str = "http://llm-service:8002"  # LLM_SERVICE_URL — саммари глав отдельной Celery-таской после индексации
     max_context_chars: int = 12000
     vector_timeout_seconds: float = 600.0
 

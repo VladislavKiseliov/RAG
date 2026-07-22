@@ -239,9 +239,25 @@ async def get_document_details(
         file_hash=doc.file_hash,
         s3key=doc.s3key,
         meta=doc.meta if isinstance(doc.meta, dict) else {},
-        chapters=[ChapterSummary(chapter_number=c.chapter_number, title=c.title) for c in chapters],
+        summary=doc.summary,
+        chapters=[ChapterSummary(chapter_number=c.chapter_number, title=c.title, summary=c.summary) for c in chapters],
         tables=[TableSummary(table_index=t.table_index) for t in tables],
     )
+
+
+@router.post("/documents/{doc_id}/summarize", status_code=status.HTTP_202_ACCEPTED)
+async def summarize_document(
+        doc_id: str,
+        task_dispatcher: TaskDispatcherServiceDep,
+):
+    """Пересобрать саммари глав и документа отдельно, без полной переиндексации."""
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError as exc:
+        raise InvalidDocumentIdError() from exc
+
+    await task_dispatcher.dispatch_summarization(doc_uuid)
+    return {"status": "queued", "doc_id": doc_id}
 
 
 _TABLE_LINK_RE = re.compile(r"\[→\s*Таблица\s+(\d+)\]\([^)]*\)")
