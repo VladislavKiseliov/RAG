@@ -143,11 +143,15 @@ async def list_documents(
         database: DocServiceDep,
         limit: int = 100,
         offset: int = 0,
+        status: str | None = None,
+        filename: str | None = None,
 ):
-    """Список всех документов в базе с фильтрацией"""
+    """Список всех документов в базе с фильтрацией по статусу и названию (ilike)."""
     docs = await database.list_documents(
         limit=limit,
         offset=offset,
+        status=status,
+        filename=filename,
     )
     return [
         {
@@ -157,7 +161,8 @@ async def list_documents(
             "created_at": d.created_at.isoformat(),
             "chunk_count": d.chunk_count,
             "s3key": d.s3key,
-            "size": d.file_size
+            "size": d.file_size,
+            "has_summary": bool(d.summary),
         }
         for d in docs
     ]
@@ -216,6 +221,7 @@ async def batch_delete_documents(
 async def get_document_details(
         doc_id: str,
         document_query_service: DocQueryServiceDep,
+        document_orchestrator: DocumentOrchestratorDep,
 ):
     """Полная информация о документе: метаданные, ключ в S3, главы и таблицы"""
     try:
@@ -230,6 +236,14 @@ async def get_document_details(
     chapters = await document_query_service.get_chapters_by_doc_id(doc_uuid)
     tables = await document_query_service.get_tables_by_doc_id(doc_uuid)
 
+    # Best-effort: недоступность S3 при генерации presigned-ссылки не должна ронять
+    # весь ответ — читалка просто не покажет кнопку "Открыть исходник".
+    try:
+        file_url = await document_orchestrator.get_file_url(doc_uuid)
+    except Exception:
+        logger.warning("Failed to generate file_url for doc_id=%s", doc_id, exc_info=True)
+        file_url = None
+
     return DocumentDetailResponse(
         doc_id=str(doc.id),
         filename=doc.filename,
@@ -238,6 +252,7 @@ async def get_document_details(
         chunk_count=doc.chunk_count,
         file_hash=doc.file_hash,
         s3key=doc.s3key,
+        file_url=file_url,
         meta=doc.meta if isinstance(doc.meta, dict) else {},
         summary=doc.summary,
         chapters=[ChapterSummary(chapter_number=c.chapter_number, title=c.title, summary=c.summary) for c in chapters],

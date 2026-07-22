@@ -135,3 +135,50 @@
 .adm-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
 .adm-bar-value { width: 44px; text-align: right; color: var(--muted); flex-shrink: 0; }
 
+.adm-doc-flag-on { color: var(--ok); font-size: 14px; }
+.adm-doc-flag-off { color: var(--muted); font-size: 14px; }
+
+.adm-bulk-status { display: flex; align-items: center; gap: 9px; margin: -6px 0 14px; font-size: 12px; color: var(--accent); }
+.adm-bulk-spinner { display: inline-block; animation: admSpin .7s linear infinite; }
+
+.adm-bulk-modal-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; }
+
+.adm-bulk-modal {
+    width: 560px;
+    max-width: 92vw;
+    max-height: 80vh;
+    background: var(--sidebar, var(--card));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: fadeIn .15s ease;
+}
+
+.adm-bulk-modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 15px; font-weight: 700; color: var(--strong); }
+.adm-bulk-modal-close { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--muted); cursor: pointer; }
+.adm-bulk-modal-close:hover { background: var(--hover); color: var(--text); }
+
+.adm-bulk-modal-actions { padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.adm-bulk-modal-section-title { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 9px; }
+.adm-bulk-action-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 9px; background: var(--surface); cursor: pointer; font-size: 13px; color: var(--text); margin-bottom: 8px; }
+.adm-bulk-action-row:last-child { margin-bottom: 0; }
+
+.adm-bulk-modal-search { padding: 12px 20px 8px; flex-shrink: 0; }
+.adm-bulk-modal-search .field { width: 100%; }
+.adm-bulk-modal-search-row { display: flex; align-items: center; gap: 10px; margin-top: 9px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.adm-bulk-select-all { margin-left: auto; font-size: 11.5px; letter-spacing: normal; text-transform: none; color: var(--accent); cursor: pointer; font-weight: 600; }
+
+.adm-bulk-modal-list { padding: 6px 14px 16px; overflow-y: auto; flex: 1; }
+.adm-bulk-modal-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 9px; cursor: pointer; font-size: 12.5px; }
+.adm-bulk-modal-item:hover { background: var(--hover); }
+.adm-bulk-modal-item-title { color: var(--strong); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-bulk-modal-item-owner { color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.adm-bulk-modal-empty { padding: 20px 8px; text-align: center; font-size: 12.5px; color: var(--muted); }
+
+.adm-bulk-modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.adm-bulk-modal-footer .mono { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.adm-bulk-modal-footer .adm-upload-btn { margin-left: auto; }
+

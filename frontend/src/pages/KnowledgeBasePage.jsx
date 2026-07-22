@@ -162,6 +162,9 @@ function KnowledgeBasePage() {
                     onSetMode={kb.setContentMode}
                     onClose={kb.closeDoc}
                     onReindex={selectedDoc.personal ? () => kb.reindex(selectedDoc.id) : undefined}
+                    sourceViewerOpen={kb.sourceViewerOpen}
+                    onOpenSource={kb.openSource}
+                    onCloseSource={kb.closeSource}
                 />
             )}
         </>

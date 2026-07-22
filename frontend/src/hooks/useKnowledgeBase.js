@@ -14,6 +14,7 @@ export function useKnowledgeBase() {
     const [contentMode, setContentModeState] = useState('summary');
     const [chapterContent, setChapterContent] = useState(null);
     const [chapterContentLoading, setChapterContentLoading] = useState(false);
+    const [sourceViewerOpen, setSourceViewerOpen] = useState(false);
 
     // Список отдаёт только summary — главы (sections) для оглавления читалки грузятся лениво
     // здесь, только для реально открытого документа, а не для всей библиотеки сразу.
@@ -21,6 +22,7 @@ export function useKnowledgeBase() {
         setSelectedDocId(id);
         setChapterIdx(null);
         setContentModeState('summary');
+        setSourceViewerOpen(false);
         api.get(ENDPOINTS.KNOWLEDGE_DOCUMENT_STATUS(id))
             .then((detail) => {
                 setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, ...detail } : d)));
@@ -30,7 +32,11 @@ export function useKnowledgeBase() {
 
     const closeDoc = useCallback(() => {
         setSelectedDocId(null);
+        setSourceViewerOpen(false);
     }, []);
+
+    const openSource = useCallback(() => setSourceViewerOpen(true), []);
+    const closeSource = useCallback(() => setSourceViewerOpen(false), []);
 
     const openChapter = useCallback((i) => {
         setChapterIdx(i);
@@ -106,6 +112,9 @@ export function useKnowledgeBase() {
         setContentMode,
         chapterContent,
         chapterContentLoading,
+        sourceViewerOpen,
+        openSource,
+        closeSource,
         openDoc,
         closeDoc,
         openChapter,

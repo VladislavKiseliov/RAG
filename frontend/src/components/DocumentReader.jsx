@@ -28,6 +28,7 @@ const splitChapterText = (text) => {
 function DocumentReader({
     doc, chapterIdx, contentMode, chapterContent, chapterContentLoading,
     onOpenChapter, onBackToOverview, onSetMode, onClose, onReindex,
+    sourceViewerOpen, onOpenSource, onCloseSource,
 }) {
     const chapter = chapterIdx !== null ? doc.sections[chapterIdx] : null;
     const isProcessing = doc.status === 'processing';
@@ -41,12 +42,28 @@ function DocumentReader({
                     <div className="kb-reader-title">{doc.title}</div>
                     <div className="kb-reader-meta">{doc.type} · {doc.owner} · обновлён {doc.updated}</div>
                 </div>
+                {doc.file_url && (
+                    <div className="kb-reader-source-btn" title="Открыть исходный файл на этой странице" onClick={onOpenSource}>⤢ Открыть исходник</div>
+                )}
                 <div className="kb-reader-ask" onClick={onClose}>Спросить ассистента →</div>
                 {onReindex && (
                     <div className="kb-reader-icon-btn" title="Переиндексировать" onClick={onReindex}>↻</div>
                 )}
                 <div className="kb-reader-icon-btn" title="Закрыть" onClick={onClose}>✕</div>
             </header>
+
+            {sourceViewerOpen && doc.file_url && (
+                <div className="kb-source-overlay">
+                    <div className="kb-source-viewer">
+                        <div className="kb-source-viewer-head">
+                            <span className="kb-source-viewer-title">{doc.title}</span>
+                            <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="kb-source-viewer-link">Открыть в новой вкладке ↗</a>
+                            <span className="kb-source-viewer-close" title="Закрыть" onClick={onCloseSource}>✕</span>
+                        </div>
+                        <iframe src={doc.file_url} className="kb-source-viewer-frame" title={`Исходник: ${doc.title}`} />
+                    </div>
+                </div>
+            )}
 
             <div className="kb-reader-body">
                 <aside className="kb-reader-outline">

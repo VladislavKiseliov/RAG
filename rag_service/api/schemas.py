@@ -96,6 +96,7 @@ class ChapterContentResponse(BaseModel):
 class DocumentDetailResponse(DocumentSummaryResponse):
     file_hash: str | None = None
     s3key: str | None = None
+    file_url: str | None = None
     meta: dict[str, Any] | None = None
     summary: str | None = None
     chapters: list[ChapterSummary] = Field(default_factory=list)

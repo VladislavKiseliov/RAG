@@ -23,6 +23,11 @@ class BucketStorageProvider(Protocol):
     async def generate_presigned_url(self, key: str, expiration: int = 300) -> str:
         ...
 
+    async def generate_presigned_download_url(
+        self, key: str, *, expiration: int = 300, filename: str | None = None
+    ) -> str:
+        ...
+
     async def stat(self, key: str) -> dict[str, Any]:
         ...
 

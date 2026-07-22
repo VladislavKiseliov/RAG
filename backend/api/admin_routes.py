@@ -40,6 +40,10 @@ class BatchDeleteDocumentsRequest(BaseModel):
     doc_ids: list[str]
 
 
+class BulkDocumentActionRequest(BaseModel):
+    ids: list[str]
+
+
 async def _measure_http(url: str, timeout_seconds: float = 3.0) -> tuple[str, int | None]:
     started = time.perf_counter()
     try:
@@ -357,6 +361,41 @@ async def admin_document_reindex(doc_id: str) -> Any:
 async def admin_document_summarize(doc_id: str) -> Any:
     """Re-run chapter + document summarization only, without full reindex."""
     return await _proxy_rag_request("POST", f"/documents/{doc_id}/summarize")
+
+
+async def _bulk_dispatch_documents(action_path: str, ids: list[str]) -> dict[str, list[str]]:
+    """Fire the same per-document RAG action for a batch of ids concurrently.
+
+    Each id is dispatched independently — one bad/stale doc_id failing doesn't abort
+    the rest of the batch (same per-record isolation as the MinIO webhook, see B6 in
+    rag_service/ISSUES.md). Every call just enqueues a Celery task on the RAG side, so
+    firing them concurrently instead of one-by-one keeps this fast even for hundreds
+    of documents.
+    """
+    async def _one(doc_id: str) -> tuple[str, bool]:
+        try:
+            await _proxy_rag_request("POST", f"/documents/{doc_id}{action_path}")
+            return doc_id, True
+        except HTTPException:
+            return doc_id, False
+
+    results = await asyncio.gather(*(_one(doc_id) for doc_id in ids))
+    return {
+        "queued": [doc_id for doc_id, ok in results if ok],
+        "failed": [doc_id for doc_id, ok in results if not ok],
+    }
+
+
+@router.post("/documents/bulk-reindex")
+async def admin_documents_bulk_reindex(payload: BulkDocumentActionRequest) -> Any:
+    """Queue full reindexing for a batch of documents."""
+    return await _bulk_dispatch_documents("/reindex", payload.ids)
+
+
+@router.post("/documents/bulk-summarize")
+async def admin_documents_bulk_summarize(payload: BulkDocumentActionRequest) -> Any:
+    """Queue chapter + document summarization for a batch of documents."""
+    return await _bulk_dispatch_documents("/summarize", payload.ids)
 
 
 @router.get("/documents/{doc_id}/download")

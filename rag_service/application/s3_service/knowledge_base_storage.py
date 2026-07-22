@@ -31,6 +31,13 @@ class KnowledgeBaseStorageService:
     async def generate_presigned_url(self, key: str, expiration: int = 300) -> str:
         return await self._store.generate_presigned_url(key, bucket=self._bucket, expiration=expiration)
 
+    async def generate_presigned_download_url(
+        self, key: str, *, expiration: int = 300, filename: str | None = None
+    ) -> str:
+        return await self._store.generate_presigned_download_url(
+            key, bucket=self._bucket, expiration=expiration, filename=filename
+        )
+
     async def stat(self, key: str) -> dict[str, Any]:
         return await self._store.stat(key, bucket=self._bucket)
 

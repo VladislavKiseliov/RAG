@@ -164,6 +164,47 @@ class S3StorageRepository:
         except (ClientError, BotoCoreError) as exc:
             raise StorageMetadataError(f"Failed to generate presigned URL for '{key}'") from exc
 
+    async def generate_presigned_download_url(
+            self,
+            key: str,
+            bucket: str,
+            *,
+            expiration: int = 300,
+            filename: str | None = None,
+    ) -> str:
+        """
+        Generate a presigned GET URL for inline viewing (e.g. embedding in an <iframe>).
+
+        Sets Content-Disposition: inline instead of the browser's default download
+        prompt that a plain object URL would trigger.
+
+        Args:
+            key: Object key inside the bucket.
+            bucket: Target bucket name.
+            expiration: URL lifetime in seconds.
+            filename: Optional filename to suggest in Content-Disposition.
+
+        Returns:
+            Presigned URL.
+        """
+        disposition = "inline"
+        if filename:
+            disposition += f'; filename="{filename}"'
+
+        try:
+            async with self._get_public_client() as client:
+                return await client.generate_presigned_url(
+                    "get_object",
+                    Params={
+                        "Bucket": bucket,
+                        "Key": key,
+                        "ResponseContentDisposition": disposition,
+                    },
+                    ExpiresIn=expiration,
+                )
+        except (ClientError, BotoCoreError) as exc:
+            raise StorageMetadataError(f"Failed to generate presigned download URL for '{key}'") from exc
+
     async def stat(
             self,
             key: str,

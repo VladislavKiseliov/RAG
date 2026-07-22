@@ -77,6 +77,16 @@ class DocumentOrchestrator:
     async def get_file_s3_by_s3key(self, key: str) -> bytes:
         return await self.s3_storage.get_file(key)
 
+    async def get_file_url(self, doc_id: uuid.UUID) -> str | None:
+        """Presigned inline-viewable URL for a document's original file — powers
+        "Открыть исходник" в читалке (iframe, а не принудительный download)."""
+        document = await self.database.get_document_by_id(doc_id)
+        if document is None or not document.s3key:
+            return None
+        return await self.s3_storage.generate_presigned_download_url(
+            document.s3key, filename=document.filename
+        )
+
     async def get_document_info(self, doc_id: str) -> dict[str, Any]:
         parsed_doc_id = uuid.UUID(doc_id)
         info = await self.database.get_document_full_info(parsed_doc_id)

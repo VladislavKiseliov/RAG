@@ -21,6 +21,7 @@ const toAdminDoc = (raw) => ({
     points: raw.chunk_count ?? null,
     size: formatBytes(raw.size),
     state: raw.status === 'completed' ? 'indexed' : 'processing',
+    hasSummary: !!raw.has_summary,
 });
 
 // Состояния Celery -> 4 состояния, под которые уже стилизована вкладка (adm-task-*/task-dot).
@@ -62,6 +63,14 @@ export function useAdmin() {
     const [userPickerQuery, setUserPickerQuery] = useState('');
     const [docQuery, setDocQuery] = useState('');
     const [editingDocId, setEditingDocId] = useState(null);
+
+    const [bulkPickerOpen, setBulkPickerOpen] = useState(false);
+    const [pickerSelected, setPickerSelected] = useState(new Set());
+    const [pickerActionReindex, setPickerActionReindex] = useState(true);
+    const [pickerActionSummary, setPickerActionSummary] = useState(false);
+    const [pickerQuery, setPickerQuery] = useState('');
+    const [bulkRunning, setBulkRunning] = useState(false);
+    const [bulkStatus, setBulkStatus] = useState('');
 
     const [health, setHealth] = useState(null);
     const [documents, setDocuments] = useState([]);
@@ -140,6 +149,62 @@ export function useAdmin() {
         }
     }, [api, showError]);
 
+    // Пикер по умолчанию предлагает весь текущий (реальный, shared) список — юзер снимает лишнее,
+    // а не собирает вручную с нуля.
+    const openBulkPicker = useCallback(() => {
+        setPickerSelected(new Set(documents.map((d) => d.id)));
+        setPickerQuery('');
+        setBulkPickerOpen(true);
+    }, [documents]);
+
+    const closeBulkPicker = useCallback(() => setBulkPickerOpen(false), []);
+
+    const togglePickerDoc = useCallback((docId) => {
+        setPickerSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(docId)) next.delete(docId); else next.add(docId);
+            return next;
+        });
+    }, []);
+
+    // "Выбрать/Снять видимые" действует только на переданный (уже отфильтрованный поиском) набор id.
+    const toggleSelectVisible = useCallback((visibleIds) => {
+        setPickerSelected((prev) => {
+            const allSelected = visibleIds.length > 0 && visibleIds.every((id) => prev.has(id));
+            const next = new Set(prev);
+            visibleIds.forEach((id) => (allSelected ? next.delete(id) : next.add(id)));
+            return next;
+        });
+    }, []);
+
+    const runBulkAction = useCallback(async () => {
+        const ids = Array.from(pickerSelected);
+        if (!ids.length || (!pickerActionReindex && !pickerActionSummary)) return;
+
+        const label = [pickerActionReindex && 'переиндексация', pickerActionSummary && 'краткое по главам']
+            .filter(Boolean).join(' + ');
+        setBulkPickerOpen(false);
+        setBulkRunning(true);
+        setBulkStatus(`${label} — ${ids.length} документов…`);
+
+        try {
+            await Promise.all([
+                pickerActionReindex ? api.post(ENDPOINTS.ADMIN_DOCUMENTS_BULK_REINDEX, { ids }) : null,
+                pickerActionSummary ? api.post(ENDPOINTS.ADMIN_DOCUMENTS_BULK_SUMMARIZE, { ids }) : null,
+            ]);
+        } catch (e) {
+            showError(e.message);
+        } finally {
+            setBulkRunning(false);
+            setBulkStatus('');
+            // Задачи в Celery продолжают идти асинхронно после ответа — как и у одиночного
+            // reindexDocument, здесь нет полного поллинга до завершения, только повторные
+            // подгрузки списка, чтобы поймать часть обновлений state/hasSummary.
+            await loadDocuments();
+            setTimeout(loadDocuments, 4000);
+        }
+    }, [api, showError, pickerSelected, pickerActionReindex, pickerActionSummary, loadDocuments]);
+
     const deleteDocument = useCallback(async (docId) => {
         try {
             await api.delete(ENDPOINTS.ADMIN_DOCUMENT_DELETE(docId));
@@ -194,6 +259,12 @@ export function useAdmin() {
         userPickerQuery, setUserPickerQuery,
         docQuery, setDocQuery,
         editingDocId, setEditingDocId,
+        bulkPickerOpen, openBulkPicker, closeBulkPicker,
+        pickerSelected, togglePickerDoc, toggleSelectVisible,
+        pickerActionReindex, setPickerActionReindex,
+        pickerActionSummary, setPickerActionSummary,
+        pickerQuery, setPickerQuery,
+        bulkRunning, bulkStatus, runBulkAction,
         loading,
         uploading,
         health: health || [],

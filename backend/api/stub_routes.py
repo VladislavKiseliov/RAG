@@ -86,6 +86,7 @@ def _to_ui_document(summary: dict, detail: dict | None) -> dict:
         "owner": "—",
         "updated": summary["created_at"][:10],
         "status": _STATUS_TO_UI.get(summary["status"], "processing"),
+        "file_url": detail.get("file_url"),
         "summary": detail.get("summary") or "Автоматическое резюме документа пока не сформировано.",
         "sections": [
             {

@@ -164,14 +164,20 @@
             <span style="color:var(--muted,#7c7264); font-size:13px;">⌕</span>
             <input class="field" value="{{ docQuery }}" onInput="{{ onDocSearch }}" placeholder="Поиск по документам" style="border:0; outline:0; background:transparent; color:var(--text,#efe8dd); font-size:13px; width:100%; font-family:inherit;" />
           </div>
-          <span class="mono" style="margin-left:auto; font-size:12px; color:var(--muted,#7c7264);">{{ docsCountLabel }}</span>
+          <span class="mono" style="margin-left:auto; font-size:12px; color:var(--muted,#7c7264); white-space:nowrap;">{{ docsCountLabel }}</span>
+          <div onClick="{{ openBulkPicker }}" style="display:flex; align-items:center; gap:7px; padding:8px 13px; border-radius:9px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="filter:brightness(1.07);">☑ Выбрать…</div>
         </div>
+        <sc-if value="{{ bulkStatusVisible }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:9px; margin:-6px 0 14px; font-size:12px; color:var(--accent,#d9a441);">
+            <span style="display:inline-block; animation:aSpin .7s linear infinite;">↻</span>{{ bulkStatusLabel }}
+          </div>
+        </sc-if>
         <div style="border:1px solid var(--border,rgba(255,255,255,.06)); border-radius:14px; overflow:hidden;">
-          <div style="display:grid; grid-template-columns:2.4fr 1fr .8fr .8fr .9fr .9fr 90px; gap:0; padding:10px 16px; background:var(--surface,#15100a); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">
-            <span>Документ</span><span>Владелец</span><span>Чанки</span><span>Точки</span><span>Размер</span><span>Статус</span><span></span>
+          <div style="display:grid; grid-template-columns:2.1fr .9fr .7fr .7fr .8fr .8fr .8fr .8fr 90px; gap:0; padding:10px 16px; background:var(--surface,#15100a); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">
+            <span>Документ</span><span>Владелец</span><span>Чанки</span><span>Точки</span><span>Размер</span><span>Статус</span><span>В индексе</span><span>Саммари</span><span></span>
           </div>
           <sc-for list="{{ docRows }}" as="d" hint-placeholder-count="6">
-            <div style="display:grid; grid-template-columns:2.4fr 1fr .8fr .8fr .9fr .9fr 90px; gap:0; align-items:center; padding:11px 16px; border-top:1px solid var(--border,rgba(255,255,255,.05));">
+            <div style="display:grid; grid-template-columns:2.1fr .9fr .7fr .7fr .8fr .8fr .8fr .8fr 90px; gap:0; align-items:center; padding:11px 16px; border-top:1px solid var(--border,rgba(255,255,255,.05));">
               <sc-if value="{{ d.editing }}" hint-placeholder-val="{{ false }}">
                 <input class="field mono" value="{{ d.editValue }}" onInput="{{ d.onEditInput }}" onKeyDown="{{ d.onEditKey }}" style="border:1px solid var(--accent-soft-border,rgba(217,164,65,.4)); border-radius:7px; background:var(--surface,#15100a); color:var(--strong,#f3ead9); font-size:13px; padding:5px 8px; width:90%; font-family:inherit;" />
               </sc-if>
@@ -183,12 +189,67 @@
               <span class="mono" style="font-size:12.5px; color:var(--accent,#d9a441);">{{ d.points }}</span>
               <span class="mono" style="font-size:12.5px; color:var(--muted,#7c7264);">{{ d.size }}</span>
               <span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:{{ d.stateColor }}; white-space:nowrap;"><span style="width:6px; height:6px; border-radius:50%; flex-shrink:0; background:{{ d.stateColor }};"></span>{{ d.stateLabel }}</span>
+              <span style="font-size:14px; color:{{ d.indexedColor }};">{{ d.indexedIcon }}</span>
+              <span style="font-size:14px; color:{{ d.summaryColor }};">{{ d.summaryIcon }}</span>
               <div style="display:flex; align-items:center; gap:4px;">
                 <span onClick="{{ d.onEdit }}" title="Редактировать" style="width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">✎</span>
                 <span onClick="{{ d.onDelete }}" title="Удалить" style="width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:rgba(214,95,95,.12); color:#d65f5f;">🗑</span>
               </div>
             </div>
           </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== BULK ACTION PICKER MODAL ===== -->
+      <sc-if value="{{ bulkPickerOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeBulkPicker }}" style="position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.55);"></div>
+        <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:51; width:560px; max-width:92vw; max-height:80vh; background:var(--sidebar,#0e0b08); border:1px solid var(--border,rgba(255,255,255,.1)); border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.5); display:flex; flex-direction:column; overflow:hidden;">
+          <div style="padding:16px 20px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; gap:10px; flex-shrink:0;">
+            <span style="font-size:15px; font-weight:700; color:var(--strong,#f3ead9);">Массовая операция</span>
+            <span onClick="{{ closeBulkPicker }}" style="margin-left:auto; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">✕</span>
+          </div>
+
+          <div style="padding:16px 20px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+            <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin-bottom:9px;">Действие</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div onClick="{{ toggleActionReindex }}" style="display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:9px; background:var(--surface,#15100a); cursor:pointer;">
+                <span style="width:17px; height:17px; border-radius:5px; flex-shrink:0; border:1.5px solid {{ actionReindexBorder }}; background:{{ actionReindexBg }}; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--accent-ink,#1a150f);">{{ actionReindexCheck }}</span>
+                <span style="font-size:13px; color:var(--text,#cabfae);">↻ Переиндексировать (пересчитать чанки и векторы)</span>
+              </div>
+              <div onClick="{{ toggleActionSummary }}" style="display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:9px; background:var(--surface,#15100a); cursor:pointer;">
+                <span style="width:17px; height:17px; border-radius:5px; flex-shrink:0; border:1.5px solid {{ actionSummaryBorder }}; background:{{ actionSummaryBg }}; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--accent-ink,#1a150f);">{{ actionSummaryCheck }}</span>
+                <span style="font-size:13px; color:var(--text,#cabfae);">✦ Сформировать краткое по главам</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:12px 20px 8px; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); border-radius:9px; padding:7px 10px;">
+              <span style="color:var(--muted,#7c7264); font-size:12px;">⌕</span>
+              <input class="field" value="{{ pickerQuery }}" onInput="{{ onPickerSearch }}" placeholder="Найти документ по названию или владельцу…" style="border:0; outline:0; background:transparent; color:var(--text,#efe8dd); font-size:12.5px; width:100%; font-family:inherit;" />
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; margin-top:9px;">
+              <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">{{ pickerVisibleLabel }}</span>
+              <span onClick="{{ toggleSelectAll }}" style="margin-left:auto; font-size:11.5px; color:var(--accent,#d9a441); cursor:pointer;">{{ selectAllLabel }}</span>
+            </div>
+          </div>
+          <div style="padding:6px 14px 16px; overflow-y:auto; flex:1;">
+            <sc-for list="{{ pickerDocs }}" as="pd" hint-placeholder-count="6">
+              <div onClick="{{ pd.onToggle }}" style="display:flex; align-items:center; gap:10px; padding:8px 8px; border-radius:9px; cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+                <span style="width:16px; height:16px; border-radius:5px; flex-shrink:0; border:1.5px solid {{ pd.boxBorder }}; background:{{ pd.boxBg }}; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--accent-ink,#1a150f);">{{ pd.check }}</span>
+                <span style="font-size:12.5px; color:var(--strong,#f3ead9); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ pd.title }}</span>
+                <span class="mono" style="font-size:11px; color:var(--muted,#7c7264); white-space:nowrap; flex-shrink:0;">{{ pd.owner }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ pickerEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:20px 8px; text-align:center; font-size:12.5px; color:var(--muted,#7c7264);">Ничего не найдено</div>
+            </sc-if>
+          </div>
+
+          <div style="padding:14px 20px; border-top:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; gap:10px; flex-shrink:0;">
+            <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ pickerSelectedLabel }}</span>
+            <div onClick="{{ runBulkAction }}" style="margin-left:auto; padding:10px 18px; border-radius:10px; background:{{ runBg }}; color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">Запустить</div>
+          </div>
         </div>
       </sc-if>
 
@@ -251,6 +312,8 @@ class Component extends DCLogic {
       theme: saved, tab: 'system', refreshTick: 0, spinning: false,
       docScope: 'shared', personalUserId: null, userPickerOpen: false, userPickerQuery: '',
       docQuery: '', editingId: null, editValue: '',
+      bulkReindexing: false, bulkSummarizing: false, bulkStatus: '',
+      bulkPickerOpen: false, pickerSelected: new Set(), pickerActionReindex: true, pickerActionSummary: false, pickerQuery: '',
       docs: this.seedDocs(), users: this.seedUsers(), tasks: this.seedTasks(),
     };
     this._taskTimer = setInterval(() => this.tickTasks(), 1400);
@@ -287,16 +350,16 @@ class Component extends DCLogic {
 
   seedDocs() {
     return [
-      { id:'d1', title:'API Reference — Orders v2', owner:'Платформа', chunks:312, points:312, size:'1.2 МБ', state:'indexed', scope:'shared' },
-      { id:'d2', title:'Руководство по CI/CD', owner:'DevEx', chunks:148, points:148, size:'340 КБ', state:'indexed', scope:'shared' },
-      { id:'d3', title:'Архитектура сервисов', owner:'Архитектура', chunks:268, points:268, size:'2.1 МБ', state:'indexed', scope:'shared' },
-      { id:'d4', title:'Runbook: миграция БД на v2', owner:'SRE', chunks:96, points:96, size:'180 КБ', state:'indexed', scope:'shared' },
-      { id:'d5', title:'Гайд по код-стайлу', owner:'DevEx', chunks:64, points:64, size:'96 КБ', state:'indexed', scope:'shared' },
-      { id:'d6', title:'Onboarding инженера', owner:'People', chunks:112, points:112, size:'420 КБ', state:'indexed', scope:'shared' },
-      { id:'d7', title:'Выжимка из созвона 12.06', owner:'Влад Логинов', ownerId:'u1', chunks:51, points:38, size:'88 КБ', state:'processing', scope:'personal' },
-      { id:'d8', title:'Заметки: архитектура биллинга', owner:'Влад Логинов', ownerId:'u1', chunks:36, points:36, size:'64 КБ', state:'indexed', scope:'personal' },
-      { id:'d9', title:'Черновик: миграция очередей', owner:'Иван Петров', ownerId:'u2', chunks:29, points:29, size:'52 КБ', state:'indexed', scope:'personal' },
-      { id:'d10', title:'UX-заметки по ревью портала', owner:'Соня Кравец', ownerId:'u3', chunks:18, points:18, size:'31 КБ', state:'indexed', scope:'personal' },
+      { id:'d1', title:'API Reference — Orders v2', owner:'Платформа', chunks:312, points:312, size:'1.2 МБ', state:'indexed', scope:'shared', hasSummary:true },
+      { id:'d2', title:'Руководство по CI/CD', owner:'DevEx', chunks:148, points:148, size:'340 КБ', state:'indexed', scope:'shared', hasSummary:true },
+      { id:'d3', title:'Архитектура сервисов', owner:'Архитектура', chunks:268, points:268, size:'2.1 МБ', state:'indexed', scope:'shared', hasSummary:true },
+      { id:'d4', title:'Runbook: миграция БД на v2', owner:'SRE', chunks:96, points:96, size:'180 КБ', state:'indexed', scope:'shared', hasSummary:true },
+      { id:'d5', title:'Гайд по код-стайлу', owner:'DevEx', chunks:64, points:64, size:'96 КБ', state:'indexed', scope:'shared', hasSummary:false },
+      { id:'d6', title:'Onboarding инженера', owner:'People', chunks:112, points:112, size:'420 КБ', state:'indexed', scope:'shared', hasSummary:true },
+      { id:'d7', title:'Выжимка из созвона 12.06', owner:'Влад Логинов', ownerId:'u1', chunks:51, points:38, size:'88 КБ', state:'processing', scope:'personal', hasSummary:false },
+      { id:'d8', title:'Заметки: архитектура биллинга', owner:'Влад Логинов', ownerId:'u1', chunks:36, points:36, size:'64 КБ', state:'indexed', scope:'personal', hasSummary:true },
+      { id:'d9', title:'Черновик: миграция очередей', owner:'Иван Петров', ownerId:'u2', chunks:29, points:29, size:'52 КБ', state:'indexed', scope:'personal', hasSummary:false },
+      { id:'d10', title:'UX-заметки по ревью портала', owner:'Соня Кравец', ownerId:'u3', chunks:18, points:18, size:'31 КБ', state:'indexed', scope:'personal', hasSummary:true },
     ];
   }
   seedUsers() {
@@ -346,6 +409,85 @@ class Component extends DCLogic {
   setPersonalUser(id){ this.setState({ personalUserId: id, userPickerOpen:false, userPickerQuery:'' }); }
   toggleUserPicker(){ this.setState(s => ({ userPickerOpen: !s.userPickerOpen, userPickerQuery:'' })); }
   onUserPickerSearch(e){ this.setState({ userPickerQuery: e.target.value }); }
+
+  // Bulk: re-run chunking + embedding for every document currently in view (scope-aware).
+  reindexAll(){
+    if (this.state.bulkReindexing) return;
+    const ids = this.currentScopedDocIds();
+    this.setState({ bulkReindexing:true, bulkStatus: 'Переиндексация ' + ids.length + ' документов…' });
+    this.setState(s => ({ docs: s.docs.map(d => ids.includes(d.id) ? {...d, state:'processing'} : d) }));
+    setTimeout(() => {
+      this.setState(s => ({ docs: s.docs.map(d => ids.includes(d.id) ? {...d, state:'indexed'} : d) }));
+      this.setState({ bulkReindexing:false, bulkStatus:'' });
+    }, 1600);
+  }
+
+  // Bulk: request an LLM chapter-by-chapter summary for every document currently in view.
+  summarizeAll(){
+    if (this.state.bulkSummarizing) return;
+    const ids = this.currentScopedDocIds();
+    this.setState({ bulkSummarizing:true, bulkStatus: 'Генерирую краткое по главам для ' + ids.length + ' документов…' });
+    setTimeout(() => {
+      this.setState({ bulkSummarizing:false, bulkStatus:'' });
+    }, 1800);
+  }
+  currentScopedDocIds(){
+    return this.state.docs.filter(d => {
+      if ((d.scope||'shared') !== this.state.docScope) return false;
+      if (this.state.docScope==='personal' && this.state.personalUserId && d.ownerId !== this.state.personalUserId) return false;
+      return true;
+    }).map(d=>d.id);
+  }
+
+  openBulkPicker(){
+    this.setState({ bulkPickerOpen:true, pickerSelected: new Set(this.currentScopedDocIds()), pickerQuery:'' });
+  }
+  closeBulkPicker(){ this.setState({ bulkPickerOpen:false }); }
+  onPickerSearch(e){ this.setState({ pickerQuery: e.target.value }); }
+  togglePickerDoc(id){
+    this.setState(s => {
+      const next = new Set(s.pickerSelected);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return { pickerSelected: next };
+    });
+  }
+  pickerVisibleIds(){
+    const q = this.state.pickerQuery.trim().toLowerCase();
+    const ids = this.currentScopedDocIds();
+    if (!q) return ids;
+    return ids.filter(id => {
+      const d = this.state.docs.find(x=>x.id===id);
+      return d && (d.title+' '+d.owner).toLowerCase().includes(q);
+    });
+  }
+  // "Select all" only affects the currently filtered/visible subset — safe with 100+ docs.
+  toggleSelectAll(){
+    const ids = this.pickerVisibleIds();
+    this.setState(s => {
+      const allSelected = ids.every(id => s.pickerSelected.has(id));
+      const next = new Set(s.pickerSelected);
+      ids.forEach(id => allSelected ? next.delete(id) : next.add(id));
+      return { pickerSelected: next };
+    });
+  }
+  toggleActionReindex(){ this.setState(s => ({ pickerActionReindex: !s.pickerActionReindex })); }
+  toggleActionSummary(){ this.setState(s => ({ pickerActionSummary: !s.pickerActionSummary })); }
+
+  runBulkAction(){
+    const ids = Array.from(this.state.pickerSelected);
+    if (!ids.length || (!this.state.pickerActionReindex && !this.state.pickerActionSummary)) return;
+    const doReindex = this.state.pickerActionReindex, doSummary = this.state.pickerActionSummary;
+    const label = [doReindex && 'переиндексация', doSummary && 'краткое по главам'].filter(Boolean).join(' + ');
+    this.setState({ bulkPickerOpen:false, bulkReindexing:true, bulkStatus: (label||'Операция') + ' для ' + ids.length + ' документов…' });
+    if (doReindex) this.setState(s => ({ docs: s.docs.map(d => ids.includes(d.id) ? {...d, state:'processing'} : d) }));
+    setTimeout(() => {
+      this.setState(s => ({ docs: s.docs.map(d => {
+        if (!ids.includes(d.id)) return d;
+        return { ...d, state: doReindex ? 'indexed' : d.state, hasSummary: doSummary ? true : d.hasSummary };
+      }) }));
+      this.setState({ bulkReindexing:false, bulkStatus:'' });
+    }, 1700);
+  }
   startEdit(id, title){ this.setState({ editingId:id, editValue:title }); }
   editInput(e){ this.setState({ editValue: e.target.value }); }
   commitEdit(){
@@ -450,6 +592,8 @@ class Component extends DCLogic {
           onEdit: () => editing ? this.commitEdit() : this.startEdit(d.id, d.title),
           onDelete: () => this.deleteDoc(d.id),
           stateLabel: sm.label, stateColor: sm.color,
+          indexedIcon: d.state==='indexed' ? '✓' : '–', indexedColor: d.state==='indexed' ? 'var(--ok)' : 'var(--muted)',
+          summaryIcon: d.hasSummary ? '✓' : '–', summaryColor: d.hasSummary ? 'var(--ok)' : 'var(--muted)',
         };
       });
 
@@ -490,6 +634,24 @@ class Component extends DCLogic {
       docQuery: this.state.docQuery, onDocSearch: (e) => this.onDocSearch(e),
       docsCountLabel: docRows.length + ' из ' + scopedDocs.length,
       docRows, scopeTabs, isPersonalScope,
+      bulkStatusVisible: !!this.state.bulkStatus, bulkStatusLabel: this.state.bulkStatus,
+      openBulkPicker: () => this.openBulkPicker(), closeBulkPicker: () => this.closeBulkPicker(),
+      bulkPickerOpen: this.state.bulkPickerOpen,
+      toggleActionReindex: () => this.toggleActionReindex(), toggleActionSummary: () => this.toggleActionSummary(),
+      actionReindexBg: this.state.pickerActionReindex ? 'var(--accent)' : 'transparent', actionReindexBorder: this.state.pickerActionReindex ? 'var(--accent)' : 'var(--muted)', actionReindexCheck: this.state.pickerActionReindex ? '✓' : '',
+      actionSummaryBg: this.state.pickerActionSummary ? 'var(--accent)' : 'transparent', actionSummaryBorder: this.state.pickerActionSummary ? 'var(--accent)' : 'var(--muted)', actionSummaryCheck: this.state.pickerActionSummary ? '✓' : '',
+      pickerQuery: this.state.pickerQuery, onPickerSearch: (e) => this.onPickerSearch(e),
+      toggleSelectAll: () => this.toggleSelectAll(),
+      selectAllLabel: this.pickerVisibleIds().every(id => this.state.pickerSelected.has(id)) && this.pickerVisibleIds().length ? 'Снять видимые' : 'Выбрать видимые',
+      pickerVisibleLabel: this.pickerVisibleIds().length + ' документов',
+      pickerDocs: this.pickerVisibleIds().map(id => this.state.docs.find(d=>d.id===id)).filter(Boolean).map(d => {
+        const sel = this.state.pickerSelected.has(d.id);
+        return { title:d.title, owner:d.owner, onToggle: () => this.togglePickerDoc(d.id), check: sel?'✓':'', boxBg: sel?'var(--accent)':'transparent', boxBorder: sel?'var(--accent)':'var(--muted)' };
+      }),
+      pickerEmpty: this.pickerVisibleIds().length === 0,
+      pickerSelectedLabel: this.state.pickerSelected.size + ' выбрано (из всех отфильтрованных)',
+      runBg: this.state.pickerSelected.size ? 'var(--accent)' : 'var(--surface)',
+      runBulkAction: () => this.runBulkAction(),
       userPickerOpen: this.state.userPickerOpen, toggleUserPicker: () => this.toggleUserPicker(),
       userPickerQuery: this.state.userPickerQuery, onUserPickerSearch: (e) => this.onUserPickerSearch(e),
       personalPickerLabel, pickerList, pickerCount: pickerList.length,
