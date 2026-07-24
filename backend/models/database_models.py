@@ -112,7 +112,7 @@ class Chats(Base):
 
     # Накопленное саммари чата — AI использует его как контекст (работает для всех типов чатов)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    summary_link: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    summary_link: Mapped[int | None] = mapped_column(Integer, nullable=True)
     summary_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Участники чата через join-таблицу

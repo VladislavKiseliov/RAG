@@ -64,7 +64,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('summary', sa.Text(), nullable=True),
-    sa.Column('summary_link', sa.UUID(), nullable=True),
+    sa.Column('summary_link', sa.Integer(), nullable=True),
     sa.Column('summary_count', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['created_by_id'], ['users_shema.users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id'),
