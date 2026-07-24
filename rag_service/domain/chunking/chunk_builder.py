@@ -61,7 +61,8 @@ class ChildChunk:
 class ChildChunkBuilder:
     """Нарезает parent chunk на child chunks для retrieval."""
 
-    def __init__(self, chunk_size: int = 400, chunk_overlap: int = 40) -> None:
+    def __init__(self, chunk_size: int = 400, chunk_overlap: int = 40, max_structured_chunk: int = 1500) -> None:
+        self._max_structured_chunk = max_structured_chunk
         self._splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -72,7 +73,20 @@ class ChildChunkBuilder:
         # Сначала пробуем резать по структуре нумерованных подпунктов.
         structured_chunks = self._split_by_numbered_points(text)
         if structured_chunks:
-            return [ChildChunk(text=chunk) for chunk in structured_chunks]
+            result: list[ChildChunk] = []
+            for chunk in structured_chunks:
+                # Между соседними пунктами номенклатуры может оказаться длинный кусок
+                # прозы — досекаем такие рекурсивным сплиттером (по предложениям),
+                # иначе чанк превышает лимит модели в 512 токенов и эмбеддинг падает.
+                if len(chunk) <= self._max_structured_chunk:
+                    result.append(ChildChunk(text=chunk))
+                else:
+                    result.extend(
+                        ChildChunk(text=sub.strip())
+                        for sub in self._splitter.split_text(chunk)
+                        if self._is_valid(sub.strip())
+                    )
+            return result
 
         # Если явной структуры нет, режем стандартным сплиттером.
         return [

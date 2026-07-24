@@ -44,6 +44,7 @@
 | # | Описание | Файл | Строка |
 |---|---|---|---|
 | B3 | `score_threshold` в `search()` не доходит до Qdrant — `query_points()` вызывается без этого kwarg (в `batch_search()` передаётся корректно, асимметрия между методами) | `infrastructures/repositories/qdrant_vector_storage.py` | 191–199 |
+| B8 | (backend, не rag_service) `Chats.summary_link` в модели и в корневой миграции типизирован как `UUID(as_uuid=True)`, а `ConversationService` везде трактует его как integer — id последнего сообщения в батче, курсор для `get_messages_after`. Каждый раз, когда чат переваливает `SUMMARY_THRESHOLD` и `update_summary()` пытается сохранить `chat.summary_link = <int>`, запись падает с ошибкой типа. У всех существующих чатов `summary_link = NULL` — саммаризация чатов ни разу не срабатывала успешно с момента создания фичи, данных для миграции терять не приходится | `backend/models/database_models.py:115`, `backend/services/ai/conversation_service.py:34,60,67,85`, `migrations/users/versions/8506a89ad7d9_..._.py:67` | — |
 
 ---
 

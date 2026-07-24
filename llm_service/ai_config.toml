@@ -1,6 +1,7 @@
 # Настройки нейросетей проекта
 [llm]
-model_name = "google/gemini-3-flash-preview"
+model_name = "openai/gpt-oss-120b"
+#model_name = "google/gemini-3-flash-preview"
 temperature = 0.2
 max_tokens = 2048
 

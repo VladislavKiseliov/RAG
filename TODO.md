@@ -35,7 +35,7 @@
 - [x] N+1 в списке Базы знаний ✅ 2026-07-20 — убран целиком, не просто ограничен: список (`GET /documents`) теперь без деталей, главы грузятся лениво только при открытии документа (новый `GET /api/knowledge/documents/{doc_id}`, `useKnowledgeBase.js::openDoc`)
 
 ### Фаза 2 — Достроить то, что фронт уже показывает как готовое
-- [x] Админ-панель: мониторинг/отмена Celery-задач ✅ 2026-07-21 — proxy к Flower REST (`GET /admin/tasks`, revoke), см. `[[admin_celery_flower_and_ux_fixes_2026_07_21]]` в памяти. Осталось: health-поллинг, реальные `scope`/`ownerId` документов, персист rename/role/block, confirm-диалоги
+- [x] Админ-панель: мониторинг/отмена Celery-задач ✅ 2026-07-21 — proxy к Flower REST (`GET /admin/tasks`, revoke). Массовые операции (bulk-reindex/bulk-summarize) + просмотр исходника PDF ✅ 2026-07-22 — см. раздел «Просмотр PDF + массовые операции» ниже. Legacy `admin-panel/` (отдельное React-приложение, порт 5174/81) снесена той же датой — функционально устарела и была хуже встроенной (Tasks/Dashboard там на моках). Осталось: health-поллинг, реальные `scope`/`ownerId` документов, персист rename/role/block, confirm-диалоги
 - [ ] База знаний: upload/patch документа — снять с in-memory `_DOCUMENTS` в `stub_routes.py`
 - [x] Заметки ✅ полностью готово 2026-07-21 — бэкенд (2026-07-20) + фронт (`useNotes.js`) переключён на реальные `/api/notes/*` + LLM-генерация подключена (`POST /api/notes/{guid}/generate`). См. раздел «Заметки» ниже
 - [ ] Проекты — полный DDD-бэкенд (см. Фичу 5 ниже) — `toggleTask`/`addFile` сейчас не переживают reload
@@ -139,6 +139,29 @@
 - [ ] `document_meta_sections` — таблица так и не создана
 - [ ] Кнопка «↻ Переиндексировать» в админке не работает вообще — не относится к саммари, но найдено
       по ходу; см. D4 в `rag_service/ISSUES.md`
+
+---
+
+### Просмотр PDF + массовые операции в админке ✅ готово 2026-07-22
+Внедрение по `frontend/handoff_3_экрана/PDF ПРОСМОТР И МАССОВЫЕ ОПЕРАЦИИ - внедрение.md`.
+
+- Просмотр исходника: `S3StorageRepository.generate_presigned_download_url()` (presigned GET,
+  `Content-Disposition: inline`, не attachment) → `DocumentOrchestrator.get_file_url()` →
+  `GET /documents/{id}` отдаёт `file_url` (best-effort). `DocumentReader.jsx` — кнопка
+  «⤢ Открыть исходник» + iframe-модалка
+- Массовые операции: `GET /documents` в rag_service теперь реально фильтрует по `status`/`filename`
+  (роут раньше игнорировал параметры, которые backend уже слал — докстринг врал про «с фильтрацией»),
+  плюс отдаёт `has_summary`. `POST /admin/documents/bulk-reindex`/`bulk-summarize` в backend — конкурентный
+  `asyncio.gather` по уже готовым одиночным эндпоинтам. `DocumentsTab.jsx` — модалка выбора (действия,
+  поиск, выбрать/снять видимые), 2 колонки статуса («В индексе»/«Саммари»)
+
+**Упрощено осознанно, не в объёме:**
+- [ ] Поиск в bulk-пикере — клиентский (как у основной таблицы), не серверный — не тянет сотни документов
+- [ ] Статус после запуска — разовый + отложенный reload, не полный поллинг по задачам Celery
+- [ ] Fallback-сообщение для форматов без превью (DOCX и т.п. в iframe) — не сделан
+- [ ] Кнопка «Скачать» в админке (`admin_document_download`) — найдена сломанной по ходу (зовёт
+      несуществующий роут rag_service `/documents/storage/files/content`), не чинил, хотя presigned-URL
+      инфраструктура для фикса уже есть
 
 ---
 
@@ -336,7 +359,20 @@ Qdrant-коллекцию `notes_collection_with_sparse_vector` (`rag_service/ap
 - [x] Коллекция: `vectors_config` + `sparse_vectors_config` (IDF modifier)
 - [x] Пакетный поиск через `query_batch_points`
 - [x] Prefetch + DBSF fusion
+- [x] e5-инструкционные префиксы `query:`/`passage:` ✅ 2026-07-22 — эмбеддинг-модель
+      (`intfloat/multilingual-e5-large`) обучена с обязательными префиксами, `LocalEmbeddingProvider`
+      гнал голый текст. `VectorIndexingService.embed_queries()`/`embed_passages()`, 8 тестов на
+      разделение query/passage. **Не задеплоено**: код закоммичен, но требует полной переиндексации
+      всего корпуса (документы + заметки) — старые векторы посчитаны без префиксов, смешанный индекс
+      даёт мусорный поиск. `ENABLE_DOCUMENT_SUMMARIZATION=false` в `.env` временно, пока не переиндексировано
 - [ ] Очистка текста перед индексацией (склеенные слова)
 - [ ] Score threshold после DBSF — подобрать порог
-- [ ] Полная переиндексация на новую схему коллекции
+- [ ] Полная переиндексация на новую схему коллекции — то же самое действие, что нужно и для
+      e5-префиксов выше; логично сделать одним прогоном
 - [ ] Стресс-тест на аббревиатурах и склеенных словах
+- [x] TEI-миграция (text-embeddings-inference) ✅ 2026-07-23 — `TeiEmbeddingProvider` заменил
+      `LocalEmbeddingProvider`(sentence-transformers) в `container.py`, сервис `tei` в docker-compose
+      (GPU, `turing-1.8` под GTX 1660 Ti), rag-api и rag-worker теперь делят один инстанс модели вместо
+      своей копии каждый. Рантайм проверен живым `/embed`-запросом через docker-сеть — работает.
+      **Не закоммичено**. Отдельная от префиксов ось — про throughput/GPU-контеншн, не про качество;
+      переиндексация из пункта выше всё ещё нужна отдельно
