@@ -92,6 +92,34 @@ services:
     networks:
       - rag_network
 
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:turing-1.8
+    container_name: rag_tei
+    environment:
+      MODEL_ID: ${EMBEDDING_MODEL_NAME:-intfloat/multilingual-e5-large}
+      DTYPE: float16
+      PAYLOAD_LIMIT: "10000000"
+    volumes:
+      - hf_cache:/data
+    ports:
+      - "${TEI_PORT:-8085}:80"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:80/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    networks:
+      - rag_network
+
   rag-service:
     build:
       context: .
@@ -101,8 +129,6 @@ services:
       - .env
     volumes:
       - ./rag_service:/app/rag_service
-      # Сохраняем кэш моделей Hugging Face (SentenceTransformers)
-      - hf_cache:/root/.cache/huggingface
       # Сохраняем кэш ONNX-моделей (FastEmbed)
       - fastembed_cache:/root/.cache/fastembed
     command: uvicorn rag_service.main:app --host 0.0.0.0 --port 8001 --reload
@@ -125,6 +151,8 @@ services:
         condition: service_started
       redis:
         condition: service_started
+      tei:
+        condition: service_healthy
     networks:
       - rag_network
 
@@ -137,8 +165,6 @@ services:
       - .env
     volumes:
       - ./rag_service:/app/rag_service
-      # Сохраняем кэш моделей Hugging Face (SentenceTransformers)
-      - hf_cache:/root/.cache/huggingface
       # Сохраняем кэш ONNX-моделей (FastEmbed)
       - fastembed_cache:/root/.cache/fastembed
     command: celery -A rag_service.celery_app worker -l INFO
@@ -150,14 +176,6 @@ services:
         loki-external-labels: "service=rag_worker"
         mode: non-blocking
         max-buffer-size: 4m
-    # КРИТИЧЕСКИЙ БЛОК: Проброс ядер GTX 1660 Ti внутрь Celery воркера
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [ gpu ]
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,6 +187,8 @@ services:
         condition: service_started
       redis:
         condition: service_started
+      tei:
+        condition: service_healthy
   # Именованные волюмы для кэширования тяжелых весов нейросетей
     networks:
       - rag_network
