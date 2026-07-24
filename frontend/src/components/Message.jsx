@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useApi } from '../context/ApiContext';
+import { ENDPOINTS } from '../config/api';
 
 function TypingIndicator() {
     return (
@@ -49,10 +51,16 @@ function HighlightedText({ text, childChunks }) {
 }
 
 function SourcesBlock({ sources }) {
+    const api = useApi();
     const [expanded, setExpanded] = useState(false);
-    const [tooltip, setTooltip] = useState(null); // { text, name, top, left, width }
+    const [tooltip, setTooltip] = useState(null); // { text, loading, name, top, left, width }
     const tooltipRef = useRef(null);
     const closeTimerRef = useRef(null);
+    // Текст источника из истории приходит без `text` (см. ChatService._strip_source_previews) —
+    // подгружаем лениво по наведению и кэшируем на время жизни компонента, чтобы повторный
+    // hover на тот же источник не бил в сеть заново.
+    const textCacheRef = useRef(new Map()); // parent_id -> text
+    const hoverKeyRef = useRef(null);
 
     useEffect(() => {
         return () => {
@@ -85,32 +93,62 @@ function SourcesBlock({ sources }) {
         clearCloseTimer();
         closeTimerRef.current = setTimeout(() => {
             setTooltip(null);
+            hoverKeyRef.current = null;
             closeTimerRef.current = null;
         }, 180);
     };
 
     const formatName = (s) => {
         const h = s.headers || {};
-        const parts = ['H1', 'H2', 'H3', 'H4']
-            .map((k) => h[k])
-            .filter(Boolean)
-            .map((v) => v.replace(/\*\*/g, '').trim());
-        if (parts.length > 0) return parts.join(' › ');
+        // headers приходят с ключами title/chapter_number (title уже содержит номер
+        // главы впереди, напр. "2 Нормативные ссылки") — не H1..H4, которых там нет.
+        const docName = s.source ? s.source.replace(/\.(pdf|docx?|txt)$/i, '').trim() : null;
+        const chapter = h.title ? h.title.replace(/\*\*/g, '').trim() : null;
+        const parts = [docName, chapter].filter(Boolean);
+        if (parts.length > 0) return parts.join(' — ');
         return `Фрагмент ${unique.indexOf(s) + 1}`;
     };
 
     const handleMouseEnter = (e, s) => {
-        if (!s.text) return;
+        if (!s.text && !s.parent_id) return;
         clearCloseTimer();
         const rect = e.currentTarget.getBoundingClientRect();
-        setTooltip({
-            text: s.text,
+        const base = {
             childChunks: s.child_chunks || [],
             name: formatName(s),
             top: rect.top + window.scrollY,
             left: rect.left + window.scrollX,
             width: rect.width,
-        });
+        };
+
+        if (s.text) {
+            hoverKeyRef.current = null;
+            setTooltip({ ...base, text: s.text, loading: false });
+            return;
+        }
+
+        const key = s.parent_id;
+        hoverKeyRef.current = key;
+
+        const cached = textCacheRef.current.get(key);
+        if (cached != null) {
+            setTooltip({ ...base, text: cached, loading: false });
+            return;
+        }
+
+        setTooltip({ ...base, text: '', loading: true });
+        api.get(ENDPOINTS.CHAT_SOURCE_CHUNK(key))
+            .then((data) => {
+                textCacheRef.current.set(key, data.text);
+                if (hoverKeyRef.current === key) {
+                    setTooltip((prev) => (prev ? { ...prev, text: data.text, loading: false } : prev));
+                }
+            })
+            .catch(() => {
+                if (hoverKeyRef.current === key) {
+                    setTooltip((prev) => (prev ? { ...prev, text: 'Не удалось загрузить текст источника.', loading: false } : prev));
+                }
+            });
     };
 
     return (
@@ -141,7 +179,7 @@ function SourcesBlock({ sources }) {
                                             <span className="source-score"> · {score}%</span>
                                         )}
                                     </div>
-                                    {s.text && (
+                                    {(s.text || s.parent_id) && (
                                         <span className="source-preview-hint" title="Наведи для просмотра">
                                             ⋯
                                         </span>
@@ -171,7 +209,9 @@ function SourcesBlock({ sources }) {
                 >
                     <div className="source-tooltip-header">{tooltip.name}</div>
                     <div className="source-tooltip-text">
-                        <HighlightedText text={tooltip.text} childChunks={tooltip.childChunks} />
+                        {tooltip.loading
+                            ? 'Загрузка…'
+                            : <HighlightedText text={tooltip.text} childChunks={tooltip.childChunks} />}
                     </div>
                 </div>
             )}

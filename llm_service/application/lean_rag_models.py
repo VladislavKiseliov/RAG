@@ -18,6 +18,7 @@ class RetrieveItemMetadata(BaseModel):
     page_num: str | None = None
     score: float
     headers: dict[str, Any] = Field(default_factory=dict)
+    source: str = ""
 
 
 class ChildChunk(BaseModel):

@@ -8,6 +8,7 @@ export const ENDPOINTS = {
     PROFILE: "/api/profile",
     CONVERSATIONS: "/api/chats",
     MESSAGES: (chatId) => `/api/chats/${chatId}/messages`,
+    CHAT_SOURCE_CHUNK: (parentId) => `/api/chats/sources/${parentId}`,
     USERS_SEARCH: (q) => `/api/users/search?q=${encodeURIComponent(q)}`,
     MESSENGER_CHATS: "/messenger/chats/",
     MESSENGER_DIRECT: "/messenger/chats/direct",

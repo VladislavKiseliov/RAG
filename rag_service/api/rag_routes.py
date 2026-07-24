@@ -33,6 +33,7 @@ from rag_service.domain.errors import (
     DocumentNotFound,
     DuplicateFilenameError,
     InvalidDocumentIdError,
+    ParentChunkNotFound,
     WebhookAuthorizationError,
 )
 from rag_service.application.ingestion_service import IngestionService
@@ -345,6 +346,26 @@ async def get_document_chapter_content(
             tables_out.append(ChapterTable(table_index=t.table_index, name=t.title or f"Таблица {t.table_index}", cols=cols, rows=rows))
 
     return ChapterContentResponse(text=text, tables=tables_out)
+
+
+@router.get("/parent-chunks/{parent_id}")
+async def get_parent_chunk_text(
+        parent_id: str,
+        document_query_service: DocQueryServiceDep,
+):
+    """Полный текст родительского чанка — источники в истории чата отдаются backend'ом
+    без текста (см. ChatService._strip_source_previews), фронт подгружает его лениво
+    по наведению на источник через этот роут."""
+    try:
+        parent_uuid = uuid.UUID(parent_id)
+    except ValueError as exc:
+        raise InvalidDocumentIdError() from exc
+
+    rows = await document_query_service.get_parent_chunks([parent_uuid])
+    if not rows:
+        raise ParentChunkNotFound(parent_id)
+
+    return {"text": rows[0].content}
 
 #
 # # =============================================================================

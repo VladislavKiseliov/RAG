@@ -41,6 +41,16 @@ class ChapterNotFound(AppError):
         )
 
 
+class ParentChunkNotFound(AppError):
+    """Raised when a source's parent chunk id doesn't resolve to a row (deleted/reindexed doc)."""
+
+    def __init__(self, parent_id: str):
+        super().__init__(
+            message=f"Parent chunk '{parent_id}' not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+
 class InvalidIngestionStateError(AppError):
     """Raised when a document state transition is not allowed."""
 

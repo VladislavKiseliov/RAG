@@ -3,6 +3,7 @@ from rag_service.domain.errors.base import (
     ChapterNotFound,
     DuplicateFilenameError,
     InvalidDocumentIdError,
+    ParentChunkNotFound,
     UploadValidationError,
     WebhookAuthorizationError,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "AppError",
     "ChapterNotFound",
     "DuplicateFilenameError",
+    "ParentChunkNotFound",
     "UploadValidationError",
     "WebhookAuthorizationError",
     "InvalidDocumentIdError",

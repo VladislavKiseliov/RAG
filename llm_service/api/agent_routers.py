@@ -57,6 +57,7 @@ async def answer_question(
             "text": item.parent_chunk,
             "child_chunks": [c.text for c in item.child_chunks],
             "headers": item.metadata.headers,
+            "source": item.metadata.source,
         }
         for item in retrieval_data
     ]

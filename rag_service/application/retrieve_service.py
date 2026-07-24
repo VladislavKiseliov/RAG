@@ -292,6 +292,7 @@ def group_hits_by_parent(
                     "page_num": payload.get("page_num"),
                     "score": score,
                     "headers": payload.get("headers") or {},
+                    "source": payload.get("source") or "",
                     },
                 "children": [],
             }

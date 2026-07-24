@@ -55,6 +55,26 @@ class ChatService:
             chat_id = await self._resolve_chat_for_user(uow, chat_guid, user_id)
             messages = await uow.messages.get_history(chat_id=chat_id)
             return [
-                {"role": msg.role, "content": msg.content, "sources": msg.sources, "created_at": msg.created_at}
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "sources": self._strip_source_previews(msg.sources),
+                    "created_at": msg.created_at,
+                }
                 for msg in messages
             ]
+
+    @staticmethod
+    def _strip_source_previews(sources: Optional[List[Dict]]) -> Optional[List[Dict]]:
+        """Режет полный текст родительского чанка (`text`) из источников в истории чата —
+        это почти весь вес (до 166KB на сообщение с 6 источниками, история 32-сообщенческого
+        чата весила 1.4MB). `child_chunks` оставляем — он маленький (~100-200 байт) и его
+        неоткуда подгрузить отдельно (это конкретные хиты поиска именно для этого сообщения,
+        не хранятся в rag_service вне `Messages.sources`).
+
+        Фронт (`Message.jsx::SourcesBlock`) при отсутствии `text` подгружает его лениво по
+        наведению через `GET /api/chats/sources/{parent_id}` (см. `rag_routes.py::get_parent_chunk_text`).
+        """
+        if not sources:
+            return sources
+        return [{k: v for k, v in s.items() if k != "text"} for s in sources]

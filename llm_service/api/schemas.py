@@ -28,6 +28,7 @@ class SourceItem(BaseModel):
     text: str
     child_chunks: list[str] = Field(default_factory=list)
     headers: dict[str, Any] = Field(default_factory=dict)
+    source: str = ""
 
 
 class AskResponse(BaseModel):
