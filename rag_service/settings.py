@@ -64,6 +64,7 @@ class RagSettings(BaseSettings):
     hf_token: str = ""                       # HF_TOKEN
     embedding_model_name: str
     embedding_batch_size: int = 64           # EMBEDDING_BATCH_SIZE
+    tei_url: str = "http://localhost:8085"   # TEI_URL — Text Embeddings Inference сервис
 
     # ──────────────────────────────────────────
     # Infrastructure

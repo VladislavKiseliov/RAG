@@ -21,7 +21,7 @@ from rag_service.infrastructures.providers.vector_storage_provider import Vector
 from rag_service.application.ingestion_service import IngestionService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.infrastructures.repositories.local_embedding_repository import LocalEmbeddingProvider
+from rag_service.infrastructures.providers.tei_embedding_provider import TeiEmbeddingProvider
 from rag_service.infrastructures.repositories.bm25_embedding_service import BM25EmbeddingService
 from rag_service.settings import settings
 
@@ -86,7 +86,7 @@ v_indexing_service: Optional[VectorIndexingService] = None
 def get_v_indexing_service() -> VectorIndexingService:
     global v_indexing_service
     if v_indexing_service is None:
-        emb_provider = LocalEmbeddingProvider(model=settings.embedding_model_name)
+        emb_provider = TeiEmbeddingProvider(base_url=settings.tei_url)
         sparse_provider = BM25EmbeddingService()
         v_indexing_service = VectorIndexingService(
             embedding_provider=emb_provider,
