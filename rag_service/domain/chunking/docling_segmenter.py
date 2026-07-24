@@ -86,6 +86,7 @@ class ChapterSplitter:
         lines = markdown.splitlines(keepends=True)
 
         chapters: list[Chapter] = []
+        seen_numbers: set[str] = set()
         current_num: Optional[str] = None
         current_title: str = ""
         current_lines: list[str] = []
@@ -101,9 +102,14 @@ class ChapterSplitter:
                 break
 
             m = self._patterns.chapter.match(s)
-            if m:
+            # Номер, который уже встречался, — не новая глава, а шум (например,
+            # нумерованный шаг внутри примера/расчёта, который в markdown Docling
+            # выглядит как обычный заголовок): дописываем его в текущую главу вместо
+            # того, чтобы открывать новую и ловить дубликат chapter_number при записи в БД.
+            if m and m.group(2) not in seen_numbers:
                 save_current()
                 current_num = m.group(2)
+                seen_numbers.add(current_num)
                 current_title = f"{m.group(2)} {m.group(3)}".strip()
                 current_lines = [line]
             elif current_lines:

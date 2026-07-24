@@ -8,7 +8,12 @@ import pandas as pd
 
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.base_models import DocumentStream, InputFormat
-from docling.datamodel.pipeline_options import EasyOcrOptions, PdfPipelineOptions, TableStructureOptions
+from docling.datamodel.pipeline_options import (
+    EasyOcrOptions,
+    HeadingHierarchyOptions,
+    PdfPipelineOptions,
+    TableStructureOptions,
+)
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
 from docling_core.transforms.serializer.common import create_ser_result
@@ -160,6 +165,11 @@ class DoclingConversionRepository:
         pipeline_options.do_formula_enrichment = False
         pipeline_options.do_picture_description = False
         pipeline_options.generate_picture_images = False
+        # По умолчанию Docling кладёт все SECTION_HEADER на level=1 (плоско) — включаем
+        # реальную иерархию: закладки PDF (если есть) → нумерация (5.8.2 глубже, чем 1.) →
+        # шрифт как фолбэк. use_style без generate_parsed_pages молча не сработает — не
+        # включаем, use_numbering и так основной сигнал на нормативных документах.
+        pipeline_options.heading_hierarchy_options = HeadingHierarchyOptions(enabled=True)
         pipeline_options.accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
         pipeline_options.ocr_batch_size = ocr_batch_size
         pipeline_options.layout_batch_size = layout_batch_size

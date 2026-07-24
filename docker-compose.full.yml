@@ -176,6 +176,15 @@ services:
         loki-external-labels: "service=rag_worker"
         mode: non-blocking
         max-buffer-size: 4m
+    # Docling (layout/table/OCR-модели) считает на GPU внутри этого воркера —
+    # физически тот же GTX 1660 Ti, что и у tei, GPU шарится между контейнерами
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
     depends_on:
       postgres:
         condition: service_healthy
