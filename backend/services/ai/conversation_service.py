@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from uuid import UUID
 from typing import Dict, Any
 
@@ -8,6 +9,8 @@ from backend.repository.chat_repository import ChatRepository
 from backend.repository.messages_repository import MessageRepository
 from backend.services.ai.llm_client import LLMClient
 from backend.utils.exceptions import ChatNotFoundError
+
+logger = logging.getLogger(__name__)
 
 HISTORY_WINDOW = 10
 SUMMARY_THRESHOLD = 20
@@ -23,6 +26,10 @@ class ConversationService:
         # (last-write-wins), теряя более полную версию. Ключи по chat_id копятся на весь
         # процесс — не проблема при масштабе этого проекта (self-hosted, конечное число чатов).
         self._summary_locks: dict[int, asyncio.Lock] = {}
+        # Держит ссылки на фоновые таски саммаризации — без этого event loop может
+        # собрать Task сборщиком мусора до завершения (см. тот же паттерн в
+        # rag_service/application/ingestion_service.py::_run_pipeline).
+        self._background_tasks: set[asyncio.Task] = set()
 
     def _get_summary_lock(self, chat_id: int) -> asyncio.Lock:
         lock = self._summary_locks.get(chat_id)
@@ -36,6 +43,23 @@ class ConversationService:
             count = await MessageRepository(session).count_after(chat_id, summary_link)
         if count >= SUMMARY_THRESHOLD:
             await self.update_summary(chat_id)
+
+    def _trigger_summary_in_background(self, chat_id: int, summary_link: int | None) -> None:
+        """Запускает проверку/генерацию саммари в фоне, не блокируя ответ пользователю.
+
+        Саммари — ещё один LLM-вызов поверх основного ответа; синхронное ожидание
+        здесь регулярно продавливало ответ за proxy_read_timeout на nginx (клиент
+        видел ошибку, хотя ответ ассистента уже сохранён в БД).
+        """
+        async def _run() -> None:
+            try:
+                await self._maybe_trigger_summary(chat_id, summary_link)
+            except Exception:
+                logger.exception("Background summary trigger failed chat_id=%s", chat_id)
+
+        task = asyncio.create_task(_run())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     async def get_context_chat(self, chat_guid: UUID) -> Dict[str, Any]:
         async with self._sf() as session:
@@ -116,5 +140,5 @@ class ConversationService:
                     chat_id, content=assistant_response, role="assistant", sources=sources
                 )
 
-        await self._maybe_trigger_summary(chat_id, summary_link)
+        self._trigger_summary_in_background(chat_id, summary_link)
         return {"response": assistant_response, "sources": sources}
