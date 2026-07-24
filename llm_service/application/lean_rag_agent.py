@@ -90,8 +90,11 @@ class LeanRagAgent:
         """Генерирует альтернативные формулировки запроса через LLM для улучшения recall."""
         started = time.perf_counter()
         query_expansion_prompt = get_live_config().prompts.query_expansion_prompt
+        recent_history_str = "\n".join(
+            f"{m.get('role', 'user')}: {m.get('content', '')}" for m in state.messages
+        )
         raw_expansion = (await self.llm_provider.generate_general(query=query_expansion_prompt.format(summary= state.summary,
-                                                                                                      recent_history = state.messages,
+                                                                                                      recent_history = recent_history_str,
                                                                                                       query = state.query),
                                                                   context="")).strip()
         expanded_pack = await QueryExpansionService.expand(original_query=state.query,
@@ -123,12 +126,18 @@ class LeanRagAgent:
         return {"retrieval_data": retrieval_result.items}
 
 
-    def _format_child_chunks_retrive_data(self,item:RetrieveItem) -> str:
-        children = ", ".join(f"Чанк:{child.text} - score {child.score*100:.0f}%"
-                             for child in item.child_chunks)
+    def _format_child_chunks_retrive_data(self, item: RetrieveItem) -> str:
+        """[Документ: <filename> | Раздел <title>]\n<текст родительского чанка>.
 
-
-        return f"Раздел {item.metadata.headers}:{item.parent_chunk}\n({children})"
+        Раньше сюда шёл сырой Python-repr headers (`f"Раздел {item.metadata.headers}:..."`,
+        то есть буквально "Раздел {'chapter_number': '2', 'title': '...'}" в промпте) и список
+        child-чанков со скорами через запятую — не нужен LLM, только раздувал контекст.
+        `title` уже содержит номер раздела впереди (напр. "2 Нормативные ссылки"), отдельно
+        chapter_number не дублируем — та же логика, что в Message.jsx::formatName на фронте.
+        """
+        title = (item.metadata.headers or {}).get("title") or "без названия"
+        doc_name = item.metadata.source or item.metadata.doc_id
+        return f"[Документ: {doc_name} | Раздел {title}]\n{item.parent_chunk}"
 
 
 
@@ -174,6 +183,88 @@ class LeanRagAgent:
         )
 
         return {"response_model": answer }
+
+    @staticmethod
+    def build_sources(retrieval_data: list[RetrieveItem]) -> list[dict[str, Any]]:
+        """Общий маппинг RetrieveItem -> плоский dict источника для API-ответа.
+
+        Используется и обычным /llm/answer (agent_routers.py), и SSE-веткой
+        (событие 'sources' в run_stream) - раньше эта логика была продублирована
+        прямо в agent_routers.py.
+        """
+        return [
+            {
+                "doc_id": item.metadata.doc_id,
+                "parent_id": item.metadata.parent_id,
+                "page_num": item.metadata.page_num,
+                "score": item.metadata.score,
+                "text": item.parent_chunk,
+                "child_chunks": [c.text for c in item.child_chunks],
+                "headers": item.metadata.headers,
+                "source": item.metadata.source,
+            }
+            for item in retrieval_data
+        ]
+
+    async def run_stream(
+        self,
+        *,
+        query: str,
+        summary: str = "",
+        history_messages_db: list[dict[str, str]],
+    ):
+        """SSE-вариант run(): стримит токены ответа вместо ожидания полного completion.
+
+        Контракт событий: status -> token* -> sources -> done. Компилированный
+        self.app.ainvoke() не даёт стримить токены generate без отдельной машинерии
+        LangGraph (astream_events) - узлы до generate штатно быстрые (роутинг/поиск),
+        поэтому здесь они вызываются напрямую в том же порядке, что и в графе
+        (см. _build_graph), а стримится только сам LLM-вызов в generate.
+        """
+        started = time.perf_counter()
+
+        state = LeanAgentState(
+            query=query,
+            messages=history_messages_db or [],
+            summary=summary,
+            route="domain_rag",
+            expanded_queries=[query],
+        )
+
+        state = state.model_copy(update=await self.route_node(state))
+        yield {"event": "status", "data": {"stage": "route", "route": state.route}}
+
+        if await self.decide_after_router(state) == "expand":
+            state = state.model_copy(update=await self.expand_queries_node(state))
+            yield {"event": "status", "data": {"stage": "expand"}}
+
+            state = state.model_copy(update=await self.retrieve_multi_node(state))
+            yield {"event": "status", "data": {"stage": "retrieve", "count": len(state.retrieval_data)}}
+
+        state = state.model_copy(update=await self.build_prompt_node(state))
+
+        answer_parts: list[str] = []
+        async for delta in self.llm_provider.generate_stream(
+            current_query=state.query, data_prompt=state.final_context
+        ):
+            answer_parts.append(delta)
+            yield {"event": "token", "data": {"text": delta}}
+
+        answer = "".join(answer_parts)
+        sources = self.build_sources(state.retrieval_data)
+        yield {"event": "sources", "data": {"sources": sources}}
+        yield {"event": "done", "data": {"answer": answer}}
+
+        logger.info(
+            "Lean agent run_stream finished",
+            extra={
+                "query": query,
+                "route": state.route,
+                "sources_count": len(sources),
+                "answer_len": len(answer),
+                "duration_ms": int((time.perf_counter() - started) * 1000),
+            },
+        )
 
     async def run(
         self,

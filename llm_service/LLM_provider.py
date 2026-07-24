@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Protocol
+from typing import AsyncIterator, Protocol
 
 from llm_service.ai_config import get_live_config
 from llm_service.application.lean_rag_models import FinalPromptData
@@ -35,6 +35,7 @@ NOTE_USER_TEMPLATE = """Сегодняшняя дата: {today}
 
 class LLMProvider(Protocol):
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str: ...
+    def generate_stream(self, *, current_query: str, data_prompt: FinalPromptData) -> AsyncIterator[str]: ...
     async def generate_general(self, *, query: str, context: str) -> str: ...
     async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str: ...
     async def generate_note(self, *, raw_text: str) -> str: ...
@@ -55,7 +56,8 @@ class OpenAICompatLLMProvider:
 
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
 
-    async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+    @staticmethod
+    def _answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:
         config = get_live_config()
 
         if data_prompt.route == "domain_rag":
@@ -65,20 +67,39 @@ class OpenAICompatLLMProvider:
             system = config.prompts.system_prompt_chat
             context = "Поиск в базе знаний не производился за ненадобностью."
 
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": USER_TEMPLATE.format(
+                summary=data_prompt.summary,
+                chat_history=data_prompt.chat_history,
+                context=context,
+                current_query=current_query,
+            )},
+        ]
+
+    async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+        config = get_live_config()
         response = await self._client.chat.completions.create(
             model=config.llm.model_name,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": USER_TEMPLATE.format(
-                    summary=data_prompt.summary,
-                    chat_history=data_prompt.chat_history,
-                    context=context,
-                    current_query=current_query,
-                )},
-            ],
+            messages=self._answer_messages(current_query, data_prompt),
             temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
+
+    async def generate_stream(self, *, current_query: str, data_prompt: FinalPromptData):
+        """Стримит дельты финального ответа (SSE-контракт status->token->sources->done,
+        см. LeanRagAgent.run_stream) вместо ожидания полного completion."""
+        config = get_live_config()
+        stream = await self._client.chat.completions.create(
+            model=config.llm.model_name,
+            messages=self._answer_messages(current_query, data_prompt),
+            temperature=config.llm.temperature,
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
 
     async def generate_general(self, *, query: str, context: str) -> str:
         config = get_live_config()
@@ -161,7 +182,8 @@ class GroqLLMProvider:
             timeout=60.0,
         )
 
-    async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+    @staticmethod
+    def _answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:
         config = get_live_config()
 
         if data_prompt.route == "domain_rag":
@@ -171,20 +193,39 @@ class GroqLLMProvider:
             system = config.prompts.system_prompt_chat
             context = "Поиск в базе знаний не производился за ненадобностью."
 
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": USER_TEMPLATE.format(
+                summary=data_prompt.summary,
+                chat_history=data_prompt.chat_history,
+                context=context,
+                current_query=current_query,
+            )},
+        ]
+
+    async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
+        config = get_live_config()
         response = await self._client.chat.completions.create(
             model=config.llm.model_name,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": USER_TEMPLATE.format(
-                    summary=data_prompt.summary,
-                    chat_history=data_prompt.chat_history,
-                    context=context,
-                    current_query=current_query,
-                )},
-            ],
+            messages=self._answer_messages(current_query, data_prompt),
             temperature=config.llm.temperature,
         )
         return response.choices[0].message.content or ""
+
+    async def generate_stream(self, *, current_query: str, data_prompt: FinalPromptData):
+        """Стримит дельты финального ответа (SSE-контракт status->token->sources->done,
+        см. LeanRagAgent.run_stream) вместо ожидания полного completion."""
+        config = get_live_config()
+        stream = await self._client.chat.completions.create(
+            model=config.llm.model_name,
+            messages=self._answer_messages(current_query, data_prompt),
+            temperature=config.llm.temperature,
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
 
     async def generate_general(self, *, query: str, context: str) -> str:
         config = get_live_config()

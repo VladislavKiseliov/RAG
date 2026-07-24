@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from llm_service.api.schemas import (
     AskRequest,
@@ -47,20 +48,7 @@ async def answer_question(
 
     answer_text = final_state["response_model"]
     retrieval_data = final_state.get("retrieval_data", [])
-
-    sources = [
-        {
-            "doc_id": item.metadata.doc_id,
-            "parent_id": item.metadata.parent_id,
-            "page_num": item.metadata.page_num,
-            "score": item.metadata.score,
-            "text": item.parent_chunk,
-            "child_chunks": [c.text for c in item.child_chunks],
-            "headers": item.metadata.headers,
-            "source": item.metadata.source,
-        }
-        for item in retrieval_data
-    ]
+    sources = LeanRagAgent.build_sources(retrieval_data)
 
     result = {
         "answer": answer_text,
@@ -70,6 +58,36 @@ async def answer_question(
     }
 
     return AskResponse(**result)
+
+
+@router.post("/answer/stream")
+async def answer_question_stream(
+    request: AskRequest,
+    agent: LeanRagAgent = Depends(get_lean_rag_agent),
+) -> StreamingResponse:
+    """SSE-вариант /answer: status -> token* -> sources -> done.
+
+    HTTP-заголовки уходят до первого события, поэтому ошибка на любом этапе (в т.ч.
+    после части токенов) не может стать HTTPException - вместо этого событие 'error',
+    backend/фронт обрабатывают его сами (см. conversation_service.py/useAiChat.js).
+    """
+    logger.info("LLM stream request", extra={"query": json.dumps(request.query), "doc_id": request.doc_id})
+
+    async def event_stream():
+        try:
+            async for event in agent.run_stream(
+                query=request.query,
+                history_messages_db=request.history_messages,
+                summary=request.summary,
+            ):
+                payload = json.dumps(event["data"], ensure_ascii=False)
+                yield f"event: {event['event']}\ndata: {payload}\n\n"
+        except Exception as exc:
+            logger.exception("LLM stream pipeline failed")
+            payload = json.dumps({"message": str(exc)}, ensure_ascii=False)
+            yield f"event: error\ndata: {payload}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/summary", response_model=SummaryResponse)

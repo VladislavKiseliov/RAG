@@ -63,6 +63,7 @@ def make_retrieve_item(
     parent_chunk: str = "текст родительского чанка",
     child_texts: list[tuple[str, float]] | None = None,
     headers: dict | None = None,
+    source: str = "СП 1.13130.pdf",
 ) -> RetrieveItem:
     chunks = child_texts or [("дочерний чанк 1", 0.92), ("дочерний чанк 2", 0.85)]
     return RetrieveItem(
@@ -72,7 +73,8 @@ def make_retrieve_item(
             doc_id="doc-1",
             parent_id="parent-1",
             score=0.9,
-            headers=headers or {"section": "Раздел 1"},
+            headers=headers if headers is not None else {"chapter_number": "1", "title": "1 Общие положения"},
+            source=source,
         ),
     )
 
@@ -156,6 +158,21 @@ class TestExpandQueriesNode:
         result = await agent.expand_queries_node(make_state(query="тестовый запрос"))
         assert result["expanded_queries"].count("тестовый запрос") == 1
 
+    @pytest.mark.asyncio
+    async def test_history_formatted_as_role_content_not_raw_list_repr(self):
+        """Регрессия: recent_history раньше подставлялся как сырой list[dict] в .format(),
+        что давало "[{'role': 'user', 'content': '...'}]" в промпте на expand LLM-вызов."""
+        agent = make_agent()
+        state = make_state(messages=[
+            {"role": "user", "content": "привет"},
+            {"role": "assistant", "content": "здравствуй"},
+        ])
+        await agent.expand_queries_node(state)
+        prompt_arg = agent.llm_provider.generate_general.call_args.kwargs["query"]
+        assert "user: привет" in prompt_arg
+        assert "assistant: здравствуй" in prompt_arg
+        assert "{'role'" not in prompt_arg
+
 
 # ---------------------------------------------------------------------------
 # retrieve_multi_node
@@ -193,22 +210,29 @@ class TestFormatChildChunks:
         item = make_retrieve_item(parent_chunk="основной текст раздела")
         assert "основной текст раздела" in agent._format_child_chunks_retrive_data(item)
 
-    def test_child_scores_formatted_as_percent(self):
+    def test_document_and_title_in_output(self):
         agent = make_agent()
-        item = make_retrieve_item(child_texts=[("текст", 0.92)])
-        assert "92%" in agent._format_child_chunks_retrive_data(item)
-
-    def test_child_text_in_output(self):
-        agent = make_agent()
-        item = make_retrieve_item(child_texts=[("уникальный текст чанка", 0.8)])
-        assert "уникальный текст чанка" in agent._format_child_chunks_retrive_data(item)
-
-    def test_multiple_children_all_in_output(self):
-        agent = make_agent()
-        item = make_retrieve_item(child_texts=[("чанк А", 0.9), ("чанк Б", 0.7)])
+        item = make_retrieve_item(
+            source="СП 4.13130.2013 Ограничение распространения пожара.pdf",
+            headers={"chapter_number": "5.2", "title": "5.2 Требования к объектам"},
+        )
         result = agent._format_child_chunks_retrive_data(item)
-        assert "чанк А" in result
-        assert "чанк Б" in result
+        assert "СП 4.13130.2013 Ограничение распространения пожара.pdf" in result
+        assert "5.2 Требования к объектам" in result
+
+    def test_no_python_dict_repr_in_output(self):
+        """Регрессия: раньше в промпт шёл сырой repr headers, напр. "{'chapter_number': '2', ...}"."""
+        agent = make_agent()
+        item = make_retrieve_item()
+        result = agent._format_child_chunks_retrive_data(item)
+        assert "{'" not in result
+        assert "score" not in result.lower()
+
+    def test_missing_title_falls_back_gracefully(self):
+        agent = make_agent()
+        item = make_retrieve_item(headers={})
+        result = agent._format_child_chunks_retrive_data(item)
+        assert "без названия" in result
 
     def test_empty_children_no_crash(self):
         agent = make_agent()
