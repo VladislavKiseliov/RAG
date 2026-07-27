@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterable
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from llm_service.utils.cancellation import with_cancellation
 from llm_service.api.schemas import (
@@ -65,34 +66,33 @@ async def answer_question(
     return AskResponse(**result)
 
 
-@router.post("/answer/stream")
+@router.post("/answer/stream", response_class=EventSourceResponse)
 async def answer_question_stream(
     request: AskRequest,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
-) -> StreamingResponse:
-    """SSE-вариант /answer: status -> (token|ping)* -> sources -> done.
+) -> AsyncIterable[ServerSentEvent]:
+    """SSE-вариант /answer: status -> token* -> sources -> done.
 
     HTTP-заголовки уходят до первого события, поэтому ошибка на любом этапе (в т.ч.
     после части токенов) не может стать HTTPException - вместо этого событие 'error',
     backend/фронт обрабатывают его сами (см. conversation_service.py/useAiChat.js).
+
+    Keep-alive между событиями - забота EventSourceResponse (родной механизм FastAPI,
+    см. fastapi/routing.py: producer/keepalive-inserter таски поверх anyio.fail_after,
+    не отменяет то, что ждём, на таймауте) - run_stream() больше сам ничего не пингует.
     """
     logger.info("LLM stream request", extra={"query": json.dumps(request.query), "doc_id": request.doc_id})
 
-    async def event_stream():
-        try:
-            async for event in agent.run_stream(
-                query=request.query,
-                history_messages_db=request.history_messages,
-                summary=request.summary,
-            ):
-                payload = json.dumps(event["data"], ensure_ascii=False)
-                yield f"event: {event['event']}\ndata: {payload}\n\n"
-        except Exception as exc:
-            logger.exception("LLM stream pipeline failed")
-            payload = json.dumps({"message": str(exc)}, ensure_ascii=False)
-            yield f"event: error\ndata: {payload}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    try:
+        async for event in agent.run_stream(
+            query=request.query,
+            history_messages_db=request.history_messages,
+            summary=request.summary,
+        ):
+            yield ServerSentEvent(event=event["event"], data=event["data"])
+    except Exception as exc:
+        logger.exception("LLM stream pipeline failed")
+        yield ServerSentEvent(event="error", data={"message": str(exc)})
 
 
 @router.post("/summary", response_model=SummaryResponse)

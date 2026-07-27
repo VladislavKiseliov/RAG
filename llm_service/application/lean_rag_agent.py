@@ -18,10 +18,10 @@ from llm_service.utils.logger_config import setup_logger
 
 logger = setup_logger("llm_service.lean_rag_agent")
 
-# Пауза между дельтами от апстрим-LLM, после которой run_stream шлёт keep-alive "ping".
-# Модульная константа (не локальная переменная в run_stream) - чтобы тест мог её подменить
-# monkeypatch'ем и не ждать реальные 15с.
-PING_INTERVAL_S = 15.0
+# Heartbeat между событиями SSE - забота EventSourceResponse (родной механизм FastAPI,
+# см. agent_routers.py::answer_question_stream) - run_stream() сам больше не пингует ни
+# основной токен-цикл, ни fallback. Раньше это делал _wait_with_heartbeat + asyncio.wait
+# вручную - удалено вместе с миграцией на EventSourceResponse (см. историю в git).
 
 
 class LeanRagAgent:
@@ -220,13 +220,20 @@ class LeanRagAgent:
     ):
         """SSE-вариант run(): стримит токены ответа вместо ожидания полного completion.
 
-        Контракт событий: status -> (token|ping)* -> sources -> done. ping - пустой
-        keep-alive между дельтами (см. PING_INTERVAL_S ниже), клиент его игнорирует.
+        Контракт событий: status -> token* -> sources -> done. Keep-alive между дельтами -
+        забота EventSourceResponse (см. agent_routers.py), сам генератор ничего не пингует.
         Компилированный
         self.app.ainvoke() не даёт стримить токены generate без отдельной машинерии
         LangGraph (astream_events) - узлы до generate штатно быстрые (роутинг/поиск),
         поэтому здесь они вызываются напрямую в том же порядке, что и в графе
         (см. _build_graph), а стримится только сам LLM-вызов в generate.
+
+        Ретраи/heartbeat/fallback (см. ниже) защищают ТОЛЬКО сам вызов LLM - осознанно,
+        не route_node/expand_queries_node/retrieve_multi_node/build_prompt_node. Это
+        внутренние, обычно быстрые вызовы (ML-роутер в процессе, Qdrant в той же
+        docker-сети) - не тот класс ненадёжности, что внешний HTTP до стороннего шлюза,
+        ради которого строилась вся защита ниже. Сбой в них сразу уходит в общий except
+        в agent_routers.py::answer_question_stream как обычная ошибка, без ретрая.
         """
         started = time.perf_counter()
 
@@ -250,72 +257,46 @@ class LeanRagAgent:
 
         state = state.model_copy(update=await self.build_prompt_node(state))
 
-        # Пауза между дельтами от апстрим-LLM не ограничена сверху (медленная модель,
-        # сетевые заминки у провайдера) - без heartbeat корпоративные proxy/firewall
-        # перед nginx рвут "тихое" SSE-соединение по своему idle-таймауту (обычно 30-60с),
-        # который мы не контролируем и не можем настроить снаружи. Событие "ping" не несёт
-        # данных - фронт его игнорирует, но сам факт байтов в канале сбрасывает таймаут.
-        #
-        # asyncio.wait (не wait_for!) - принципиально: wait_for на таймауте ОТМЕНЯЕТ
-        # ожидаемую корутину, а generate_stream() внутри может в этот момент легитимно
-        # спать в exponential backoff между ретраями (до ~90с суммарно на 3 попытки) -
-        # wait_for на 15с оборвал бы этот ретрай на середине. asyncio.wait с timeout
-        # оставляет task висеть и просто позволяет проверить его снова следующим тиком.
         answer_parts: list[str] = []
-        token_iter = self.llm_provider.generate_stream(
-            current_query=state.query, data_prompt=state.final_context
-        ).__aiter__()
-        next_task = asyncio.ensure_future(token_iter.__anext__())
         try:
-            while True:
-                done, _pending = await asyncio.wait({next_task}, timeout=PING_INTERVAL_S)
-                if not done:
-                    yield {"event": "ping", "data": {}}
-                    continue
-                try:
-                    delta = next_task.result()
-                except StopAsyncIteration:
-                    break
-                except Exception as exc:
-                    if answer_parts:
-                        # Уже показали часть ответа - fallback невозможен, он создал бы
-                        # вторую, не связанную с первой генерацию поверх уже отданных
-                        # токенов (см. _stream_completion_with_retry). Помечаем обрыв и
-                        # всё равно завершаем sources/done, иначе backend сохранит в БД
-                        # пустой ответ вместо уже показанного текста.
-                        logger.warning("LLM stream interrupted mid-generation: %s", exc)
-                        note = "\n\n_[ответ прерван: обрыв соединения с LLM]_"
-                        answer_parts.append(note)
-                        yield {"event": "token", "data": {"text": note}}
-                        break
-
-                    # Ни одного токена не дошло - стриминг сломан целиком (ретраи в
-                    # generate_stream() уже исчерпаны на этом этапе), а не просто сеть
-                    # моргнула. Именно так вело себя gatellm.ru, когда не умел релеить
-                    # SSE от OpenRouter (502 на 100% запросов с stream=true, при этом
-                    # stream=false работал нормально) - разовый fallback на обычный,
-                    # не потоковый вызов вместо немедленной сдачи в "прервано".
-                    logger.warning(
-                        "LLM stream produced zero tokens, falling back to non-streaming generate(): %s", exc,
-                    )
-                    try:
-                        answer = await self.llm_provider.generate(
-                            current_query=state.query, data_prompt=state.final_context
-                        )
-                    except Exception as fallback_exc:
-                        logger.exception("Non-streaming fallback also failed")
-                        note = f"_Не удалось получить ответ: {fallback_exc}_"
-                        answer_parts.append(note)
-                        yield {"event": "token", "data": {"text": note}}
-                        break
-                    answer_parts.append(answer)
-                    yield {"event": "token", "data": {"text": answer}}
-                    break
+            async for delta in self.llm_provider.generate_stream(
+                current_query=state.query, data_prompt=state.final_context
+            ):
                 answer_parts.append(delta)
                 yield {"event": "token", "data": {"text": delta}}
-                next_task = asyncio.ensure_future(token_iter.__anext__())
-        finally:
-            next_task.cancel()
+        except Exception as exc:
+            if answer_parts:
+                # Уже показали часть ответа - fallback невозможен, он создал бы вторую,
+                # не связанную с первой генерацию поверх уже отданных токенов (см.
+                # _stream_completion_with_retry). Помечаем обрыв и всё равно завершаем
+                # sources/done, иначе backend сохранит в БД пустой ответ вместо уже
+                # показанного текста.
+                logger.warning("LLM stream interrupted mid-generation: %s", exc)
+                note = "\n\n_[ответ прерван: обрыв соединения с LLM]_"
+                answer_parts.append(note)
+                yield {"event": "token", "data": {"text": note}}
+            else:
+                # Ни одного токена не дошло - стриминг сломан целиком (ретраи в
+                # generate_stream() уже исчерпаны на этом этапе), а не просто сеть
+                # моргнула. Именно так вело себя gatellm.ru, когда не умел релеить
+                # SSE от OpenRouter (502 на 100% запросов с stream=true, при этом
+                # stream=false работал нормально) - разовый fallback на обычный, не
+                # потоковый вызов вместо немедленной сдачи в "прервано".
+                logger.warning(
+                    "LLM stream produced zero tokens, falling back to non-streaming generate(): %s", exc,
+                )
+                try:
+                    answer = await self.llm_provider.generate(
+                        current_query=state.query, data_prompt=state.final_context
+                    )
+                except Exception as fallback_exc:
+                    logger.exception("Non-streaming fallback also failed")
+                    note = f"_Не удалось получить ответ: {fallback_exc}_"
+                    answer_parts.append(note)
+                    yield {"event": "token", "data": {"text": note}}
+                else:
+                    answer_parts.append(answer)
+                    yield {"event": "token", "data": {"text": answer}}
 
         answer = "".join(answer_parts)
         sources = self.build_sources(state.retrieval_data)

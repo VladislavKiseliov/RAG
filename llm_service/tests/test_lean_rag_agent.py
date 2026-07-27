@@ -379,26 +379,23 @@ class TestRunStream:
         assert "прерван" in final_answer
 
     @pytest.mark.asyncio
-    async def test_ping_sent_on_idle_does_not_break_pending_generation(self, monkeypatch):
-        # PING_INTERVAL_S подменяем на мизерный, чтобы тест не ждал реальные 15с - если бы
-        # ping (как раньше на asyncio.wait_for) отменял ожидание, следующая дельта после
-        # паузы была бы потеряна/сгенерировала бы ошибку вместо штатного токена.
-        monkeypatch.setattr(
-            "llm_service.application.lean_rag_agent.PING_INTERVAL_S", 0.01,
-        )
+    async def test_pause_between_deltas_does_not_break_generation(self):
+        # Heartbeat теперь целиком на стороне EventSourceResponse (см. agent_routers.py) -
+        # run_stream() больше не оборачивает generate_stream() в свою task/wait-машинерию
+        # и сам ничего не пингует, так что тут больше нечего проверять про "ping"; осталась
+        # только проверка, что пауза между дельтами (напр. сеть подвисла) не ломает сборку
+        # ответа при обычном async for.
         agent = make_agent(route="smalltalk")
 
         async def fake_generate_stream(*, current_query, data_prompt):
             yield "до паузы"
-            await asyncio.sleep(0.05)  # дольше одного ping-тика, но короче реального ответа
+            await asyncio.sleep(0.02)
             yield "после паузы"
 
         agent.llm_provider.generate_stream = fake_generate_stream
 
         events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
 
-        event_types = [e["event"] for e in events]
-        assert "ping" in event_types
         assert [e["data"]["text"] for e in events if e["event"] == "token"] == ["до паузы", "после паузы"]
         assert events[-1]["data"]["answer"] == "до паузыпосле паузы"
 
@@ -422,6 +419,31 @@ class TestRunStream:
         assert events[1]["data"]["text"] == "ответ из фолбэка"
         assert events[-1]["data"]["answer"] == "ответ из фолбэка"
         agent.llm_provider.generate.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_slow_fallback_still_returns_answer(self):
+        # Heartbeat во время fallback тоже теперь на стороне EventSourceResponse (не
+        # unit-тестируется на этом уровне - см. интеграционный live-тест в TODO). Здесь
+        # проверяем то, что доступно юнит-тестом: медленный fallback всё равно доходит до
+        # конца и отдаёт ответ, а не обрывается из-за отсутствия прежней task-обвязки.
+        agent = make_agent(route="smalltalk")
+
+        async def fake_generate_stream(*, current_query, data_prompt):
+            if False:
+                yield ""
+            raise ConnectionError("gateway 502")
+
+        async def slow_generate(*, current_query, data_prompt):
+            await asyncio.sleep(0.02)
+            return "медленный ответ из фолбэка"
+
+        agent.llm_provider.generate_stream = fake_generate_stream
+        agent.llm_provider.generate = slow_generate
+
+        events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
+
+        assert [e["event"] for e in events] == ["status", "token", "sources", "done"]
+        assert events[-1]["data"]["answer"] == "медленный ответ из фолбэка"
 
     @pytest.mark.asyncio
     async def test_fallback_failure_produces_error_note(self):
