@@ -93,10 +93,45 @@ Postgres, зомби-запросы, удвоенная нагрузка от р
 - [x] Нет паттерна `if disconnected: break` нигде в стриминг-цикле — везде естественная отмена через `CancelledError`/`asyncio.wait`, конкурирующих путей завершения не заводили.
 
 DoD на будущее (пригодится при Фазе 7 "Actions" или если появится второй, отдельный стриминговый эндпоинт с write-инструментами — тогда переносить целиком):
-- [ ] `anyio.CancelScope(shield=True)` вместо `asyncio.create_task`-детача — рассмотреть, если/когда перейдём на `sse-starlette` (у него из коробки `ping` раз в 15с и `send_timeout` — закрыло бы наш heartbeat бесплатно, но требует переноса всех трёх слоёв генераторов на anyio task groups, не сделано)
 - [ ] `send_timeout` на стриминг-соединении — «зомби-клиент» (TCP жив, но не читает буфер) не шлёт `http.disconnect` и держит слот бесконечно; сейчас у нас нет семафора/пула слотов, которым бы это грозило, но при появлении — учесть
 - [ ] Флаг `completed`/`interrupted` в БД (не просто текстовая пометка в `content`, как сейчас) — чтобы отличать «клиент отвалился сразу после `done`» (норма) от реального обрыва посреди генерации для метрик; отложено — у нас пока нет вообще никакой метрики отмен, которая бы этим полем воспользовалась
 - [ ] Интеграционный тест «клиент рвёт соединение на середине стрима» с проверкой `pg_stat_activity` (нет зависших `idle in transaction`) — по духу уже покрыто юнит-тестами на `stream.close()`/`generate_and_persist`, но именно прямой запрос к `pg_stat_activity` не писали
+
+**3.4b Миграция на нативный `fastapi.sse` (`EventSourceResponse`/`ServerSentEvent`)** ✅ 2026-07-27
+
+Оказалось, что «heartbeat из коробки» (пункт DoD выше про `sse-starlette`) не нужно ждать —
+FastAPI начиная с версии, что уже стоит у `llm_service` (0.136.1), сам умеет SSE нативно, без
+сторонних пакетов. Проверено чтением исходника `fastapi/routing.py`: продюсер и
+keepalive-inserter — отдельные `anyio`-таски поверх `anyio.fail_after(_PING_INTERVAL)` (15с,
+приватная константа фреймворка) — тот же принцип "не отменять то, что ждём", что мы городили
+руками, только сделано на уровне роутинга, для ЛЮБОГО async-generator path operation с
+`response_class=EventSourceResponse`, независимо от того, что внутри (ретрай, fallback, что угодно).
+
+- [x] `agent_routers.py::answer_question_stream` — `response_class=EventSourceResponse`, эндпоинт
+      сам стал async-генератором, `yield ServerSentEvent(event=..., data=...)` вместо ручных
+      f-строк `f"event: ...\ndata: ...\n\n"`. Wire-формат побайтово тот же (проверено живьём) —
+      backend/фронт ничего не заметили
+- [x] `lean_rag_agent.py::run_stream()` — **удалена вся ручная heartbeat-машинерия**
+      (`_wait_with_heartbeat`, `PING_INTERVAL_S`, `asyncio.ensure_future`/`asyncio.wait` вокруг
+      токен-цикла и fallback) — теперь просто `async for delta in generate_stream(): yield ...`,
+      heartbeat даже во время fallback `generate()` — забота фреймворка, не наша. Код в разы проще
+- [x] `backend/services/ai/llm_client.py` — новый keep-alive от llm_service это настоящий
+      SSE-комментарий (`: ping\n\n`, `fastapi.sse.KEEPALIVE_COMMENT`), а не наш старый фейковый
+      named-event `event: ping` — ручной парсер на backend его раньше молча проглатывал бы, не
+      долетело бы дальше llm_service→backend хопа. Добавлена ветка на строки, начинающиеся с `:`
+      — ретранслируются как `("ping", {})`, дальше по цепочке (`conversation_service.py`,
+      `chats_routes.py`) ничего менять не пришлось — `ping` и так проходил transparently
+- [x] Тесты на ручной ping (`test_ping_sent_on_idle_...`, `test_pings_during_slow_fallback`)
+      переписаны — heartbeat теперь не unit-тестируется на этом уровне (это код FastAPI, не наш),
+      тесты урезаны до проверки, что пауза между дельтами/медленный fallback не ломают саму
+      сборку ответа. 65/65 тестов (не пре-существующих) проходят
+- Не проверено живым 15-секундным ожиданием (только чтением исходника + юнитами) — попытка
+  сконструировать in-process ASGI-тест с патченным `_PING_INTERVAL` уперлась в то, что агент —
+  синглтон в `app.state.container.agent`, собранный на lifespan-старте, а `httpx.ASGITransport`
+  без lifespan его не проинициализирует; не стал городить обвязку ради этого
+- **Backend НЕ мигрирован** — `rag_backend` на FastAPI 0.110.3, `fastapi.sse` там физически нет
+  (`ModuleNotFoundError`). Апгрейд FastAPI на живом сервисе — отдельная, более рискованная задача
+  (много версий разницы, потенциальные breaking changes в DI/middleware), не сделано в этом заходе
 
 ### Фаза 4 — Rerank (пересборка контекста)
 - [ ] Второй TEI-контейнер: `--model-id BAAI/bge-reranker-v2-m3`, эндпоинт `/rerank` (GPU, ~1.5GB VRAM)
