@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -335,3 +336,123 @@ class TestGenerateNode:
         await agent.generate_node(state)
         call_kwargs = agent.llm_provider.generate.call_args.kwargs
         assert call_kwargs["data_prompt"] is final_ctx
+
+
+# ---------------------------------------------------------------------------
+# run_stream - обрыв соединения с апстрим-LLM не должен терять уже отданные токены
+# ---------------------------------------------------------------------------
+
+class TestRunStream:
+    @pytest.mark.asyncio
+    async def test_yields_tokens_sources_done_on_success(self):
+        agent = make_agent(route="smalltalk")
+
+        async def fake_generate_stream(*, current_query, data_prompt):
+            yield "Привет"
+            yield ", мир"
+
+        agent.llm_provider.generate_stream = fake_generate_stream
+
+        events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
+
+        assert [e["event"] for e in events] == ["status", "token", "token", "sources", "done"]
+        assert events[-1]["data"]["answer"] == "Привет, мир"
+
+    @pytest.mark.asyncio
+    async def test_marks_partial_answer_interrupted_on_mid_stream_failure(self):
+        agent = make_agent(route="smalltalk")
+
+        async def fake_generate_stream(*, current_query, data_prompt):
+            yield "частичный "
+            yield "ответ"
+            raise ConnectionError("сеть пропала")
+
+        agent.llm_provider.generate_stream = fake_generate_stream
+
+        events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
+
+        # Два реальных токена + один токен-пометка об обрыве, дальше как обычно sources/done -
+        # исключение НЕ должно всплыть наружу и оборвать SSE-поток без данных для сохранения.
+        assert [e["event"] for e in events] == ["status", "token", "token", "token", "sources", "done"]
+        final_answer = events[-1]["data"]["answer"]
+        assert final_answer.startswith("частичный ответ")
+        assert "прерван" in final_answer
+
+    @pytest.mark.asyncio
+    async def test_ping_sent_on_idle_does_not_break_pending_generation(self, monkeypatch):
+        # PING_INTERVAL_S подменяем на мизерный, чтобы тест не ждал реальные 15с - если бы
+        # ping (как раньше на asyncio.wait_for) отменял ожидание, следующая дельта после
+        # паузы была бы потеряна/сгенерировала бы ошибку вместо штатного токена.
+        monkeypatch.setattr(
+            "llm_service.application.lean_rag_agent.PING_INTERVAL_S", 0.01,
+        )
+        agent = make_agent(route="smalltalk")
+
+        async def fake_generate_stream(*, current_query, data_prompt):
+            yield "до паузы"
+            await asyncio.sleep(0.05)  # дольше одного ping-тика, но короче реального ответа
+            yield "после паузы"
+
+        agent.llm_provider.generate_stream = fake_generate_stream
+
+        events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
+
+        event_types = [e["event"] for e in events]
+        assert "ping" in event_types
+        assert [e["data"]["text"] for e in events if e["event"] == "token"] == ["до паузы", "после паузы"]
+        assert events[-1]["data"]["answer"] == "до паузыпосле паузы"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_non_streaming_generate_when_zero_tokens_produced(self):
+        # Воспроизводит реальный инцидент с gatellm.ru: stream=true падал на 100% запросов
+        # (502), а обычный stream=false работал нормально - разовый fallback вместо
+        # немедленной сдачи в "ответ прерван".
+        agent = make_agent(route="smalltalk", llm_answer="ответ из фолбэка")
+
+        async def fake_generate_stream(*, current_query, data_prompt):
+            if False:
+                yield ""
+            raise ConnectionError("gateway 502")
+
+        agent.llm_provider.generate_stream = fake_generate_stream
+
+        events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
+
+        assert [e["event"] for e in events] == ["status", "token", "sources", "done"]
+        assert events[1]["data"]["text"] == "ответ из фолбэка"
+        assert events[-1]["data"]["answer"] == "ответ из фолбэка"
+        agent.llm_provider.generate.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fallback_failure_produces_error_note(self):
+        agent = make_agent(route="smalltalk")
+
+        async def fake_generate_stream(*, current_query, data_prompt):
+            if False:
+                yield ""
+            raise ConnectionError("gateway 502")
+
+        agent.llm_provider.generate_stream = fake_generate_stream
+        agent.llm_provider.generate = AsyncMock(side_effect=ConnectionError("и обычный вызов тоже упал"))
+
+        events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
+
+        assert [e["event"] for e in events] == ["status", "token", "sources", "done"]
+        assert "Не удалось получить ответ" in events[-1]["data"]["answer"]
+
+    @pytest.mark.asyncio
+    async def test_does_not_fall_back_if_some_tokens_already_shown(self):
+        # Отличие от предыдущих двух: тут уже есть частичный ответ - fallback не должен
+        # включаться (создал бы вторую, не связанную генерацию поверх показанного текста).
+        agent = make_agent(route="smalltalk")
+
+        async def fake_generate_stream(*, current_query, data_prompt):
+            yield "частичный ответ"
+            raise ConnectionError("сеть пропала")
+
+        agent.llm_provider.generate_stream = fake_generate_stream
+
+        events = [e async for e in agent.run_stream(query="привет", history_messages_db=[])]
+
+        agent.llm_provider.generate.assert_not_called()
+        assert "прерван" in events[-1]["data"]["answer"]

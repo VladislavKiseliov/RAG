@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from llm_service.utils.cancellation import with_cancellation
 from llm_service.api.schemas import (
     AskRequest,
     AskResponse,
@@ -30,8 +31,10 @@ async def health_check():
     return {"status": "ok"}
 
 @router.post("/answer", response_model=AskResponse)
+@with_cancellation
 async def answer_question(
     request: AskRequest,
+    http_request: Request,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> AskResponse:
     try:
@@ -43,6 +46,8 @@ async def answer_question(
 
         )
     except Exception as exc:
+        # CancelledError (BaseException, не Exception) сюда не попадёт - при дисконнекте
+        # клиента (см. with_cancellation) отвечать всё равно уже некому.
         logger.exception("LLM pipeline failed")
         raise HTTPException(status_code=502, detail=f"LLM pipeline failed: {exc}")
 

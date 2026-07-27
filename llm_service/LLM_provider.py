@@ -1,10 +1,83 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date
-from typing import AsyncIterator, Protocol
+from typing import AsyncIterator, Callable, Coroutine, Protocol
 
 from llm_service.ai_config import get_live_config
 from llm_service.application.lean_rag_models import FinalPromptData
+from llm_service.utils.logger_config import setup_logger
+
+logger = setup_logger("llm_service.llm_provider")
+
+TTFT_TIMEOUT_S = 30.0  # время до первого чанка от апстрима, на попытку
+STREAM_MAX_RETRIES = 3
+# 502/503/504 - типично временные сбои гейтвея/прокси (перегрузка, рестарт) - в отличие
+# от остальных 4xx/5xx (невалидный запрос, лимит, нет ключа), их есть смысл ретраить.
+TRANSIENT_STATUS_CODES = {502, 503, 504}
+
+
+async def _stream_completion_with_retry(
+    create_completion: Callable[[], Coroutine],
+) -> AsyncIterator[str]:
+    """Общая retry-логика стриминга chat-completion (переиспользуется обоими
+    OpenAI-совместимыми провайдерами). Три точки обрыва SSE от апстрима:
+
+    - до первого чанка (TTFT-таймаут/обрыв соединения) - безопасно ретраить с backoff
+      (1с/2с/4с), пользователь ещё ничего не увидел;
+    - после первого чанка (обрыв посреди генерации) - НЕ ретраим: повторный вызов начал бы
+      новую, не связанную с уже показанной генерацию поверх уже отданных токенов. Исключение
+      пробрасывается наверх как есть - вызывающий (LeanRagAgent.run_stream) помечает уже
+      накопленный частичный ответ как прерванный, не теряет его;
+    - на финальном чанке (finish_reason != stop, напр. content_filter/length) - не обрыв
+      связи, а решение провайдера; ретрай не поможет, дописываем короткую пометку и
+      завершаем генератор штатно, без исключения.
+
+    create_completion: () -> awaitable создания стрима (chat.completions.create(stream=True)).
+    4xx и не-транзиентные 5xx (APIStatusError вне TRANSIENT_STATUS_CODES) не ретраим вообще -
+    ретрай не поможет (невалидный запрос/лимит/нет ключа, либо системный сбой у гейтвея,
+    как было с gatellm.ru при stream=true - там падало 100% попыток, а не иногда).
+    """
+    from openai import APIConnectionError, APIStatusError, APITimeoutError
+
+    for attempt in range(STREAM_MAX_RETRIES):
+        first_delta_yielded = False
+        stream = None
+        try:
+            stream = await asyncio.wait_for(create_completion(), timeout=TTFT_TIMEOUT_S)
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                choice = chunk.choices[0]
+                delta = choice.delta.content
+                if delta:
+                    first_delta_yielded = True
+                    yield delta
+                if choice.finish_reason and choice.finish_reason != "stop":
+                    yield f"\n\n_[ответ обрезан провайдером: {choice.finish_reason}]_"
+                    return
+            return
+        except (APIConnectionError, APITimeoutError, asyncio.TimeoutError, APIStatusError) as exc:
+            if isinstance(exc, APIStatusError) and exc.status_code not in TRANSIENT_STATUS_CODES:
+                raise
+            if first_delta_yielded:
+                raise
+            if attempt == STREAM_MAX_RETRIES - 1:
+                raise
+            logger.warning(
+                "LLM stream TTFT failed (attempt %d/%d), retrying: %s",
+                attempt + 1, STREAM_MAX_RETRIES, exc,
+            )
+            await asyncio.sleep(2 ** attempt)
+            continue
+        finally:
+            # AsyncStream.close() из openai SDK самовызывается только при полном прочтении
+            # до конца (см. её докстринг) - если мы уходим раньше (finish_reason, retry,
+            # исключение, либо нас отменили снаружи через CancelledError - см.
+            # with_cancellation/LeanRagAgent.run_stream), соединение к апстриму иначе
+            # держится открытым до сборки мусора вместо немедленного освобождения.
+            if stream is not None:
+                await stream.close()
 
 USER_TEMPLATE = """РЕЗЮМЕ ДИАЛОГА:
 {summary}
@@ -88,18 +161,21 @@ class OpenAICompatLLMProvider:
 
     async def generate_stream(self, *, current_query: str, data_prompt: FinalPromptData):
         """Стримит дельты финального ответа (SSE-контракт status->token->sources->done,
-        см. LeanRagAgent.run_stream) вместо ожидания полного completion."""
+        см. LeanRagAgent.run_stream) вместо ожидания полного completion.
+
+        Ретраи TTFT/обрыв посреди генерации/finish_reason - см. _stream_completion_with_retry."""
         config = get_live_config()
-        stream = await self._client.chat.completions.create(
-            model=config.llm.model_name,
-            messages=self._answer_messages(current_query, data_prompt),
-            temperature=config.llm.temperature,
-            stream=True,
-        )
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
+
+        async def create_completion():
+            return await self._client.chat.completions.create(
+                model=config.llm.model_name,
+                messages=self._answer_messages(current_query, data_prompt),
+                temperature=config.llm.temperature,
+                stream=True,
+            )
+
+        async for delta in _stream_completion_with_retry(create_completion):
+            yield delta
 
     async def generate_general(self, *, query: str, context: str) -> str:
         config = get_live_config()
@@ -214,18 +290,21 @@ class GroqLLMProvider:
 
     async def generate_stream(self, *, current_query: str, data_prompt: FinalPromptData):
         """Стримит дельты финального ответа (SSE-контракт status->token->sources->done,
-        см. LeanRagAgent.run_stream) вместо ожидания полного completion."""
+        см. LeanRagAgent.run_stream) вместо ожидания полного completion.
+
+        Ретраи TTFT/обрыв посреди генерации/finish_reason - см. _stream_completion_with_retry."""
         config = get_live_config()
-        stream = await self._client.chat.completions.create(
-            model=config.llm.model_name,
-            messages=self._answer_messages(current_query, data_prompt),
-            temperature=config.llm.temperature,
-            stream=True,
-        )
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
+
+        async def create_completion():
+            return await self._client.chat.completions.create(
+                model=config.llm.model_name,
+                messages=self._answer_messages(current_query, data_prompt),
+                temperature=config.llm.temperature,
+                stream=True,
+            )
+
+        async for delta in _stream_completion_with_retry(create_completion):
+            yield delta
 
     async def generate_general(self, *, query: str, context: str) -> str:
         config = get_live_config()
