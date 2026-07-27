@@ -41,7 +41,7 @@
 
 ## Финальный план развития агента и экосистемы (записан 2026-07-24)
 
-Порядок фаз — по зависимостям, не обязательно по времени начала. Статус на 2026-07-24: 3.1 закрыт, 3.4 реализован на стороне `llm_service`, но не подключён — заблокирован багом стриминга на `gatellm.ru` (см. п. 3.4 ниже).
+Порядок фаз — по зависимостям, не обязательно по времени начала. Статус на 2026-07-27: 3.1 и 3.4 закрыты — блокер на `gatellm.ru` пропал сам, SSE подключён от `llm_service` до фронта (см. п. 3.4 ниже).
 
 ### Фаза 3 — Фундамент агента (`llm_service/application/lean_rag_agent.py`)
 
@@ -63,16 +63,18 @@
 - [ ] Порог — из распределения negative-вопросов eval-датасета (Фаза 1), выносится в конфиг
 - DoD: negative-вопросы датасета гарантированно идут через ветку; `negative_precision` в eval вырос
 
-**3.4 SSE-стриминг** ⚠️ код готов 2026-07-24, НЕ подключён к чату — блокер на стороне LLM-шлюза
-- [x] Контракт событий: `status → token → sources → done` — `LeanRagAgent.run_stream()`, узлы `route/expand/retrieve/build_prompt` вызываются напрямую в порядке графа (у `self.app.ainvoke()` нет токен-стриминга без `astream_events`), стримится только сам LLM-вызов
+**3.4 SSE-стриминг** ✅ подключён 2026-07-27
+- [x] Контракт событий: `status → (token|ping)* → sources → done` — `LeanRagAgent.run_stream()`, узлы `route/expand/retrieve/build_prompt` вызываются напрямую в порядке графа (у `self.app.ainvoke()` нет токен-стриминга без `astream_events`), стримится только сам LLM-вызов
 - [x] `OpenAICompatLLMProvider.generate_stream()` + `GroqLLMProvider.generate_stream()` (`stream=True` в `chat.completions.create`) — оба провайдера, не только дефолтный
 - [x] `POST /llm/answer/stream` (`agent_routers.py`) — `StreamingResponse`, `text/event-stream`, ошибка на любом этапе (в т.ч. после части токенов) → событие `error`, не `HTTPException` (заголовки уже ушли)
 - [x] `LeanRagAgent.build_sources()` — общий маппинг `RetrieveItem → dict`, переиспользован и в `/llm/answer`, и в `/llm/answer/stream` (раньше было продублировано)
-- [ ] `backend` (`conversation_service.py`) — проксирование потока на фронт + сохранение сообщения по `done` — **не сделано, ждём фикса шлюза**
-- [ ] Фронт — консюмер SSE в `useAiChat.js` — не сделано
-- DoD: юнит-тесты `tests/test_lean_rag_agent.py` (35/35 не пре-существующих) ✅; интеграционный тест на порядок событий в БД — не сделано (нет смысла, пока backend не подключён)
-- **🛑 Блокер**: `gatellm.ru` (`LLM_BASE_URL`) не умеет релеить SSE от OpenRouter — при `stream=true` возвращает `HTTP 502, Content-Type: application/json`, тело — `"OpenRouter returned non-JSON response: ..."` с сырыми SSE-байтами OpenRouter внутри строки-сообщения об ошибке. Проверено 2026-07-24 сырым `httpx` в обход `openai` SDK и нашего кода — воспроизводится на 3 разных моделях (`openai/gpt-oss-120b`, `deepseek/deepseek-v4-flash`, и даже `openai/gpt-4o-mini` — модель из официального примера в документации gatellm.ru). Не модель-специфично, не SDK-специфично — баг на стороне шлюза в релее SSE от OpenRouter. Repro-curl для тикета в поддержку gatellm.ru есть в истории сессии. Нестриминговый `/llm/answer` тем же способом работает нормально
-- Примечание: как только шлюз починит стриминг (или сменится провайдер) — это настоящий фикс проблемы «долгий ответ = ошибка в чате», которую 2026-07-24 залатали временно через `nginx proxy_read_timeout 120s` (см. коммит `fix(backend,nginx): ответ чата не должен зависеть от таймаута саммари`). Подключение — пара строк в `conversation_service.py`, вся тяжёлая часть на стороне `llm_service` уже готова
+- [x] Heartbeat ✅ 2026-07-27 — между дельтами LLM пауза не ограничена сверху, добавлен `ping`-event раз в 15с простоя (`asyncio.wait_for` вокруг `generate_stream().__anext__()` в `run_stream()`), чтобы корпоративные прокси/файрволы не рвали "тихое" соединение по своему idle-таймауту (обычно 30-60с, вне нашего контроля)
+- [x] `backend` (`conversation_service.py`) ✅ 2026-07-27 — `LLMClient.stream_answer()` парсит SSE от `llm_service` построчно, `ConversationService.process_message_stream()` ре-стримит на фронт и копит `answer`/`sources` по пути; сохранение сообщения ассистента + фоновый триггер саммари — уже после конца потока, не вместо него. Новый роут `POST /api/chats/{id}/messages/stream`
+- [x] Фронт ✅ 2026-07-27 — `useAiChat.js`: `fetch()` + ручной парсинг `event:`/`data:` из `response.body` (не `EventSource` — тот умеет только `GET` без тела, а нужен `POST` с вопросом/`chat_id`). Сообщение ассистента растёт по токенам, `isTyping` (для «печатает…») гасится на первом токене, отдельный `isStreaming` держит инпут задизейбленным на весь ответ
+- [x] `nginx` ✅ 2026-07-27 — `proxy_buffering off` на `location /api/` (без этого nginx копил весь ответ и отдавал одним куском в конце — стриминг был не виден снаружи, хотя backend уже стримил)
+- DoD: юнит-тесты `tests/test_lean_rag_agent.py` (35/35 не пре-существующих) ✅; живой E2E-тест через nginx (`curl`/`httpx.stream`) — токены реально растянуты по времени (4.5-5.1с), не одним куском ✅ 2026-07-27
+- Блокер `gatellm.ru` (502 при `stream=true`, см. историю до 2026-07-27) пропал сам между сессиями — перепроверено тем же repro-запросом (`google/gemini-2.5-flash-lite`, `stream: true/false`), теперь отдаёт нормальный SSE. Причина фикса на стороне шлюза неизвестна (не наш код)
+- Не сделано: HTTP/1.1 держит до 6 соединений на домен на клиенте — при нескольких открытых чатах/вкладках зависший SSE съедает одно; не актуально без TLS/HTTP2 перед nginx (`listen 80`, без `ssl`), отмечено на будущее, если добавится TLS-терминация
 
 ### Фаза 4 — Rerank (пересборка контекста)
 - [ ] Второй TEI-контейнер: `--model-id BAAI/bge-reranker-v2-m3`, эндпоинт `/rerank` (GPU, ~1.5GB VRAM)
