@@ -146,12 +146,22 @@ class ConversationService:
     async def process_message_stream(
         self, user_id: int, chat_guid: UUID, content: str
     ) -> AsyncIterator[tuple[str, dict]]:
-        """SSE-вариант process_message(): сохраняет сообщение ассистента и триггерит
-        фоновое саммари уже после того, как поток дошёл до конца, а не вместо этого.
+        """SSE-вариант process_message().
 
-        Подготовка (поиск чата, сохранение сообщения юзера) выполняется до возврата
-        генератора, а не внутри него - иначе ChatNotFoundError всплывёт только на первой
-        итерации, когда StreamingResponse уже отдал 200 и заголовки не переписать."""
+        Генерация ответа и его сохранение в БД идут в отдельной asyncio.Task
+        (self._background_tasks - тот же паттерн, что и у фонового саммари), а не в
+        генераторе, который отдаёт события в HTTP-ответ. Причина: StreamingResponse
+        Starlette сам слушает ASGI-дисконнект и при разрыве браузера (закрыл вкладку,
+        потерял сеть) шлёт CancelledError в этот генератор - если бы он же дёргал LLM,
+        обрыв на середине ответа терял бы уже сгенерированный (и оплаченный) текст, не
+        сохранив его в БД. Задача же не привязана к scope конкретного HTTP-запроса и
+        не отменяется при его дисконнекте - продолжает работать до конца и пишет
+        результат в БД независимо от того, слушает её ещё кто-то через SSE или нет.
+        Мост между ними - asyncio.Queue: задача пишет в неё, генератор читает.
+
+        Подготовка (поиск чата, сохранение сообщения юзера) выполняется до запуска
+        задачи, а не внутри неё - иначе ChatNotFoundError всплывёт только в фоне, когда
+        StreamingResponse уже отдал 200 и заголовки не переписать."""
         async with self._sf() as session:
             chat = await ChatRepository(session).get_chat_by_guid(chat_guid)
             if chat is None:
@@ -167,28 +177,63 @@ class ConversationService:
             async with session.begin():
                 await MessageRepository(session).add_message(chat_id, content=content, role="user")
 
-        async def event_generator() -> AsyncIterator[tuple[str, dict]]:
-            answer = ""
+        queue: asyncio.Queue[tuple[str, dict] | None] = asyncio.Queue()
+
+        async def generate_and_persist() -> None:
+            answer_parts: list[str] = []
             sources: list = []
             try:
-                async for event_name, data in self._llm.stream_answer(
-                    question=content, history_messages=short_messages, summary=summary_chat or "",
-                ):
-                    if event_name == "sources":
-                        sources = data.get("sources", [])
-                    elif event_name == "done":
-                        answer = data.get("answer", "")
-                    yield event_name, data
-            except (LLMError, LLMUnavailableError) as exc:
-                yield "error", {"message": str(exc)}
-                return
-
-            async with self._sf() as session:
-                async with session.begin():
-                    await MessageRepository(session).add_message(
-                        chat_id, content=answer, role="assistant", sources=sources
+                try:
+                    async for event_name, data in self._llm.stream_answer(
+                        question=content, history_messages=short_messages, summary=summary_chat or "",
+                    ):
+                        if event_name == "token":
+                            answer_parts.append(data.get("text", ""))
+                        elif event_name == "sources":
+                            sources = data.get("sources", [])
+                        elif event_name == "done":
+                            # llm_service уже собрал полный текст (в т.ч. с пометкой обрыва,
+                            # если генерация прервалась на его стороне) - он авторитетный,
+                            # накопленные по token-событиям куски ему не нужны.
+                            answer_parts = [data.get("answer", "")]
+                        await queue.put((event_name, data))
+                except (LLMError, LLMUnavailableError) as exc:
+                    # Обрыв связи backend -> llm_service (не сам апстрим-LLM - тот уже
+                    # восстанавливается внутри llm_service, см. LeanRagAgent.run_stream).
+                    # То, что успело прийти token-событиями, не теряем - сохраняем с
+                    # пометкой, а не молча роняем на середине ответа.
+                    note = (
+                        "\n\n_[ответ прерван: обрыв соединения с llm_service]_"
+                        if answer_parts else f"_Не удалось получить ответ: {exc}_"
                     )
+                    answer_parts.append(note)
+                    await queue.put(("token", {"text": note}))
+                    await queue.put(("error", {"message": str(exc)}))
 
-            self._trigger_summary_in_background(chat_id, summary_link)
+                answer = "".join(answer_parts)
+                async with self._sf() as session:
+                    async with session.begin():
+                        await MessageRepository(session).add_message(
+                            chat_id, content=answer, role="assistant", sources=sources
+                        )
+
+                self._trigger_summary_in_background(chat_id, summary_link)
+            except Exception:
+                logger.exception("process_message_stream background task failed chat_id=%s", chat_id)
+            finally:
+                # Сентинел конца потока - в finally, чтобы читатель ниже не завис
+                # навсегда, если тут выше вылетело что-то неожиданное (напр. сама БД).
+                await queue.put(None)
+
+        task = asyncio.create_task(generate_and_persist())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+        async def event_generator() -> AsyncIterator[tuple[str, dict]]:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
 
         return event_generator()
