@@ -1,7 +1,10 @@
 ﻿# ASGI / FastAPI
-fastapi==0.110.3
-starlette==0.37.2
-uvicorn==0.29.0
+# Версии синхронизированы с llm_service (уже проверенная связка) - нужен fastapi>=0.136
+# ради нативного fastapi.sse (EventSourceResponse/ServerSentEvent), это тянет за собой
+# мажорный скачок starlette 0.x -> 1.0
+fastapi==0.136.1
+starlette==1.0.0
+uvicorn==0.46.0
 fastapi-limiter
 python-multipart==0.0.20
 
@@ -19,9 +22,9 @@ argon2-cffi==23.1.0
 argon2-cffi-bindings==25.1.0
 
 # Validation / Settings
-pydantic==2.12.5
-pydantic-settings==2.12.0
-pydantic_core==2.41.5
+pydantic==2.13.4
+pydantic-settings==2.14.1
+pydantic_core==2.46.4
 annotated-types==0.7.0
 
 # HTTP client (calls to llm_service / rag_service)
@@ -43,7 +46,7 @@ uuid6==2024.7.10
 websockets==15.0.1
 
 # Async runtime
-anyio==4.12.1
+anyio==4.13.0
 greenlet==3.3.1
 
 # Testing

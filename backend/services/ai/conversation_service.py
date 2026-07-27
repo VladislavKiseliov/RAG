@@ -143,6 +143,18 @@ class ConversationService:
         self._trigger_summary_in_background(chat_id, summary_link)
         return {"response": assistant_response, "sources": sources}
 
+    async def ensure_chat_exists(self, chat_guid: UUID) -> None:
+        """Отдельная от process_message_stream проверка - нужна как FastAPI-зависимость
+        (Depends в chats_routes.py) для стримингового эндпоинта. Тот эндпоинт сам стал
+        async-генератором (ради нативного EventSourceResponse - см. agent_routers.py в
+        llm_service, тот же паттерн), а значит ChatNotFoundError изнутри его собственного
+        тела всплыл бы только на первой итерации, когда 200 и заголовки уже ушли. Depends
+        резолвится ДО вызова тела эндпоинта - здесь исключение ещё становится чистым 404."""
+        async with self._sf() as session:
+            chat = await ChatRepository(session).get_chat_by_guid(chat_guid)
+            if chat is None:
+                raise ChatNotFoundError()
+
     async def process_message_stream(
         self, user_id: int, chat_guid: UUID, content: str
     ) -> AsyncIterator[tuple[str, dict]]:

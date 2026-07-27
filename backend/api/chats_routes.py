@@ -1,9 +1,9 @@
-import json
 import uuid
+from collections.abc import AsyncIterable
 
 import httpx
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from starlette import status
 
 from backend.models.database_models import ChatType
@@ -58,25 +58,32 @@ async def chat_endpoint(
     )
 
 
-@router.post("/{chat_guid}/messages/stream")
+async def _validate_stream_chat_exists(chat_guid: uuid.UUID, service: ConversationServiceDep) -> None:
+    """`Depends`, не параметр эндпоинта - резолвится ДО тела chat_endpoint_stream. Тот сам
+    стал async-генератором (см. комментарий там), поэтому ChatNotFoundError нужно ловить
+    здесь, а не внутри его тела, иначе исключение всплывёт только на первой итерации,
+    когда EventSourceResponse уже отдал 200 и заголовки не переписать."""
+    await service.ensure_chat_exists(chat_guid)
+
+
+@router.post(
+    "/{chat_guid}/messages/stream",
+    response_class=EventSourceResponse,
+    dependencies=[Depends(_validate_stream_chat_exists)],
+)
 async def chat_endpoint_stream(
         chat_guid: uuid.UUID,
         message: Message,
         current_user: CurrentUserDep,
         service: ConversationServiceDep,
-):
+) -> AsyncIterable[ServerSentEvent]:
     generator = await service.process_message_stream(
         user_id=current_user.id,
         chat_guid=chat_guid,
         content=message.user_message,
     )
-
-    async def event_stream():
-        async for event_name, data in generator:
-            payload = json.dumps(data, ensure_ascii=False)
-            yield f"event: {event_name}\ndata: {payload}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    async for event_name, data in generator:
+        yield ServerSentEvent(event=event_name, data=data)
 
 
 @router.get("/sources/{parent_id}")

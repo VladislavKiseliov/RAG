@@ -37,6 +37,13 @@ class LLMClient:
                                 yield event_name, data
                             event_name, data_lines = None, []
                             continue
+                        if line.startswith(":"):
+                            # SSE-комментарий - keep-alive от EventSourceResponse в
+                            # llm_service (fastapi.sse.KEEPALIVE_COMMENT), сам текст неважен,
+                            # важно что дошли байты. Ретранслируем как ping, чтобы наш
+                            # собственный SSE-ответ к браузеру тоже не молчал дольше нужного.
+                            yield "ping", {}
+                            continue
                         if line.startswith("event:"):
                             event_name = line[len("event:"):].strip()
                         elif line.startswith("data:"):
