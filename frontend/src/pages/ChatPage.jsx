@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate, useLocation, useMatch } from 'react-router-dom';
 import MessageInput from '../components/MessageInput.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import Message from '../components/Message.jsx';
@@ -20,8 +21,23 @@ import { ApiContext } from '../context/ApiContext';
 
 function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, theme, onToggleTheme }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const [section, setSection] = useState('home');
     const messagesEndRef = useRef(null);
+
+    // Раздел и id открытого AI-чата живут в URL (не в useState) - чтобы обновление
+    // страницы (F5) возвращало туда же, а не сбрасывало на Главную.
+    const navigate = useNavigate();
+    const location = useLocation();
+    const chatMatch = useMatch('/chats/:conversationId');
+    const conversationId = chatMatch?.params.conversationId ?? null;
+    const section = location.pathname === '/' ? 'home'
+        : location.pathname.startsWith('/chats') ? 'chats'
+        : location.pathname.startsWith('/knowledge') ? 'knowledge'
+        : location.pathname.startsWith('/projects') ? 'projects'
+        : location.pathname.startsWith('/notes') ? 'notes'
+        : location.pathname.startsWith('/tasks') ? 'tasks'
+        : location.pathname.startsWith('/admin') ? 'admin'
+        : 'home';
+    const goToSection = useCallback((id) => navigate(id === 'home' ? '/' : `/${id}`), [navigate]);
 
     const api = useMemo(() => createApiClient(getAccessToken), [getAccessToken]);
     const { error, showError } = useErrorToast();
@@ -51,6 +67,20 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
         }
     }, [accessToken]);
 
+    // URL -> состояние: id открытого AI-чата приходит из :conversationId, а не наоборот -
+    // так refresh/прямая ссылка/кнопка "назад" всегда попадают в тот же диалог.
+    useEffect(() => {
+        aiChat.setCurrentConversationId(conversationId);
+    }, [conversationId]);
+
+    // Обратное направление - только для случая, когда sendAiMessage сам создаёт новый чат
+    // (id ещё не было в URL). Остальные переходы уже делают navigate() сами (selectAiChat).
+    useEffect(() => {
+        if (aiChat.currentConversationId && aiChat.currentConversationId !== conversationId) {
+            navigate(`/chats/${aiChat.currentConversationId}`, { replace: true });
+        }
+    }, [aiChat.currentConversationId]);
+
     useEffect(() => {
         if (aiChat.currentConversationId) {
             aiChat.loadConversationHistory(aiChat.currentConversationId);
@@ -75,14 +105,15 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
     }, [messenger.activeChatGuid, wsSendMessage, aiChat.sendAiMessage, aiChat.currentConversationId]);
 
     const selectAiChat = useCallback((id) => {
-        aiChat.setCurrentConversationId(id);
         messenger.openChat(null);
-    }, [aiChat.setCurrentConversationId, messenger.openChat]);
+        navigate(id ? `/chats/${id}` : '/chats');
+    }, [messenger.openChat, navigate]);
 
     const selectMessengerChat = useCallback((guid) => {
         messenger.openChat(guid);
         aiChat.setCurrentConversationId(null);
-    }, [messenger.openChat, aiChat.setCurrentConversationId]);
+        navigate('/chats');
+    }, [messenger.openChat, aiChat.setCurrentConversationId, navigate]);
 
     const messengerMessages = useMemo(() => activeMessengerMessages ?? [], [activeMessengerMessages]);
     const activeChat = messenger.chats.find(c => String(c.chat_guid) === messenger.activeChatGuid);
@@ -117,7 +148,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                 )}
                 <AppRail
                     activeSection={section}
-                    onSelectSection={setSection}
+                    onSelectSection={goToSection}
                     theme={theme}
                     onToggleTheme={onToggleTheme}
                     isAdmin={isAdmin}
@@ -144,7 +175,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                             onToggleTheme={onToggleTheme}
                             onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
                             isCollapsed={sidebarCollapsed}
-                            onOpenProjects={() => setSection('projects')}
+                            onOpenProjects={() => goToSection('projects')}
                             currentUser={currentUser}
                         />
                         <main className="main-chat">
@@ -203,20 +234,20 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                     </div>
                 )}
 
-                {section === 'home' && <HomePage currentUser={currentUser} onSelectSection={setSection} />}
+                {section === 'home' && <HomePage currentUser={currentUser} onSelectSection={goToSection} />}
 
                 {section === 'knowledge' && <KnowledgeBasePage />}
 
                 {section === 'projects' && (
                     <ProjectsPage
-                        onOpenMessenger={() => setSection('chats')}
-                        onOpenKnowledge={() => setSection('knowledge')}
+                        onOpenMessenger={() => goToSection('chats')}
+                        onOpenKnowledge={() => goToSection('knowledge')}
                     />
                 )}
 
                 {section === 'notes' && <NotesPage theme={theme} />}
 
-                {section === 'tasks' && <TasksPage onSelectSection={setSection} />}
+                {section === 'tasks' && <TasksPage onSelectSection={goToSection} />}
 
                 {section === 'admin' && isAdmin && <AdminPage />}
             </div>
