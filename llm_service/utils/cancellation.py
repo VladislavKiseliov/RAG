@@ -40,6 +40,12 @@ def with_cancellation(handler: Callable[..., Coroutine[Any, Any, T]]) -> Callabl
 
     Оборачиваемая функция должна принимать `http_request: Request` - FastAPI подставит
     его как обычную зависимость.
+
+    НЕ вешать на ручки, возвращающие StreamingResponse (напр. /llm/answer/stream) - у
+    того своя, отдельная отмена по дисконнекту (Starlette StreamingResponse сам слушает
+    http.disconnect). Два независимых слушателя одного и того же ASGI receive-канала -
+    необязательно безопасно (получить http.disconnect гарантированно может только один
+    из них), а от StreamingResponse эта отмена и не нужна - у неё уже есть своя.
     """
     @functools.wraps(handler)
     async def wrapper(*args: Any, http_request: Request, **kwargs: Any) -> T:
