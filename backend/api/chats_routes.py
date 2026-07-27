@@ -1,7 +1,9 @@
+import json
 import uuid
 
 import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from starlette import status
 
 from backend.models.database_models import ChatType
@@ -54,6 +56,27 @@ async def chat_endpoint(
         chat_guid=chat_guid,
         content=message.user_message,
     )
+
+
+@router.post("/{chat_guid}/messages/stream")
+async def chat_endpoint_stream(
+        chat_guid: uuid.UUID,
+        message: Message,
+        current_user: CurrentUserDep,
+        service: ConversationServiceDep,
+):
+    generator = await service.process_message_stream(
+        user_id=current_user.id,
+        chat_guid=chat_guid,
+        content=message.user_message,
+    )
+
+    async def event_stream():
+        async for event_name, data in generator:
+            payload = json.dumps(data, ensure_ascii=False)
+            yield f"event: {event_name}\ndata: {payload}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.get("/sources/{parent_id}")

@@ -1,14 +1,14 @@
 import asyncio
 import logging
 from uuid import UUID
-from typing import Dict, Any
+from typing import AsyncIterator, Dict, Any
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.repository.chat_repository import ChatRepository
 from backend.repository.messages_repository import MessageRepository
 from backend.services.ai.llm_client import LLMClient
-from backend.utils.exceptions import ChatNotFoundError
+from backend.utils.exceptions import ChatNotFoundError, LLMError, LLMUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +142,53 @@ class ConversationService:
 
         self._trigger_summary_in_background(chat_id, summary_link)
         return {"response": assistant_response, "sources": sources}
+
+    async def process_message_stream(
+        self, user_id: int, chat_guid: UUID, content: str
+    ) -> AsyncIterator[tuple[str, dict]]:
+        """SSE-вариант process_message(): сохраняет сообщение ассистента и триггерит
+        фоновое саммари уже после того, как поток дошёл до конца, а не вместо этого.
+
+        Подготовка (поиск чата, сохранение сообщения юзера) выполняется до возврата
+        генератора, а не внутри него - иначе ChatNotFoundError всплывёт только на первой
+        итерации, когда StreamingResponse уже отдал 200 и заголовки не переписать."""
+        async with self._sf() as session:
+            chat = await ChatRepository(session).get_chat_by_guid(chat_guid)
+            if chat is None:
+                raise ChatNotFoundError()
+            short_messages = await MessageRepository(session).get_recent(chat.id, limit=HISTORY_WINDOW)
+            short_messages = [{"role": m.role, "content": m.content} for m in short_messages]
+
+        summary_link = chat.summary_link
+        summary_chat = chat.summary
+        chat_id = chat.id
+
+        async with self._sf() as session:
+            async with session.begin():
+                await MessageRepository(session).add_message(chat_id, content=content, role="user")
+
+        async def event_generator() -> AsyncIterator[tuple[str, dict]]:
+            answer = ""
+            sources: list = []
+            try:
+                async for event_name, data in self._llm.stream_answer(
+                    question=content, history_messages=short_messages, summary=summary_chat or "",
+                ):
+                    if event_name == "sources":
+                        sources = data.get("sources", [])
+                    elif event_name == "done":
+                        answer = data.get("answer", "")
+                    yield event_name, data
+            except (LLMError, LLMUnavailableError) as exc:
+                yield "error", {"message": str(exc)}
+                return
+
+            async with self._sf() as session:
+                async with session.begin():
+                    await MessageRepository(session).add_message(
+                        chat_id, content=answer, role="assistant", sources=sources
+                    )
+
+            self._trigger_summary_in_background(chat_id, summary_link)
+
+        return event_generator()

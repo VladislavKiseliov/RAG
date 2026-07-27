@@ -1,4 +1,5 @@
-from typing import List, Dict
+import json
+from typing import AsyncIterator, List, Dict
 
 import httpx
 
@@ -11,6 +12,41 @@ logger = setup_logger("backend.llm_client")
 class LLMClient:
     def __init__(self, service_url: str) -> None:
         self._base_url = service_url.rstrip("/")
+
+    async def stream_answer(
+        self, question: str, history_messages: List[Dict], summary: str
+    ) -> AsyncIterator[tuple[str, dict]]:
+        """SSE-вариант get_answer(): отдаёт (event_name, data) по мере поступления от llm_service.
+
+        Контракт событий (см. llm_service/api/agent_routers.py::answer_question_stream):
+        status -> token* -> sources -> done, либо error на любом этапе.
+        """
+        url = f"{self._base_url}/llm/answer/stream"
+        payload = {"query": question, "history_messages": history_messages, "summary": summary}
+
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=5.0)) as client:
+                async with client.stream("POST", url, json=payload) as response:
+                    response.raise_for_status()
+                    event_name: str | None = None
+                    data_lines: list[str] = []
+                    async for line in response.aiter_lines():
+                        if line == "":
+                            if event_name is not None:
+                                data = json.loads("\n".join(data_lines)) if data_lines else {}
+                                yield event_name, data
+                            event_name, data_lines = None, []
+                            continue
+                        if line.startswith("event:"):
+                            event_name = line[len("event:"):].strip()
+                        elif line.startswith("data:"):
+                            data_lines.append(line[len("data:"):].strip())
+        except httpx.HTTPStatusError as e:
+            logger.error("LLM stream answer error %s", e.response.status_code)
+            raise LLMError(f"LLM stream answer failed: {e.response.status_code}")
+        except httpx.RequestError as e:
+            logger.error("LLM service unreachable: %s", str(e))
+            raise LLMUnavailableError()
 
     async def get_answer(self, question: str, history_messages: List[Dict], summary: str) -> dict:
         url = f"{self._base_url}/llm/answer"

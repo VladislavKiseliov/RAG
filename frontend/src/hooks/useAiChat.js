@@ -8,9 +8,22 @@ const genId = () =>
         ? crypto.randomUUID()
         : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
+function parseSseEvent(rawEvent) {
+    let eventName = 'message';
+    let dataLine = '';
+    for (const line of rawEvent.split('\n')) {
+        if (line.startsWith('event:')) eventName = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+    }
+    return { eventName, data: dataLine ? JSON.parse(dataLine) : {} };
+}
+
 export function useAiChat(api, showError) {
     const [messages, setMessages] = useState([GREETING]);
     const [isTyping, setIsTyping] = useState(false);
+    // isTyping — только для «печатает…» (пока не пришёл первый токен), isStreaming
+    // держит инпут задизейбленным на весь ответ, включая уже начавшийся стриминг текста.
+    const [isStreaming, setIsStreaming] = useState(false);
     const [currentConversationId, setCurrentConversationId] = useState(null);
     const [conversations, setConversations] = useState([]);
     const historyAbortRef = useRef(null);
@@ -69,24 +82,70 @@ export function useAiChat(api, showError) {
 
         setMessages((prev) => [...prev, { id: genId(), content: text, role: 'user' }]);
         setIsTyping(true);
+        setIsStreaming(true);
+
+        const assistantId = genId();
+        let appended = false;
 
         try {
-            const data = await api.post(ENDPOINTS.MESSAGES(convId), { user_message: text });
-            setMessages((prev) => [...prev, {
-                id: genId(),
-                content: data.response,
-                role: 'assistant',
-                sources: data.sources || null,
-            }]);
+            const stream = await api.postStream(ENDPOINTS.MESSAGES_STREAM(convId), { user_message: text });
+            const reader = stream.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                let sepIndex;
+                while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+                    const rawEvent = buffer.slice(0, sepIndex);
+                    buffer = buffer.slice(sepIndex + 2);
+                    if (!rawEvent.trim()) continue;
+
+                    const { eventName, data } = parseSseEvent(rawEvent);
+
+                    if (eventName === 'token') {
+                        if (!appended) {
+                            appended = true;
+                            setIsTyping(false);
+                            setMessages((prev) => [...prev, { id: assistantId, content: data.text, role: 'assistant' }]);
+                        } else {
+                            setMessages((prev) => prev.map((m) =>
+                                m.id === assistantId ? { ...m, content: m.content + data.text } : m
+                            ));
+                        }
+                    } else if (eventName === 'sources') {
+                        setMessages((prev) => prev.map((m) =>
+                            m.id === assistantId ? { ...m, sources: data.sources || null } : m
+                        ));
+                    } else if (eventName === 'error') {
+                        showError(data.message || 'Произошла ошибка при получении ответа.');
+                        if (!appended) {
+                            appended = true;
+                            setMessages((prev) => [...prev, {
+                                id: assistantId,
+                                content: 'Произошла ошибка при получении ответа.',
+                                role: 'assistant',
+                            }]);
+                        }
+                    }
+                    // 'status'/'ping' — намеренно без действия: ping только держит соединение живым.
+                }
+            }
         } catch (e) {
             showError(e.message);
-            setMessages((prev) => [...prev, {
-                id: genId(),
-                content: 'Произошла ошибка при получении ответа.',
-                role: 'assistant',
-            }]);
+            if (!appended) {
+                setMessages((prev) => [...prev, {
+                    id: assistantId,
+                    content: 'Произошла ошибка при получении ответа.',
+                    role: 'assistant',
+                }]);
+            }
         } finally {
             setIsTyping(false);
+            setIsStreaming(false);
         }
     }, [api, loadUserConversations, showError]);
 
@@ -103,6 +162,7 @@ export function useAiChat(api, showError) {
     return {
         messages,
         isTyping,
+        isStreaming,
         currentConversationId,
         setCurrentConversationId,
         conversations,

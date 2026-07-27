@@ -215,7 +215,9 @@ class LeanRagAgent:
     ):
         """SSE-вариант run(): стримит токены ответа вместо ожидания полного completion.
 
-        Контракт событий: status -> token* -> sources -> done. Компилированный
+        Контракт событий: status -> (token|ping)* -> sources -> done. ping - пустой
+        keep-alive между дельтами (см. PING_INTERVAL_S ниже), клиент его игнорирует.
+        Компилированный
         self.app.ainvoke() не даёт стримить токены generate без отдельной машинерии
         LangGraph (astream_events) - узлы до generate штатно быстрые (роутинг/поиск),
         поэтому здесь они вызываются напрямую в том же порядке, что и в графе
@@ -243,10 +245,24 @@ class LeanRagAgent:
 
         state = state.model_copy(update=await self.build_prompt_node(state))
 
+        # Пауза между дельтами от апстрим-LLM не ограничена сверху (медленная модель,
+        # сетевые заминки у провайдера) - без heartbeat корпоративные proxy/firewall
+        # перед nginx рвут "тихое" SSE-соединение по своему idle-таймауту (обычно 30-60с),
+        # который мы не контролируем и не можем настроить снаружи. Событие "ping" не несёт
+        # данных - фронт его игнорирует, но сам факт байтов в канале сбрасывает таймаут.
+        PING_INTERVAL_S = 15.0
         answer_parts: list[str] = []
-        async for delta in self.llm_provider.generate_stream(
+        token_iter = self.llm_provider.generate_stream(
             current_query=state.query, data_prompt=state.final_context
-        ):
+        ).__aiter__()
+        while True:
+            try:
+                delta = await asyncio.wait_for(token_iter.__anext__(), timeout=PING_INTERVAL_S)
+            except asyncio.TimeoutError:
+                yield {"event": "ping", "data": {}}
+                continue
+            except StopAsyncIteration:
+                break
             answer_parts.append(delta)
             yield {"event": "token", "data": {"text": delta}}
 

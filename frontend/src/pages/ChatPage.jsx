@@ -195,7 +195,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                                 </div>
                                 <MessageInput
                                     onSendMessage={handleSendMessage}
-                                    disabled={aiChat.isTyping && !isMessengerMode}
+                                    disabled={aiChat.isStreaming && !isMessengerMode}
                                     onTyping={isMessengerMode ? () => sendTyping(messenger.activeChatGuid, currentUserGuid) : undefined}
                                 />
                             </div>

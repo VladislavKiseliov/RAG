@@ -65,7 +65,7 @@ async def answer_question_stream(
     request: AskRequest,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> StreamingResponse:
-    """SSE-вариант /answer: status -> token* -> sources -> done.
+    """SSE-вариант /answer: status -> (token|ping)* -> sources -> done.
 
     HTTP-заголовки уходят до первого события, поэтому ошибка на любом этапе (в т.ч.
     после части токенов) не может стать HTTPException - вместо этого событие 'error',
