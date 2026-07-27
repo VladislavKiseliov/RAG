@@ -812,6 +812,12 @@
     border: 1px solid var(--border);
     padding: 7px 12px;
     text-align: left;
+    /* .message-markdown ставит overflow-wrap: anywhere/word-break: break-word для длинных
+       ссылок в обычном тексте - в узкой колонке таблицы (напр. "Класс" с K0/K1) это же
+       правило переносит слово посимвольно, чтобы влезть. Возвращаем обычный перенос
+       по границам слов только внутри ячеек. */
+    overflow-wrap: normal;
+    word-break: normal;
 }
 .message-markdown th { background: var(--bg-surface); font-weight: 600; }
 
