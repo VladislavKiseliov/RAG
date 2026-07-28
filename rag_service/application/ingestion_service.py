@@ -103,7 +103,18 @@ class IngestionService:
         # 1. ЗАГРУЖАЕМ существующий документ из БД, чтобы не потерять file_size и метаданные
         db_doc = await self._document_service.get_document_by_id(doc_id)
         if not db_doc:
-            raise ValueError(f"Document {doc_id} targets ghost record in database.")
+            # Документ мог быть удалён между тем, как TaskDispatcherService поставил
+            # задачу в очередь (видел строку PENDING на момент вебхука), и тем, как
+            # Celery её забрал - строка никогда не появится обратно, ретраить нечего
+            # и чистить в БД тоже нечего (её уже нет). Раньше это было ValueError,
+            # брошенным ДО try/except ниже - мимо всей классификации ошибок, прямо в
+            # общий `except Exception` в workers/task.py, который считал это
+            # транзиентным сбоем и ретраил 3 раза по 60с впустую.
+            logger.warning(
+                "Ingestion skipped for doc_id=%s: document row no longer exists "
+                "(deleted before the queued task ran), nothing to process", doc_id,
+            )
+            return IngestionResult(doc_id=doc_id, status=DocumentStatus.ERROR)
 
         file_name = Path(s3key).name
         doc = IngestionDocument(
