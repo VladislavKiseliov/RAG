@@ -66,6 +66,17 @@ class DocumentOrchestrator:
                     "skipping S3 delete and cleaning up DB/Qdrant anyway", object_key, doc_id,
                 )
 
+        # Производные артефакты ingestion (full.md, chapters/*.md, tables/*.csv|html,
+        # meta/*.md) заливаются под тем же префиксом {doc_id}/, что и исходный файл
+        # (см. IngestionDocument.create_new и IngestionService._store_docling_artifacts),
+        # но раньше не удалялись вообще - только object_key выше. Утечка объектов в
+        # MinIO с каждым удалённым документом (см. B10 в ISSUES.md). object_key мог
+        # уже попасть в этот список - повторный delete_file на уже удалённый ключ в S3
+        # идемпотентен, не ошибка.
+        artifacts = await self.s3_storage.list(prefix=str(doc_id))
+        for artifact in artifacts:
+            await self.s3_storage.delete_file(artifact["key"])
+
         await self.vector_storage.delete_by_field("doc_id", str(doc_id))
         await self.database.delete_document(doc_id)
 

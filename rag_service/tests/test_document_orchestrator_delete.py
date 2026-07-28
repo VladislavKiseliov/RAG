@@ -27,10 +27,11 @@ DOC_ID = uuid.uuid4()
 S3KEY = f"{DOC_ID}/report.pdf"
 
 
-def make_orchestrator(*, document, stat_side_effect=None):
+def make_orchestrator(*, document, stat_side_effect=None, list_return=None):
     s3_storage = MagicMock()
     s3_storage.stat = AsyncMock(side_effect=stat_side_effect)
     s3_storage.delete_file = AsyncMock()
+    s3_storage.list = AsyncMock(return_value=list_return or [])
 
     vector_storage = MagicMock()
     vector_storage.delete_by_field = AsyncMock()
@@ -81,3 +82,30 @@ async def test_delete_document_raises_for_unknown_document():
 
     with pytest.raises(ValueError):
         await orchestrator.delete_document(DOC_ID)
+
+
+@pytest.mark.asyncio
+async def test_delete_document_removes_derivative_ingestion_artifacts():
+    # Регрессия B10: производные артефакты ingestion (full.md, chapters/*.md,
+    # tables/*.csv|html, meta/*.md) заливаются под тем же префиксом {doc_id}/, что
+    # и исходный файл, но раньше не удалялись вообще - только document.s3key.
+    # Утечка объектов в MinIO с каждым удалённым документом.
+    document = MagicMock(s3key=S3KEY)
+    artifacts = [
+        {"key": S3KEY},
+        {"key": f"{DOC_ID}/full.md"},
+        {"key": f"{DOC_ID}/chapters/chapter_1.md"},
+        {"key": f"{DOC_ID}/tables/table_1.csv"},
+        {"key": f"{DOC_ID}/meta/toc.md"},
+    ]
+    orchestrator, s3_storage, vector_storage, database = make_orchestrator(
+        document=document, list_return=artifacts,
+    )
+
+    await orchestrator.delete_document(DOC_ID)
+
+    s3_storage.list.assert_awaited_once_with(prefix=str(DOC_ID))
+    deleted_keys = {call.args[0] for call in s3_storage.delete_file.await_args_list}
+    assert deleted_keys == {a["key"] for a in artifacts}
+    vector_storage.delete_by_field.assert_awaited_once_with("doc_id", str(DOC_ID))
+    database.delete_document.assert_awaited_once_with(DOC_ID)
