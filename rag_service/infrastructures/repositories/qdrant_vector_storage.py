@@ -192,6 +192,7 @@ class QdrantVectorStorage():
                 query=models.FusionQuery(fusion=self._fusion),
                 limit=max(1, top_k),
                 query_filter=query_filter,
+                score_threshold=score_threshold,
                 with_payload=True,
                 with_vectors=False,
             )
