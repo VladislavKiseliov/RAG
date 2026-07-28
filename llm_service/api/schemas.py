@@ -36,6 +36,13 @@ class AskResponse(BaseModel):
     sources: list[SourceItem]
     context: str | None = None
     total: int
+    # Аддитивные поля под целевую архитектуру (ARCHITECTURE.md) - всегда route/False/None
+    # сегодня, так как производящие их ноды недостижимы живым трафиком или заглушки
+    # (см. lean_rag_agent.py). backend/services/ai/llm_client.py читает ответ через
+    # data.get(...), новые поля не ломают существующий разбор.
+    route: str | None = None
+    retrieval_empty: bool = False
+    proposed_action: dict[str, Any] | None = None
 
 
 class SummaryRequest(BaseModel):

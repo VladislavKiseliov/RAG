@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from typing import Any
 
@@ -9,14 +10,29 @@ from langgraph.graph import END, StateGraph
 
 from llm_service.ai_config import get_live_config
 from llm_service.LLM_provider import OpenAICompatLLMProvider
+from llm_service.llm_gateway import LLMGateway
+from llm_service.tool_registry import build_tool_registry
 from llm_service.application.lean_rag_models import LeanAgentState, QueryRouterProtocol, RetrievalResult, \
-    FinalPromptData, RetrieveItem
+    FinalPromptData, RetrieveItem, PlanOutput
 from llm_service.application.services.query_service import QueryExpansionService
+from llm_service.application.services.reranker_service import RerankerService
 from llm_service.application.services.retrieval_service import  RetrievalService
 from llm_service.utils.logger_config import setup_logger
 
 
 logger = setup_logger("llm_service.lean_rag_agent")
+
+# Дефолтный текст no_data - честный отказ вместо LLM-галлюцинации на пустом/слабом
+# контексте (Принцип №4 "Честность важнее умности", ARCHITECTURE.md §3).
+_NO_DATA_ANSWER = "В базе знаний нет информации по вашему запросу."
+
+# Маркеры намерения действия для гейта post_actions - код-фильтр перед LLM-вызовом
+# (см. ARCHITECTURE.md §3 post_actions). Проверяется по state.query (что попросил
+# пользователь), не по сгенерированному ответу.
+_ACTION_MARKERS_RE = re.compile(
+    r"сохрани|закинь|запиши|создай задачу|добавь заметку|поправь заметку|обнови",
+    re.IGNORECASE,
+)
 
 # Heartbeat между событиями SSE - забота EventSourceResponse (родной механизм FastAPI,
 # см. agent_routers.py::answer_question_stream) - run_stream() сам больше не пингует ни
@@ -31,23 +47,50 @@ class LeanRagAgent:
         llm_provider: OpenAICompatLLMProvider,
         query_router: QueryRouterProtocol,
         retrieval_service: RetrievalService,
+        reranker_service: RerankerService,
     ) -> None:
         self.llm_provider = llm_provider
         self.query_router = query_router
         self.retrieval_service = retrieval_service
+        self.reranker_service = reranker_service
+        self.tool_registry = build_tool_registry(retrieval_service=retrieval_service)
+        self.llm_gateway = LLMGateway(llm_provider=llm_provider)
         self.app = self._build_graph()
 
         logger.info("Lean RAG agent initialized",)
 
     def _build_graph(self):
-        """Собирает и компилирует LangGraph граф один раз при инициализации."""
+        """Собирает и компилирует LangGraph граф один раз при инициализации.
+
+        Полный целевой граф из ARCHITECTURE.md §3 разложен целиком: где есть реальная
+        реализация - подключена (search_docs, execute_subtasks-диспетчер, гейты-код);
+        где нет - настоящая заглушка (см. комментарии у каждой *_node). Ветки
+        personal/complex структурно присутствуют, но недостижимы живым трафиком -
+        MLQueryRouter физически не может вернуть эти классы (нет обучающих примеров,
+        см. ml_router/data/dataset.csv). Ветка domain_rag/smalltalk/out_of_domain
+        проходит через новые ноды (rerank/extract_sources/post_actions-гейт), но
+        каждая из них - доказуемый no-op на этом пути (см. docstring соответствующей
+        ноды) - ответ не меняется ни на бит по сравнению со старым 5-нодовым графом.
+        """
         workflow = StateGraph(LeanAgentState)
 
         workflow.add_node("router", self.route_node)
         workflow.add_node("expand_queries", self.expand_queries_node)
         workflow.add_node("retrieve_multi", self.retrieve_multi_node)
+        workflow.add_node("rerank", self.rerank_node)
+        workflow.add_node("reflect", self.reflect_node)
+        workflow.add_node("no_data", self.no_data_node)
+        workflow.add_node("personal_search", self.personal_search_node)
+        workflow.add_node("resolve_docs", self.resolve_docs_node)
+        workflow.add_node("clarify", self.clarify_node)
+        workflow.add_node("background_report", self.background_report_node)
+        workflow.add_node("gather_passports", self.gather_passports_node)
+        workflow.add_node("plan", self.plan_node)
+        workflow.add_node("execute_subtasks", self.execute_subtasks_node)
         workflow.add_node("build_prompt", self.build_prompt_node)
         workflow.add_node("generate", self.generate_node)
+        workflow.add_node("extract_sources", self.extract_sources_node)
+        workflow.add_node("post_actions", self.post_actions_node)
 
         workflow.set_entry_point("router")
         workflow.add_conditional_edges(
@@ -57,12 +100,49 @@ class LeanRagAgent:
                 "smalltalk": "build_prompt",
                 "out_of_domain": "build_prompt",
                 "expand": "expand_queries",
+                "personal": "personal_search",
+                "complex": "resolve_docs",
             },
         )
         workflow.add_edge("expand_queries", "retrieve_multi")
-        workflow.add_edge("retrieve_multi", "build_prompt")
+        workflow.add_edge("retrieve_multi", "rerank")
+        workflow.add_conditional_edges(
+            "rerank",
+            self.decide_after_rerank,
+            {"sufficient": "build_prompt", "grey_zone": "reflect", "empty": "no_data"},
+        )
+        workflow.add_conditional_edges(
+            "reflect",
+            self.decide_after_reflect,
+            {"sufficient": "build_prompt", "need_more": "retrieve_multi", "not_in_corpus": "no_data"},
+        )
+        workflow.add_edge("no_data", END)
+
+        workflow.add_edge("personal_search", "build_prompt")
+
+        workflow.add_conditional_edges(
+            "resolve_docs",
+            self.decide_after_resolve_docs,
+            {"clarify": "clarify", "background": "background_report", "gather_passports": "gather_passports"},
+        )
+        workflow.add_edge("clarify", END)
+        workflow.add_edge("background_report", END)
+        workflow.add_edge("gather_passports", "plan")
+        workflow.add_edge("plan", "execute_subtasks")
+        workflow.add_conditional_edges(
+            "execute_subtasks",
+            self.decide_after_execute_subtasks,
+            {"rerank": "rerank", "build_prompt": "build_prompt"},
+        )
+
         workflow.add_edge("build_prompt", "generate")
-        workflow.add_edge("generate", END)
+        workflow.add_edge("generate", "extract_sources")
+        workflow.add_conditional_edges(
+            "extract_sources",
+            self.decide_after_generate,
+            {"end": END, "post_actions": "post_actions"},
+        )
+        workflow.add_edge("post_actions", END)
 
         return workflow.compile()
 
@@ -85,8 +165,14 @@ class LeanRagAgent:
         return {"route": route}
 
     async def decide_after_router(self, state: LeanAgentState) -> str:
-        """Выбирает следующий узел графа на основе route"""
-        if state.route in {"smalltalk", "out_of_domain"}:
+        """Выбирает следующий узел графа на основе route.
+
+        personal/complex структурно смаршрутизированы, но MLQueryRouter физически
+        не может их вернуть (нет обучающих примеров в ml_router/data/dataset.csv) -
+        недостижимо живым трафиком, пока роутер не переобучен (см. ARCHITECTURE.md
+        §10 шаг 1c).
+        """
+        if state.route in {"smalltalk", "out_of_domain", "personal", "complex"}:
             return state.route
 
         return "expand"
@@ -130,6 +216,140 @@ class LeanRagAgent:
         )
         return {"retrieval_data": retrieval_result.items}
 
+    async def rerank_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """РЕАЛЬНЫЙ rerank через TEI (bge-reranker-v2-m3, отдельный контейнер
+        tei-reranker) - развёрнут 07.2026 как сознательное исключение из eval-ворот
+        (ARCHITECTURE.md §1 п.3, второе исключение). Реранжирует по ЛУЧШЕМУ child-чанку
+        каждого parent (то, что реально совпало с запросом при исходном векторном
+        поиске - короткий точный фрагмент), не по parent_chunk целиком: тот может быть
+        целой главой в тысячи символов - разбавляет сигнал кросс-энкодеру и рискует не
+        влезть в его контекст. Сам parent_chunk (то, что уйдёт в промпт) не меняется -
+        меняется только его новый score/позиция. Пустой retrieval_data - no-op, сетевой
+        вызов не делается (RerankerService.rerank сам это обрабатывает).
+        """
+        if not state.retrieval_data:
+            return {"retrieval_data": []}
+
+        texts = [
+            max(item.child_chunks, key=lambda c: c.score).text if item.child_chunks else item.parent_chunk
+            for item in state.retrieval_data
+        ]
+        scored = await self.reranker_service.rerank(query=state.query, texts=texts)
+
+        reordered: list[RetrieveItem] = []
+        for entry in scored:
+            original = state.retrieval_data[entry["index"]]
+            new_metadata = original.metadata.model_copy(update={"score": entry["score"]})
+            reordered.append(original.model_copy(update={"metadata": new_metadata}))
+        return {"retrieval_data": reordered}
+
+    async def decide_after_rerank(self, state: LeanAgentState) -> str:
+        """РЕАЛЬНЫЙ гейт, развёрнут вместе с rerank_node (то же сознательное исключение,
+        см. там же). Пороги - из конфига (`gateway.rerank_no_data_threshold`/
+        `rerank_grey_zone_threshold`), стартовые оценки, не откалиброванные eval'ом -
+        пересмотр после появления eval-контура (ARCHITECTURE.md §10 шаг 1).
+        """
+        if not state.retrieval_data:
+            return "empty"
+
+        top_score = state.retrieval_data[0].metadata.score
+        gateway_config = get_live_config().gateway
+        if top_score < gateway_config.rerank_no_data_threshold:
+            return "empty"
+        if top_score < gateway_config.rerank_grey_zone_threshold:
+            return "grey_zone"
+        return "sufficient"
+
+    async def reflect_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА: не вызывает LLM, не пересматривает выдачу (шаг 5 ARCHITECTURE.md,
+        отдельный от rerank). Серая зона (см. decide_after_rerank) теперь реально сюда
+        попадает, но не улучшает выдачу - просто пропускает в build_prompt как
+        "sufficient", не отрезая ответ искусственно, пока reflect не реализован."""
+        return {"reflect_rounds": state.reflect_rounds + 1, "reflect_verdict": "sufficient"}
+
+    async def decide_after_reflect(self, state: LeanAgentState) -> str:
+        """Захардкожен на "sufficient" - reflect (шаг 5) ещё не реализован, см. reflect_node."""
+        return "sufficient"
+
+    async def no_data_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """РЕАЛЬНАЯ терминальная нода, достижима с сегодняшнего дня (см. decide_after_rerank) -
+        честный отказ вместо LLM-галлюцинации на пустом/слабом контексте (Принцип №4)."""
+        return {"retrieval_empty": True, "response_model": _NO_DATA_ANSWER}
+
+    async def personal_search_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА: search_notes/search_tasks ещё не реализованы (нет HTTP-клиента
+        к backend, где живут заметки/задачи) - см. tool_registry.py. Недостижима живым
+        трафиком - роутер не может вернуть route="personal" (нет обучающих примеров)."""
+        return {"retrieval_data": []}
+
+    async def resolve_docs_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА: определение набора документов из attachment'ов сообщения или
+        матча по названию/коду не реализовано - AskRequest несёт только одиночный
+        doc_id, не список attachment'ов (см. ARCHITECTURE.md §3). Недостижима живым
+        трафиком - роутер не может вернуть route="complex"."""
+        return {"resolved_docs": []}
+
+    async def decide_after_resolve_docs(self, state: LeanAgentState) -> str:
+        """Реальный код-гейт (без внешних зависимостей) - корректен уже сегодня, хотя
+        и недостижим (resolve_docs_node-заглушка всегда отдаёт пустой список)."""
+        max_docs_interactive = get_live_config().gateway.max_docs_interactive
+        if not state.resolved_docs:
+            return "clarify"
+        if len(state.resolved_docs) > max_docs_interactive:
+            return "background"
+        return "gather_passports"
+
+    async def clarify_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА, терминальная нода - недостижима (см. resolve_docs_node)."""
+        return {"response_model": "Уточните, пожалуйста, какие документы сравнить."}
+
+    async def background_report_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА, терминальная нода - фоновый workflow для широкого сравнения
+        (ARCHITECTURE.md §9/§10 шаг 8b) не реализован. Недостижима (см. resolve_docs_node)."""
+        return {"response_model": "Широкое сравнение документов пока не реализовано."}
+
+    async def gather_passports_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА: get_document_passport ещё не реализован в реестре инструментов.
+        Недостижима (см. resolve_docs_node/decide_after_resolve_docs)."""
+        return {"document_passports": []}
+
+    async def plan_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА: не вызывает llm_gateway.generate_json - нет ни промпта, ни
+        реальных паспортов документов, на основе которых строить план. Недостижима
+        (route="complex" недостижим). Готовая инфраструктура (LLMGateway.generate_json)
+        уже протестирована отдельно - подключение сюда после того, как появится промпт."""
+        return {"plan": PlanOutput(subtasks=[], synthesis="")}
+
+    async def execute_subtasks_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """РЕАЛЬНЫЙ универсальный диспетчер реестра (ARCHITECTURE.md §3/§8):
+        находит tool по имени, валидирует args по args_schema, вызывает fn.
+        Защитно отклоняет любой tool с access != "read", даже если plan (когда
+        появится) ошибочно его предложит - вторая линия защиты сверх системного
+        промпта plan. Недостижима сегодня - state.plan всегда None/subtasks=[]."""
+        results: list[dict[str, Any]] = []
+        subtasks = state.plan.subtasks if state.plan else []
+        for subtask in subtasks:
+            tool = self.tool_registry.get(subtask.tool)
+            if tool is None:
+                logger.warning("execute_subtasks: unknown tool '%s', skipping", subtask.tool)
+                continue
+            if tool.access != "read":
+                logger.warning(
+                    "execute_subtasks: refusing to auto-execute write tool '%s' - write only via post_actions",
+                    subtask.tool,
+                )
+                continue
+            args = tool.args_schema.model_validate(subtask.args)
+            result = await tool.fn(**args.model_dump())
+            results.append({"tool": subtask.tool, "result": result})
+        return {"subtask_results": results}
+
+    async def decide_after_execute_subtasks(self, state: LeanAgentState) -> str:
+        """Реальный код-гейт: если среди подзадач были search_docs — маршрут в rerank
+        (чтобы отранжировать document-поиск так же, как domain_rag), иначе прямо в
+        build_prompt (search_notes/search_tasks ререйку не проходят, см. ARCHITECTURE.md §3)."""
+        used_search_docs = any(r["tool"] == "search_docs" for r in state.subtask_results)
+        return "rerank" if used_search_docs else "build_prompt"
 
     def _format_child_chunks_retrive_data(self, item: RetrieveItem) -> str:
         """[Документ: <filename> | Раздел <title>]\n<текст родительского чанка>.
@@ -211,6 +431,29 @@ class LeanRagAgent:
             for item in retrieval_data
         ]
 
+    async def extract_sources_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """РЕАЛЬНАЯ нода: тот же build_sources, что раньше вызывался инлайново в
+        run_stream()/agent_routers.py - вынесен в ноду графа, поведение не меняется."""
+        return {"sources": self.build_sources(state.retrieval_data)}
+
+    async def decide_after_generate(self, state: LeanAgentState) -> str:
+        """РЕАЛЬНЫЙ код-гейт перед post_actions (ARCHITECTURE.md §3): smalltalk_ood -
+        пропуск всегда; иначе LLM-вызов post_actions только при совпадении
+        эвристики-маркера в исходном вопросе пользователя (не в сгенерированном
+        ответе) - экономит LLM-вызов на подавляющем большинстве сообщений без
+        намерения действия."""
+        if state.route in {"smalltalk", "out_of_domain"}:
+            return "end"
+        if _ACTION_MARKERS_RE.search(state.query):
+            return "post_actions"
+        return "end"
+
+    async def post_actions_node(self, state: LeanAgentState) -> dict[str, Any]:
+        """ЗАГЛУШКА: настоящий no-op - не делает I/O, не вызывает LLM, proposed_action
+        остаётся None. Нет ни промпта, ни write-инструментов с реальной реализацией
+        (create_task/create_note/update_note - все NotImplementedError в реестре)."""
+        return {"proposed_action": None}
+
     async def run_stream(
         self,
         *,
@@ -248,12 +491,51 @@ class LeanRagAgent:
         state = state.model_copy(update=await self.route_node(state))
         yield {"event": "status", "data": {"stage": "route", "route": state.route}}
 
+        # Граф в _build_graph() уже поддерживает personal/complex - run_stream() пока
+        # нет (см. ARCHITECTURE.md, план внедрения). Явный guard вместо тихого
+        # рассинхрона: если роутер когда-нибудь реально вернёт один из этих классов
+        # (после переобучения, шаг 1c), это должно упасть громко, а не молча
+        # обработаться как domain_rag.
+        if state.route not in {"smalltalk", "out_of_domain", "domain_rag"}:
+            raise NotImplementedError(
+                f"run_stream() has no SSE path for route={state.route!r} yet - "
+                "see _build_graph() for the compiled-graph (non-stream) equivalent"
+            )
+
         if await self.decide_after_router(state) == "expand":
             state = state.model_copy(update=await self.expand_queries_node(state))
             yield {"event": "status", "data": {"stage": "expand"}}
 
             state = state.model_copy(update=await self.retrieve_multi_node(state))
             yield {"event": "status", "data": {"stage": "retrieve", "count": len(state.retrieval_data)}}
+
+            # rerank_node - реальный (развёрнут 07.2026, см. её docstring). decide_after_rerank
+            # обязателен здесь же - иначе /llm/answer (граф, через no_data-ветку) и
+            # /llm/answer/stream (этот метод) разошлись бы: граф корректно обрывается в
+            # no_data при пустом/слабом retrieval, а этот метод раньше безусловно шёл в
+            # generate дальше.
+            state = state.model_copy(update=await self.rerank_node(state))
+
+            rerank_decision = await self.decide_after_rerank(state)
+            if rerank_decision == "grey_zone":
+                state = state.model_copy(update=await self.reflect_node(state))
+                rerank_decision = await self.decide_after_reflect(state)
+
+            if rerank_decision == "empty":
+                state = state.model_copy(update=await self.no_data_node(state))
+                state = state.model_copy(update=await self.extract_sources_node(state))
+                yield {"event": "token", "data": {"text": state.response_model}}
+                yield {"event": "sources", "data": {"sources": state.sources}}
+                yield {"event": "done", "data": {"answer": state.response_model}}
+                logger.info(
+                    "Lean agent run_stream finished (no_data)",
+                    extra={
+                        "query": query,
+                        "route": state.route,
+                        "duration_ms": int((time.perf_counter() - started) * 1000),
+                    },
+                )
+                return
 
         state = state.model_copy(update=await self.build_prompt_node(state))
 
@@ -299,7 +581,17 @@ class LeanRagAgent:
                     yield {"event": "token", "data": {"text": answer}}
 
         answer = "".join(answer_parts)
-        sources = self.build_sources(state.retrieval_data)
+        state = state.model_copy(update=await self.extract_sources_node(state))
+        sources = state.sources
+
+        # Гейт post_actions - см. decide_after_generate/post_actions_node. Не
+        # добавляет нового SSE-события: post_actions_node сегодня настоящий no-op
+        # (proposed_action остаётся None), это лишь та же точка, что и в
+        # _build_graph(), защищённая от будущего рассинхрона графа/стрима.
+        state = state.model_copy(update={"response_model": answer})
+        if await self.decide_after_generate(state) == "post_actions":
+            await self.post_actions_node(state)
+
         yield {"event": "sources", "data": {"sources": sources}}
         yield {"event": "done", "data": {"answer": answer}}
 

@@ -56,11 +56,16 @@ async def answer_question(
     retrieval_data = final_state.get("retrieval_data", [])
     sources = LeanRagAgent.build_sources(retrieval_data)
 
+    proposed_action = final_state.get("proposed_action")
+
     result = {
         "answer": answer_text,
         "sources": sources,
         "context": None,
         "total": len(sources),
+        "route": final_state.get("route"),
+        "retrieval_empty": final_state.get("retrieval_empty", False),
+        "proposed_action": proposed_action.model_dump() if proposed_action else None,
     }
 
     return AskResponse(**result)

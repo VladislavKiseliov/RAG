@@ -29,10 +29,25 @@ class PromptsConfig(BaseModel):
     query_expansion_prompt: str
 
 
+class GatewayConfig(BaseModel):
+    """Пороги плана/сравнения документов/реранка, см. ARCHITECTURE.md §3/§10 (шаги 1c/4/5b)."""
+    max_docs_interactive: int = 4
+    max_subtasks: int = 12
+    router_knn_threshold: float = 0.15
+    router_confidence_threshold: float = 0.7
+    # Стартовые оценки (не откалиброваны eval'ом - см. ARCHITECTURE.md §1 п.3, второе
+    # сознательное исключение). Ниже no_data_threshold - retrieval_empty=True, LLM не
+    # зовём; между порогами - "серая зона" (сегодня уходит в build_prompt как sufficient,
+    # т.к. reflect ещё заглушка); выше grey_zone_threshold - обычный sufficient.
+    rerank_no_data_threshold: float = 0.35
+    rerank_grey_zone_threshold: float = 0.60
+
+
 class AppConfig(BaseModel):
     llm: LLMConfig
     llm_summary: LLMConfig
     prompts: PromptsConfig
+    gateway: GatewayConfig = GatewayConfig()
 
     @classmethod
     def load(cls, filepath: Path | str = _CONFIG_PATH) -> "AppConfig":

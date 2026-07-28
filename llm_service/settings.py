@@ -23,5 +23,8 @@ class LLMSettings(BaseSettings):
     ML_ROUTER_MODEL_PATH: str
     ML_ROUTER_CONFIDENCE_THRESHOLD: float
 
+    RERANKER_TEI_URL: str
+    LLM_RERANK_TIMEOUT: float = 30.0
+
 
 settings = LLMSettings()

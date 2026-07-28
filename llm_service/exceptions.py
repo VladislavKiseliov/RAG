@@ -25,6 +25,16 @@ class RagResponseError(NetworkError):
         super().__init__(message, status.HTTP_502_BAD_GATEWAY)
 
 
+class RerankerUnavailableError(NetworkError):
+    def __init__(self, message: str = "Reranker service unavailable"):
+        super().__init__(message, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+class RerankerResponseError(NetworkError):
+    def __init__(self, message: str = "Reranker service returned an error"):
+        super().__init__(message, status.HTTP_502_BAD_GATEWAY)
+
+
 # --- Processing errors ---
 
 class ProcessingError(LLMServiceError):

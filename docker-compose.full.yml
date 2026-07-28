@@ -120,6 +120,51 @@ services:
     networks:
       - rag_network
 
+  # Отдельный TEI-контейнер под реранкер (Cross-Encoder, не эмбеддер) - TEI сам
+  # распознаёт архитектуру SequenceClassification и переключается в режим реранкинга
+  # по --model-id/MODEL_ID. Тот же тег образа turing-1.8, что и у `tei` - под нашу
+  # физическую карту (GTX 1660 Ti, Turing), а не generic cuda-тег. Развёрнуто 07.2026
+  # как сознательное исключение из eval-ворот (см. ARCHITECTURE.md §1 п.3) - GPU-бюджет
+  # проверен заранее (nvidia-smi: 4.4ГБ свободно из 6ГБ на момент развёртывания).
+  tei-reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:turing-1.8
+    container_name: rag_tei_reranker
+    environment:
+      MODEL_ID: ${RERANKER_MODEL_NAME:-BAAI/bge-reranker-v2-m3}
+      DTYPE: float16
+      PAYLOAD_LIMIT: "10000000"
+      # Дефолты TEI (max_batch_tokens=16384, max_concurrent_requests=512) готовят
+      # warmup-буфер под гораздо больший трафик, чем реально есть - именно на этом
+      # шаге (не на загрузке весов) контейнер падал в CUDA_ERROR_OUT_OF_MEMORY на
+      # общей 6ГБ карте. Реальная нагрузка - один rerank-вызов на ~6-30 кандидатов
+      # (см. retrieve_multi_node/top_k), сужаем под неё с запасом. max_input_length
+      # модели - 8192 токенов, TEI не даёт max_batch_tokens меньше без auto-truncate;
+      # наши parent-чанки короче 4096 токенов, обрезка на практике не сработает.
+      MAX_BATCH_TOKENS: "4096"
+      MAX_CONCURRENT_REQUESTS: "32"
+      MAX_CLIENT_BATCH_SIZE: "32"
+      AUTO_TRUNCATE: "true"
+    volumes:
+      - hf_cache:/data
+    ports:
+      - "${RERANKER_PORT:-8086}:80"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:80/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    networks:
+      - rag_network
+
   rag-service:
     build:
       context: .
@@ -263,6 +308,8 @@ services:
     depends_on:
       rag-service:
         condition: service_started
+      tei-reranker:
+        condition: service_healthy
     networks:
       - rag_network
 

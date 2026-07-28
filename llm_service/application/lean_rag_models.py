@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class QueryRouterProtocol(Protocol):
-    def route(self, query: str) -> Literal["smalltalk", "domain_rag", "out_of_domain"]:
+    def route(self, query: str) -> Literal["smalltalk", "domain_rag", "out_of_domain", "personal", "complex"]:
         ...
 
 class RetrieveItemMetadata(BaseModel):
@@ -55,6 +55,43 @@ class ExpandedQueryPack(BaseModel):
     queries: list[str] = Field(default_factory=list)
 
 
+class DocumentPassport(BaseModel):
+    """Cheap per-document summary used by `plan` to decide comparison axes without
+    re-reading full documents. See ARCHITECTURE.md §3 gather_passports."""
+    doc_id: str
+    filename: str
+    summary: str = ""
+    chapters: list[str] = Field(default_factory=list)
+    is_fallback: bool = False
+
+
+class PlanSubtask(BaseModel):
+    """One tool invocation requested by `plan` — `tool` is any read-tool name
+    registered in tool_registry.py, `args` validated against its args_schema
+    at execute_subtasks-time."""
+    tool: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class PlanOutput(BaseModel):
+    """`plan` node's structured output. See ARCHITECTURE.md §3 contracts."""
+    subtasks: list[PlanSubtask] = Field(default_factory=list)
+    synthesis: str = ""
+
+
+class ReflectOutput(BaseModel):
+    """`reflect` node's structured verdict. See ARCHITECTURE.md §3 reflect."""
+    verdict: Literal["sufficient", "need_more", "not_in_corpus"]
+    new_queries: list[str] = Field(default_factory=list)
+
+
+class ProposedAction(BaseModel):
+    """`post_actions` node's output — never auto-executed, requires human confirm
+    via POST /actions/execute. See ARCHITECTURE.md §4 update_note rules."""
+    action: Literal["create_task", "create_note", "update_note"]
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 class LeanAgentState(BaseModel):
     """LangGraph pipeline state carried across all agent nodes."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -65,11 +102,28 @@ class LeanAgentState(BaseModel):
     summary: str = ""
 
     # Логика и маршрутизация
-    route: Literal["smalltalk", "domain_rag", "out_of_domain"]
+    route: Literal["smalltalk", "domain_rag", "out_of_domain", "personal", "complex"]
     expanded_queries: list[str] = Field(default_factory=list)
 
     # Контекст (Результат поиска)
     retrieval_data: list[RetrieveItem] = Field(default_factory=list)
     final_context: FinalPromptData | None = None
+
+    # complex-путь (resolve_docs/gather_passports/plan/execute_subtasks) - см.
+    # ARCHITECTURE.md §3. Заглушки в этом заходе, но поля нужны графу уже сейчас,
+    # чтобы новые ноды и реальные могли писать в общий state.
+    resolved_docs: list[str] = Field(default_factory=list)
+    document_passports: list[DocumentPassport] = Field(default_factory=list)
+    plan: PlanOutput | None = None
+    subtask_results: list[dict[str, Any]] = Field(default_factory=list)
+
+    # reflect/no_data - гейты захардкожены never-fire в этом заходе (см.
+    # lean_rag_agent.py::_NO_DATA_GATE_ENABLED), поля тем не менее заведены.
+    reflect_rounds: int = 0
+    reflect_verdict: Literal["sufficient", "need_more", "not_in_corpus"] | None = None
+    retrieval_empty: bool = False
+
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    proposed_action: ProposedAction | None = None
 
     response_model:str = ""

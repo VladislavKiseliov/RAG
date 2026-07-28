@@ -14,6 +14,20 @@ model_name = "openai/gpt-oss-120b"
 temperature = 0.2
 max_tokens = 2048
 
+# Пороги плана/сравнения документов, роутера и реранка — см. ARCHITECTURE.md §3/§10
+# (шаги 1c/4/5b). max_docs_interactive/max_subtasks/router_* пока не используются
+# реальной веткой (complex/personal недостижимы — роутер не переобучен). rerank_*
+# используются реально (реранкер развёрнут 07.2026 как сознательное исключение из
+# eval-ворот, см. ARCHITECTURE.md §1 п.3) — значения стартовые, пересмотр после
+# появления eval-контура (шаг 1).
+[gateway]
+max_docs_interactive = 4
+max_subtasks = 12
+router_knn_threshold = 0.15
+router_confidence_threshold = 0.7
+rerank_no_data_threshold = 0.35
+rerank_grey_zone_threshold = 0.60
+
 [prompts]
 system_prompt_rag = """Ты — технический ассистент инженерной лаборатории. Отвечай на вопрос,
 опираясь ИСКЛЮЧИТЕЛЬНО на блок КОНТЕКСТ ИЗ ДОКУМЕНТАЦИИ.
