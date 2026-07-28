@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -9,6 +10,8 @@ from rag_service.domain.document import IngestionDocument
 from rag_service.domain.errors.storage import StorageNotFoundError
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentOrchestrator:
@@ -45,15 +48,24 @@ class DocumentOrchestrator:
             raise ValueError(f"Document '{doc_id}' not found")
 
         object_key = key or document.s3key
-        if not object_key:
-            raise ValueError(f"Storage key for document '{doc_id}' is empty")
 
-        try:
-            await self.s3_storage.stat(object_key)
-        except StorageNotFoundError:
-            raise ValueError(f"File '{object_key}' not found in storage")
+        # Файл в S3 может отсутствовать по причинам, не связанным с самим документом
+        # (кто-то вручную почистил бакет, пропущенный шаг миграции и т.п.) - раньше это
+        # ПОЛНОСТЬЮ блокировало удаление: stat() падал, delete_document кидал 404, а
+        # запись в Postgres/Qdrant оставалась "осиротевшей" навсегда, без способа её
+        # убрать через UI. Удаление - это про очистку ЗАПИСИ о документе, а не про
+        # обязательное наличие файла: если файла и так уже нет, удалять из S3 нечего,
+        # но БД/Qdrant всё равно должны быть очищены.
+        if object_key:
+            try:
+                await self.s3_storage.stat(object_key)
+                await self.s3_storage.delete_file(object_key)
+            except StorageNotFoundError:
+                logger.warning(
+                    "delete_document: file '%s' already absent in storage for doc_id=%s, "
+                    "skipping S3 delete and cleaning up DB/Qdrant anyway", object_key, doc_id,
+                )
 
-        await self.s3_storage.delete_file(object_key)
         await self.vector_storage.delete_by_field("doc_id", str(doc_id))
         await self.database.delete_document(doc_id)
 

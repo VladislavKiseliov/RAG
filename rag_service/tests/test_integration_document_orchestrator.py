@@ -83,7 +83,7 @@ async def s3_repository() -> S3StorageRepository:
 async def vector_storage_mock() -> AsyncMock:
     """Provide async mock for vector storage to verify delete-side effects."""
     mock = AsyncMock()
-    mock.delete_vectors_by_id = AsyncMock()
+    mock.delete_by_field = AsyncMock()
     return mock
 
 
@@ -253,7 +253,7 @@ async def test_delete_document_removes_file_vectors_and_db_record(
         result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
         deleted = result.scalar_one_or_none()
     assert deleted is None
-    vector_storage_mock.delete_vectors_by_id.assert_any_await(str(doc_id))
+    vector_storage_mock.delete_by_field.assert_any_await("doc_id", str(doc_id))
 
 
 async def test_get_document_info_returns_full_postgres_payload(
