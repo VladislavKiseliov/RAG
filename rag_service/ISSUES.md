@@ -41,11 +41,7 @@
 
 ## 🔴 Баги
 
-| # | Описание | Файл | Строка |
-|---|---|---|---|
-| B3 | `score_threshold` в `search()` не доходит до Qdrant — `query_points()` вызывается без этого kwarg (в `batch_search()` передаётся корректно, асимметрия между методами) | `infrastructures/repositories/qdrant_vector_storage.py` | 191–199 |
-| B9 | **`ChapterSplitter` путает нумерованные шаги внутри примеров с главами документа.** Регэксп `^(#{1,6})\s+(\d+(?:\.\d+)*)\.?\s+(\S.*)$` считает главой любой нумерованный заголовок независимо от контекста. В документах с разделом «Типовые примеры расчётов» Docling рендерит шаги внутри каждого примера тем же уровнем (`##`), что и главы: `## Пример 21` → `## 1. Исходные данные.` → `## 2. Определение категории здания.` — и это `1.`/`2.` повторяется в каждом примере (найдено ≥8 раз в одном документе, `СП 12.13130.2009`, `doc_id=019f9250-36ee-7c7c-a5c1-f9a6d05a59e5`). Сталкивается с настоящими главами 1/2 → `UniqueViolationError` на `uq_document_chapters_doc_chapter_number` в `bulk_insert_chapters`, документ падает в статус ERROR и зависает там навсегда (см. `_schedule_delayed_cleanup` — заглушка). Даже без коллизии по номеру — `save_current()` слепо переключает `current_num` на любое совпадение, из-за чего контент примеров утекает не в ту главу (тихая порча данных, не только сбой вставки). Не разовый случай — воспроизведётся на любом документе с нумерованными шагами/примерами | `domain/chunking/docling_segmenter.py` | 23, 79–113 |
-| B10 | `DocumentOrchestrator.delete_document` при удалении документа чистит только оригинальный PDF (`document.s3key`) + векторы в Qdrant + строку в Postgres (каскадом — главы/таблицы/parent_chunks). Производные S3-артефакты инжеста (`{doc_id}/full.md`, `chapters/*.md`, `tables/*.csv\|html`, `meta/*.md`, залиты в `_store_docling_artifacts`) не удаляются никогда — подтверждено живьём (`mc ls` после `DELETE /documents/{id}` всё ещё показывает эти файлы). Утечка объектов в MinIO, растёт с каждым удалённым документом | `application/document_orchestrator.py` | 41–58 |
+Пусто на данный момент — см. «✅ Исправлено» ниже по датам.
 
 ---
 
@@ -54,6 +50,17 @@
 | # | Было | Как исправлено |
 |---|---|---|
 | B8 | (backend, не rag_service) `Chats.summary_link` в модели и в корневой миграции типизирован как `UUID(as_uuid=True)`, а `ConversationService` везде трактует его как integer — id последнего сообщения в батче, курсор для `get_messages_after`. Каждый раз, когда чат переваливает `SUMMARY_THRESHOLD` и `update_summary()` пытается сохранить `chat.summary_link = <int>`, запись падала с ошибкой типа | `backend/models/database_models.py:115` → `Integer`; та же правка в `migrations/users/versions/8506a89ad7d9_..._.py:67` (pre-release база, миграция поправлена на месте, не поверх). `ALTER TABLE users_shema.chats ALTER COLUMN summary_link TYPE INTEGER USING NULL` выполнен на dev-БД (`myapp_db`) — у всех 25 чатов значение было `NULL`, данных не потеряно. `rag_backend` перезапущен, поднялся чисто |
+| B9 | `ChapterSplitter` путал нумерованные шаги внутри примеров («Пример N» → «1. Исходные данные.») с настоящими главами документа — коллизия номеров роняла `bulk_insert_chapters` на `UniqueViolationError`, плюс тихая порча данных (контент примера утекал не в ту главу) | `docling_segmenter.py::ChapterSplitter.split()` — `seen_numbers: set[str]`, номер, который уже встречался, дописывается в текущую главу вместо открытия новой (коммит `073a260`) |
+
+---
+
+## ✅ Исправлено (2026-07-28)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| B3 | `score_threshold` в `search()` не доходил до Qdrant — `query_points()` вызывался без этого kwarg (в `batch_search()` передавался корректно, асимметрия между методами). Реальный эффект: `RetrieveService.search()` вызывающие код передавали `score_threshold`, ожидая отсечение нерелевантных чанков, но фильтрация молча не работала — приходили все top_k результатов независимо от скора | `infrastructures/repositories/qdrant_vector_storage.py::search()` — `score_threshold=score_threshold` добавлен в вызов `query_points()`. Тест: `tests/test_qdrant_vector_storage_search.py` |
+| B10 | `DocumentOrchestrator.delete_document` чистил только оригинальный файл (`document.s3key`) + Qdrant + Postgres. Производные S3-артефакты инжеста (`{doc_id}/full.md`, `chapters/*.md`, `tables/*.csv\|html`, `meta/*.md`) не удалялись никогда — подтверждено живьём (`mc ls` после `DELETE /documents/{id}` всё ещё показывал эти файлы). Утечка объектов в MinIO с каждым удалённым документом | Оригинальный файл и все производные артефакты лежат под одним префиксом `{doc_id}/` (см. `IngestionDocument.create_new`, `IngestionService._store_docling_artifacts`) — `delete_document` теперь листит `s3_storage.list(prefix=str(doc_id))` и удаляет всё найденное. Тест: `tests/test_document_orchestrator_delete.py::test_delete_document_removes_derivative_ingestion_artifacts` |
+| A12 | Пайплайн инжеста сам себе слал вебхуки — записи собственных артефактов (`full.md`, `chapters/*`, `tables/*`, `meta/*`) триггерили `handle_webhook` → `DocumentByStorageKeyNotFound` → ERROR-лог, до сотни лишних записей на документ | `TaskDispatcherService._is_ingestion_artifact()` — проверка по суффиксам пути перед обращением к БД, тихий `return`. Тест: `tests/test_task_dispatcher_service.py` |
 
 ---
 
@@ -69,7 +76,6 @@
 | A8 | `DocumentStatus` определён в `api/schemas.py` — импортируют напрямую `domain/document.py`, `models/models.py`, `application/task_dispatcher_service.py` | `api/schemas.py` | 8–23 |
 | A10 | Реструктуризация хранения документов — гибридная архитектура PostgreSQL + MinIO. Детали ниже ⬇️ | — | — |
 | A11 | Обработка сокращений (аббревиатур) — отдельно от таблиц, нужна нормализация/расшифровка перед индексацией и поиском | — | — |
-| A12 | Пайплайн инжеста сам себе шлёт вебхуки: артефакты (`full.md`, `chapters/*.md`, `tables/*.csv\|html`) льются в тот же бакет `knowledge-base`, на который подписан MinIO ObjectCreated-вебхук. Каждая запись артефакта триггерит `handle_webhook` → `TaskDispatcherService.dispatch_ingestion` не находит документ с таким s3key → `DocumentByStorageKeyNotFound` → ERROR-лог. На один инжестируемый документ — по записи на каждый файл-артефакт (~60 ERROR-строк в логе на один прогон в реальном тесте). Функционально безвредно (перехватывается per-record в `handle_webhook`, второй ingest не запускается — подтверждено по логам), но засоряет логи и гоняет лишний SQL-запрос на каждый файл | `api/rag_routes.py` (`handle_webhook`), `application/task_dispatcher_service.py` (`dispatch_ingestion`) | — |
 
 ---
 
