@@ -56,3 +56,49 @@ def test_split_stops_at_appendix() -> None:
     chapters = ChapterSplitter().split(markdown)
 
     assert [c.number for c in chapters] == ["1"]
+
+
+def test_split_falls_back_to_recursive_chunks_when_no_numbered_headings() -> None:
+    """Регрессия: документы без пронумерованной структуры разделов (man-страницы -
+    заголовки вида "## NAME"/"## DESCRIPTION" без цифр) не матчат основной паттерн
+    вообще - раньше split() возвращал пустой список, и это ошибочно трактовалось
+    выше по пайплайну как "в документе нет контента" (ingestion_service.py::store_chunks),
+    хотя текст был извлечён нормально, просто резать его было не по чему."""
+    markdown = (
+        "## NAME\n"
+        "auditctl - a utility to assist controlling the kernel's audit system.\n\n"
+        "## SYNOPSIS\n"
+        "auditctl [options]\n\n"
+        "## DESCRIPTION\n"
+        + ("Some long description text about audit rules and configuration. " * 30)
+    )
+
+    chapters = ChapterSplitter().split(markdown)
+
+    assert len(chapters) > 0
+    numbers = [c.number for c in chapters]
+    assert len(numbers) == len(set(numbers)), "номера псевдо-глав должны быть уникальны"
+    # Весь исходный текст должен быть покрыт (с точностью до overlap/пробелов) -
+    # ничего не потеряно молча.
+    assert "auditctl - a utility" in chapters[0].markdown
+    assert any("audit rules and configuration" in c.markdown for c in chapters)
+
+
+def test_split_does_not_fall_back_when_numbered_heading_exists() -> None:
+    """Если хоть одна пронумерованная глава нашлась - используем её, fallback не
+    трогаем (даже если рядом есть неструктурированный текст без номеров)."""
+    markdown = "## 1 ОБЩИЕ ПОЛОЖЕНИЯ\nТекст главы 1.\n"
+
+    chapters = ChapterSplitter().split(markdown)
+
+    assert [c.number for c in chapters] == ["1"]
+
+
+def test_split_fallback_on_short_document_returns_single_chapter() -> None:
+    markdown = "## NAME\nshort-tool - does a short thing.\n"
+
+    chapters = ChapterSplitter().split(markdown)
+
+    assert len(chapters) == 1
+    assert chapters[0].number == "1"
+    assert "short-tool" in chapters[0].markdown

@@ -381,9 +381,23 @@ class IngestionService:
             await self.s3_storage.upload_file(
                 chapter.markdown.encode("utf-8"), s3_md_path, "text/markdown"
             )
+            # document_chapters.title/chapter_number - String(512)/String(32) (см.
+            # models/models.py::DocumentChapters). ChapterSplitter иногда матчит
+            # заголовок, который на деле оказывается длинным предложением/строкой
+            # из таблицы/списка литературы (ложное срабатывание regex на "N Текст") -
+            # без обрезки одна такая строка роняла StringDataRightTruncationError на
+            # ВЕСЬ bulk_insert_chapters разом (одна плохая глава из 437 теряла все 437,
+            # документ целиком уходил в ERROR).
+            title = chapter.title[:512]
+            chapter_number = chapter.number[:32]
+            if len(chapter.title) > 512 or len(chapter.number) > 32:
+                logger.warning(
+                    "Chapter title/number truncated for DB doc_id=%s number=%r (len=%d)",
+                    doc_id, chapter.number[:32], len(chapter.title),
+                )
             chapter_rows.append({
-                "chapter_number": chapter.number,
-                "title": chapter.title,
+                "chapter_number": chapter_number,
+                "title": title,
                 "s3_md_path": s3_md_path,
             })
 
