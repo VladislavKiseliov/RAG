@@ -3,10 +3,27 @@ import uuid
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.application.document_service import DataBaseDocumentService
+from rag_service.celery_app import celery_app
 from rag_service.domain.errors import DocumentByStorageKeyNotFound, DocumentNotFound
 from rag_service.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Суффиксы служебных артефактов, которые ingestion_service сам заливает обратно в тот
+# же бакет/префикс {doc_id}/... после разбора документа (см. ingestion_service.py:
+# _store_docling_artifacts) - full.md, chapters/chapter_N.md, tables/table_N.csv|html,
+# meta/{name}.md. MinIO подписан на ЛЮБОЙ put в бакет knowledge-base (docker-compose.full.yml,
+# `mc event add ... --event put`), без фильтра по пути - запись каждого такого артефакта
+# тоже триггерит вебхук сюда. Раньше это било в DocumentByStorageKeyNotFound (документ
+# по такому s3key закономерно не существует - в БД хранится ключ ИСХОДНОГО файла) и
+# логировалось как ERROR на каждый артефакт - на документ с N главами это N лишних записей
+# в логах, маскирующих реальные проблемы. Список нужно держать синхронным с местами,
+# где ingestion_service реально создаёт артефакты.
+_INGESTION_ARTIFACT_SUFFIXES = ("/chapters/", "/tables/", "/meta/", "/full.md")
+
+
+def _is_ingestion_artifact(s3key: str) -> bool:
+    return any(suffix in s3key for suffix in _INGESTION_ARTIFACT_SUFFIXES)
 
 
 class TaskDispatcherService:
@@ -24,7 +41,11 @@ class TaskDispatcherService:
         задиспатчен/обрабатывается/готов — повторный `.delay()` создал бы гонку с уже идущим
         `ingest_document_task` (см. B6 в ISSUES.md).
         """
-        from rag_service.workers.task import ingest_document_task
+        if _is_ingestion_artifact(s3key):
+            # Не ошибка - ожидаемый шум от собственной записи ingestion-пайплайна в тот
+            # же бакет. Тихо игнорируем, не диспатчим и не логируем как ERROR.
+            return
+
         doc = await self.database.get_document_by_s3key(s3key)
         if doc is None:
             raise DocumentByStorageKeyNotFound(s3key)
@@ -33,7 +54,10 @@ class TaskDispatcherService:
             return
 
         await self.database.update_document(doc.id, update_data={"status": DocumentStatus.UPLOAD})
-        ingest_document_task.delay(str(doc.id), s3key)
+        # По имени задачи, не прямым импортом `rag_service.workers.task` - тот тянет
+        # Docling/torch (см. rag_service/worker_container.py), а rag-service (этот
+        # процесс) собирается в лёгкий образ без них (Dockerfile stage `base`).
+        celery_app.send_task("ingest_document", args=[str(doc.id), s3key])
 
 
     async def dispatch_reindexing(self, doc_id: uuid.UUID) -> None:
@@ -46,12 +70,11 @@ class TaskDispatcherService:
         `status == PENDING` — реиндекс осмысленно вызывается именно для уже обработанного
         документа.
         """
-        from rag_service.workers.task import ingest_document_task
         doc = await self.database.get_document_by_id(doc_id)
         if doc is None:
             raise DocumentNotFound(str(doc_id))
 
-        ingest_document_task.delay(str(doc_id), doc.s3key)
+        celery_app.send_task("ingest_document", args=[str(doc_id), doc.s3key])
 
     async def dispatch_summarization(self, doc_id: uuid.UUID) -> None:
         """Пересобрать саммари глав + документа отдельно от полной переиндексации.
@@ -71,7 +94,6 @@ class TaskDispatcherService:
             )
             return
 
-        from rag_service.workers.task import summarize_document_chapters_task
-        summarize_document_chapters_task.delay(str(doc_id))
+        celery_app.send_task("summarize_document_chapters", args=[str(doc_id)])
 
 

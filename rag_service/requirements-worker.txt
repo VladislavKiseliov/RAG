@@ -1,0 +1,19 @@
+# Тяжёлые зависимости пайплайна конвертации/чанкинга документов (Docling) - только
+# для rag-worker (GPU-контейнер). rag-service (API) и flower их не тянут - см.
+# requirements.txt.
+-r requirements.txt
+
+# Говорим pip, где искать тяжелый GPU-PyTorch
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# Указываем конкретную GPU-версию торча
+torch==2.4.0+cu118
+
+# transformers — пин стабильной версии, совместимой с torch 2.4
+transformers>=4.41.0,<4.50.0
+
+# Document processing (langchain-text-splitters уже в базовом requirements.txt)
+pymupdf4llm
+docling[easyocr]
+pypdf
+pandas

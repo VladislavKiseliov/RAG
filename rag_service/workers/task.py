@@ -5,8 +5,8 @@ import uuid
 import httpx
 
 from rag_service.celery_app import celery_app
-from rag_service.container import build_worker_infrastructure
 from rag_service.settings import settings
+from rag_service.worker_container import build_worker_infrastructure
 
 logger = logging.getLogger(__name__)
 

@@ -1,3 +1,6 @@
+# Легкие зависимости - используются rag-service (API) и flower.
+# Тяжёлый Docling/torch/CUDA стек - только в requirements-worker.txt (rag-worker).
+
 # Web
 fastapi
 uvicorn[standard]
@@ -17,24 +20,15 @@ aioboto3
 # Vector DB
 qdrant-client
 
-# Embeddings
-# Говорим pip, где искать тяжелый GPU-PyTorch
---extra-index-url https://download.pytorch.org/whl/cu118
-
-# Указываем конкретную GPU-версию торча
-torch==2.4.0+cu118
-
-# transformers — пин стабильной версии, совместимой с torch 2.4
-transformers>=4.41.0,<4.50.0
-
+# Embeddings (sparse BM25 - лёгкий, нужен и API для поиска, и воркеру для индексации)
 fastembed
 
-# Document processing
-pymupdf4llm
+# Текстовый сплиттер - маленький чистый Python-пакет (~300KB, без torch), но нужен и
+# API: domain/chunking/chunk_builder.py в одном файле держит и ParentChunk (использует
+# document_service.py, т.е. API), и ChildChunkBuilder (использует langchain-text-splitters) -
+# разделять файл ради этого не стали, проще держать пакет в light
 langchain-text-splitters
-docling[easyocr]
-pypdf
-pandas
+
 uuid6
 
 # HTTP client

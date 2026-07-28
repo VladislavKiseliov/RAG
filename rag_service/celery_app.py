@@ -5,8 +5,15 @@ celery_app = Celery(
     "rag_worker",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["rag_service.workers.task"],
 )
+# `include=["rag_service.workers.task"]` не задаём здесь: этот модуль импортируется и
+# rag-service (API, лёгкий образ без Docling/torch), и rag-worker - если бы include
+# был в конфиге, простой импорт celery_app тянул бы rag_service.workers.task, а тот -
+# rag_service.worker_container (Docling). Продюсер (rag-service) ставит задачи по
+# имени через send_task() и модуль воркера не импортирует вообще (см.
+# TaskDispatcherService). Сам rag-worker получает модуль явным `--include=` в команде
+# запуска (docker-compose.full.yml, сервис rag-worker) - это единственный процесс,
+# которому нужно реально ИСПОЛНЯТЬ задачи, а не просто их ставить в очередь.
 
 celery_app.conf.update(
     task_serializer="json",

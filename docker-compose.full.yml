@@ -124,6 +124,7 @@ services:
     build:
       context: .
       dockerfile: rag_service/Dockerfile
+      target: base
     container_name: rag_service
     env_file:
       - .env
@@ -160,6 +161,7 @@ services:
     build:
       context: .
       dockerfile: rag_service/Dockerfile
+      target: worker
     container_name: rag_worker
     env_file:
       - .env
@@ -167,7 +169,7 @@ services:
       - ./rag_service:/app/rag_service
       # Сохраняем кэш ONNX-моделей (FastEmbed)
       - fastembed_cache:/root/.cache/fastembed
-    command: celery -A rag_service.celery_app worker -l INFO
+    command: celery -A rag_service.celery_app worker -l INFO --include=rag_service.workers.task
     restart: unless-stopped
     logging:
       driver: loki
@@ -220,6 +222,7 @@ services:
     build:
       context: .
       dockerfile: rag_service/Dockerfile
+      target: base
     container_name: rag_flower
     env_file:
       - .env

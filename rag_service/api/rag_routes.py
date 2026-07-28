@@ -99,6 +99,12 @@ async def handle_webhook(
     for record in event.records:
         raw_key = record.s3.object.key
         s3key = unquote_plus(raw_key)
+        # Голый uvicorn access-log ("POST /documents/ingest/webhook 200 OK") не несёт
+        # никакого контекста - все записи в логе неотличимы друг от друга (видно только
+        # IP:port MinIO, не то, какой файл реально пришёл). s3key сюда, в rag_service -
+        # раньше его было видно только на шаг дальше, в rag_worker (Starting ingestion
+        # doc_id=... s3key=...), после того как Celery реально забрал задачу.
+        logger.info("Webhook record received s3key=%s", s3key)
         try:
             await dispatcher.dispatch_ingestion(s3key=s3key)
         except Exception:

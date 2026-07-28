@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, status
 
 from rag_service.api.schemas import NoteIndexRequest
+from rag_service.celery_app import celery_app
 from rag_service.dependencies import NotesVectorStorageDep
 
 router = APIRouter(prefix="/notes", tags=["Notes Vectorization"])
@@ -13,8 +14,9 @@ router = APIRouter(prefix="/notes", tags=["Notes Vectorization"])
 @router.post("/{note_id}/index", status_code=status.HTTP_202_ACCEPTED)
 async def index_note(note_id: uuid.UUID, payload: NoteIndexRequest):
     """Queue note text for chunking + embedding + upsert into the notes Qdrant collection."""
-    from rag_service.workers.task import index_note_task
-    index_note_task.delay(str(note_id), payload.user_id, payload.text)
+    # По имени задачи, не прямым импортом `rag_service.workers.task` - см. комментарий
+    # в TaskDispatcherService.dispatch_ingestion.
+    celery_app.send_task("index_note", args=[str(note_id), payload.user_id, payload.text])
     return {"status": "queued"}
 
 
