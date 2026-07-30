@@ -892,6 +892,9 @@
     gap: 4px;
     animation: fadeIn 0.15s ease;
 }
+.source-item-wrap {
+    max-width: 100%;
+}
 .source-item {
     display: flex;
     align-items: center;
@@ -903,6 +906,14 @@
     font-size: 12.5px;
     max-width: 100%;
     overflow: hidden;
+}
+.source-item-clickable {
+    cursor: pointer;
+    transition: border-color var(--t), background var(--t);
+}
+.source-item-clickable:hover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
 }
 .source-index {
     width: 18px;
@@ -1010,36 +1021,21 @@
 }
 
 /* =====================================================
-   Source text tooltip
+   Source chunk inline expand
    ===================================================== */
-.source-preview-hint {
+.source-chunk-toggle {
     margin-left: auto;
+    display: inline-block;
     color: var(--text-tertiary);
-    font-size: 16px;
+    font-size: 12px;
     flex-shrink: 0;
     padding-left: 6px;
+    transition: transform 0.2s ease;
 }
+.source-chunk-toggle.open { transform: rotate(90deg); }
 
-.source-tooltip {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    overflow: hidden;
-    animation: fadeIn 0.12s ease;
-}
-
-.source-tooltip-header {
-    padding: 10px 14px 8px;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--accent);
-    border-bottom: 1px solid var(--border);
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.source-item-open {
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
 }
 
 .source-highlight {
@@ -1049,15 +1045,21 @@
     color: inherit;
 }
 
-.source-tooltip-text {
-    padding: 12px 14px;
-    font-size: 13px;
-    line-height: 1.65;
+.source-chunk {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--r-sm) var(--r-sm);
+    margin-top: -1px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height: 1.6;
     color: var(--text-secondary);
     max-height: 280px;
     overflow-y: auto;
     white-space: pre-wrap;
     font-family: var(--font-mono);
+    animation: fadeIn 0.15s ease;
 }
 /* =====================================================
    Profile Modal

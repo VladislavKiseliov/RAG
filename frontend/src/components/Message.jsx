@@ -1,5 +1,5 @@
 ﻿// src/components/Message.jsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useApi } from '../context/ApiContext';
@@ -53,22 +53,12 @@ function HighlightedText({ text, childChunks }) {
 function SourcesBlock({ sources }) {
     const api = useApi();
     const [expanded, setExpanded] = useState(false);
-    const [tooltip, setTooltip] = useState(null); // { text, loading, name, top, left, width }
-    const tooltipRef = useRef(null);
-    const closeTimerRef = useRef(null);
+    const [openKeys, setOpenKeys] = useState(() => new Set());
+    const [chunkState, setChunkState] = useState({}); // key -> { text, loading }
     // Текст источника из истории приходит без `text` (см. ChatService._strip_source_previews) —
-    // подгружаем лениво по наведению и кэшируем на время жизни компонента, чтобы повторный
-    // hover на тот же источник не бил в сеть заново.
+    // подгружаем лениво по клику и кэшируем на время жизни компонента, чтобы повторное
+    // открытие того же источника не било в сеть заново.
     const textCacheRef = useRef(new Map()); // parent_id -> text
-    const hoverKeyRef = useRef(null);
-
-    useEffect(() => {
-        return () => {
-            if (closeTimerRef.current) {
-                clearTimeout(closeTimerRef.current);
-            }
-        };
-    }, []);
 
     if (!sources || sources.length === 0) return null;
 
@@ -82,22 +72,6 @@ function SourcesBlock({ sources }) {
         }
     }
 
-    const clearCloseTimer = () => {
-        if (closeTimerRef.current) {
-            clearTimeout(closeTimerRef.current);
-            closeTimerRef.current = null;
-        }
-    };
-
-    const scheduleCloseTooltip = () => {
-        clearCloseTimer();
-        closeTimerRef.current = setTimeout(() => {
-            setTooltip(null);
-            hoverKeyRef.current = null;
-            closeTimerRef.current = null;
-        }, 180);
-    };
-
     const formatName = (s) => {
         const h = s.headers || {};
         // headers приходят с ключами title/chapter_number (title уже содержит номер
@@ -109,68 +83,64 @@ function SourcesBlock({ sources }) {
         return `Фрагмент ${unique.indexOf(s) + 1}`;
     };
 
-    const handleMouseEnter = (e, s) => {
-        if (!s.text && !s.parent_id) return;
-        clearCloseTimer();
-        const rect = e.currentTarget.getBoundingClientRect();
-        const base = {
-            childChunks: s.child_chunks || [],
-            name: formatName(s),
-            top: rect.top + window.scrollY,
-            left: rect.left + window.scrollX,
-            width: rect.width,
-        };
-
+    const loadChunk = (s, key) => {
         if (s.text) {
-            hoverKeyRef.current = null;
-            setTooltip({ ...base, text: s.text, loading: false });
+            setChunkState((prev) => ({ ...prev, [key]: { text: s.text, loading: false } }));
             return;
         }
-
-        const key = s.parent_id;
-        hoverKeyRef.current = key;
 
         const cached = textCacheRef.current.get(key);
         if (cached != null) {
-            setTooltip({ ...base, text: cached, loading: false });
+            setChunkState((prev) => ({ ...prev, [key]: { text: cached, loading: false } }));
             return;
         }
 
-        setTooltip({ ...base, text: '', loading: true });
+        setChunkState((prev) => ({ ...prev, [key]: { text: '', loading: true } }));
         api.get(ENDPOINTS.CHAT_SOURCE_CHUNK(key))
             .then((data) => {
                 textCacheRef.current.set(key, data.text);
-                if (hoverKeyRef.current === key) {
-                    setTooltip((prev) => (prev ? { ...prev, text: data.text, loading: false } : prev));
-                }
+                setChunkState((prev) => ({ ...prev, [key]: { text: data.text, loading: false } }));
             })
             .catch(() => {
-                if (hoverKeyRef.current === key) {
-                    setTooltip((prev) => (prev ? { ...prev, text: 'Не удалось загрузить текст источника.', loading: false } : prev));
-                }
+                setChunkState((prev) => ({ ...prev, [key]: { text: 'Не удалось загрузить текст источника.', loading: false } }));
             });
     };
 
+    const toggleSource = (s, key) => {
+        setOpenKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+                if (!chunkState[key]) loadChunk(s, key);
+            }
+            return next;
+        });
+    };
+
     return (
-        <>
-            <div className="sources-block">
-                <button className="sources-toggle" onClick={() => setExpanded((v) => !v)}>
-                    <span className="sources-icon">📄</span>
-                    <span>
-                        {unique.length} {unique.length === 1 ? 'источник' : unique.length < 5 ? 'источника' : 'источников'}
-                    </span>
-                    <span className={`sources-chevron ${expanded ? 'open' : ''}`}>›</span>
-                </button>
-                {expanded && (
-                    <ul className="sources-list">
-                        {unique.map((s, i) => {
-                            const score = s.score != null ? Math.round(s.score * 100) : null;
-                            return (
-                                <li
-                                    key={i}
-                                    className="source-item"
-                                    onMouseEnter={(e) => handleMouseEnter(e, s)}
-                                    onMouseLeave={scheduleCloseTooltip}
+        <div className="sources-block">
+            <button className="sources-toggle" onClick={() => setExpanded((v) => !v)}>
+                <span className="sources-icon">📄</span>
+                <span>
+                    {unique.length} {unique.length === 1 ? 'источник' : unique.length < 5 ? 'источника' : 'источников'}
+                </span>
+                <span className={`sources-chevron ${expanded ? 'open' : ''}`}>›</span>
+            </button>
+            {expanded && (
+                <ul className="sources-list">
+                    {unique.map((s, i) => {
+                        const score = s.score != null ? Math.round(s.score * 100) : null;
+                        const key = s.parent_id ?? JSON.stringify(s);
+                        const canExpand = Boolean(s.text || s.parent_id);
+                        const isOpen = canExpand && openKeys.has(key);
+                        const state = chunkState[key];
+                        return (
+                            <li key={i} className="source-item-wrap">
+                                <div
+                                    className={`source-item ${canExpand ? 'source-item-clickable' : ''} ${isOpen ? 'source-item-open' : ''}`}
+                                    onClick={canExpand ? () => toggleSource(s, key) : undefined}
                                 >
                                     <span className="source-index">{i + 1}</span>
                                     <div className="source-info">
@@ -179,43 +149,23 @@ function SourcesBlock({ sources }) {
                                             <span className="source-score"> · {score}%</span>
                                         )}
                                     </div>
-                                    {(s.text || s.parent_id) && (
-                                        <span className="source-preview-hint" title="Наведи для просмотра">
-                                            ⋯
-                                        </span>
+                                    {canExpand && (
+                                        <span className={`source-chunk-toggle ${isOpen ? 'open' : ''}`}>▸</span>
                                     )}
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
-            </div>
-
-            {tooltip && (
-                <div
-                    ref={tooltipRef}
-                    className="source-tooltip"
-                    style={{
-                        position: 'fixed',
-                        left: Math.min(tooltip.left, window.innerWidth - 420),
-                        top: tooltip.top - 8,
-                        transform: 'translateY(-100%)',
-                        zIndex: 9999,
-                        width: 400,
-                        maxWidth: 'calc(100vw - 32px)',
-                    }}
-                    onMouseEnter={clearCloseTimer}
-                    onMouseLeave={scheduleCloseTooltip}
-                >
-                    <div className="source-tooltip-header">{tooltip.name}</div>
-                    <div className="source-tooltip-text">
-                        {tooltip.loading
-                            ? 'Загрузка…'
-                            : <HighlightedText text={tooltip.text} childChunks={tooltip.childChunks} />}
-                    </div>
-                </div>
+                                </div>
+                                {isOpen && (
+                                    <div className="source-chunk">
+                                        {!state || state.loading
+                                            ? 'Загрузка…'
+                                            : <HighlightedText text={state.text} childChunks={s.child_chunks || []} />}
+                                    </div>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
             )}
-        </>
+        </div>
     );
 }
 
