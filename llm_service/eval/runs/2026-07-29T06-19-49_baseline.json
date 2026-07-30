@@ -1,0 +1,97 @@
+{
+  "name": "baseline",
+  "timestamp": "2026-07-29T06-19-49",
+  "aggregate": {
+    "recall_at_30": 0.875,
+    "hit_at_5": 0.875,
+    "mrr_at_5": 0.5208333333333334,
+    "anchor_hit_at_5": 0.75,
+    "negative_precision": 1.0
+  },
+  "per_question": [
+    {
+      "id": "q01",
+      "category": "exact_term",
+      "question": "Можно ли считать турникет эвакуационным выходом согласно СП 1.13130?",
+      "recall_at_30": 1.0,
+      "hit_at_5": true,
+      "mrr_at_5": 1.0,
+      "anchor_hit_at_5": true
+    },
+    {
+      "id": "q02",
+      "category": "paraphrase",
+      "question": "В каком случае турникет всё-таки не исключается из числа эвакуационных выходов?",
+      "recall_at_30": 1.0,
+      "hit_at_5": true,
+      "mrr_at_5": 0.3333333333333333,
+      "anchor_hit_at_5": true
+    },
+    {
+      "id": "q03",
+      "category": "cross_chapter",
+      "question": "Какие есть исключения из общих требований к эвакуационным выходам в СП 1.13130?",
+      "recall_at_30": 0.5,
+      "hit_at_5": false,
+      "mrr_at_5": 0.0,
+      "anchor_hit_at_5": false
+    },
+    {
+      "id": "q04",
+      "category": "comparative",
+      "question": "Чем отличаются требования по эвакуации для многоквартирных жилых домов от требований для одноквартирных жилых домов по СП 1.13130?",
+      "recall_at_30": 1.0,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "anchor_hit_at_5": false
+    },
+    {
+      "id": "q05",
+      "category": "exact_term",
+      "question": "Какой командой auditctl отследить изменения файла /etc/shadow?",
+      "recall_at_30": 1.0,
+      "hit_at_5": true,
+      "mrr_at_5": 1.0,
+      "anchor_hit_at_5": true
+    },
+    {
+      "id": "q06",
+      "category": "paraphrase",
+      "question": "Как в auditd исключить логирование вызовов sudo?",
+      "recall_at_30": 1.0,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "anchor_hit_at_5": true
+    },
+    {
+      "id": "q07",
+      "category": "exact_term",
+      "question": "Как в journalctl показать самые новые записи первыми?",
+      "recall_at_30": 0.5,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "anchor_hit_at_5": true
+    },
+    {
+      "id": "q08",
+      "category": "exact_term",
+      "question": "Какой формат вывода journalctl показывает ISO-время с полной микросекундной точностью?",
+      "recall_at_30": 1.0,
+      "hit_at_5": true,
+      "mrr_at_5": 0.3333333333333333,
+      "anchor_hit_at_5": true
+    },
+    {
+      "id": "q09",
+      "category": "negative",
+      "question": "Как приготовить борщ по классическому рецепту?",
+      "negative_precision": true
+    },
+    {
+      "id": "q10",
+      "category": "negative",
+      "question": "Какая завтра погода в Москве?",
+      "negative_precision": true
+    }
+  ]
+}

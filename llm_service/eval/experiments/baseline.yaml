@@ -1,0 +1,4 @@
+name: baseline
+rerank: true
+top_k_candidates: 30
+final_k: 5

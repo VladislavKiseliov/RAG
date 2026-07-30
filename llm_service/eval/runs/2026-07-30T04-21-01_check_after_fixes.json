@@ -1,0 +1,1355 @@
+{
+  "name": "check_after_fixes",
+  "timestamp": "2026-07-30T04-21-01",
+  "aggregate": {
+    "candidate_recall@30": 0.866025641025641,
+    "rerank_hit@5": 0.8076923076923077,
+    "rerank_mrr@5": 0.6996153846153846,
+    "rerank_anchor_hit@5": 0.8538461538461538,
+    "negative_rejection_rate": 0.6666666666666666
+  },
+  "per_question": [
+    {
+      "id": "q001",
+      "category": "exact_term",
+      "question": "Можно ли считать турникет эвакуационным выходом согласно СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q002",
+      "category": "paraphrase",
+      "question": "В каком случае турникет всё-таки не исключается из числа эвакуационных выходов?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.3333333333333333,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q003",
+      "category": "exact_term",
+      "question": "Какая минимальная ширина эвакуационного выхода из помещения по СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q004",
+      "category": "exact_term",
+      "question": "Какая минимальная высота эвакуационного выхода в свету?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q005",
+      "category": "paraphrase",
+      "question": "Можно ли сохранить существующую высоту дверного проёма при реконструкции памятника архитектуры, если она меньше нормативной?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q006",
+      "category": "exact_term",
+      "question": "По какой формуле определяется минимальное расстояние между эвакуационными выходами в коридоре?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q007",
+      "category": "paraphrase",
+      "question": "Насколько далеко друг от друга должны быть разнесены два выхода внутри одного помещения?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q008",
+      "category": "exact_term",
+      "question": "Какой коридор считается тупиковым по СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q009",
+      "category": "exact_term",
+      "question": "Что такое помещение с постоянным пребыванием людей?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q010",
+      "category": "exact_term",
+      "question": "Какое допустимое отклонение от геометрических параметров эвакуационных путей и выходов?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q011",
+      "category": "exact_term",
+      "question": "Какая минимальная ширина коридора, по которому эвакуируется более 50 человек?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q012",
+      "category": "paraphrase",
+      "question": "Насколько уменьшается расчётная ширина коридора, если двери помещений расположены с двух сторон?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q013",
+      "category": "exact_term",
+      "question": "Какая минимальная высота горизонтальных участков путей эвакуации в свету?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q014",
+      "category": "exact_term",
+      "question": "Через какое расстояние коридор нужно разделять противопожарными перегородками?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.3333333333333333,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q015",
+      "category": "exact_term",
+      "question": "Какая максимальная высота порога в дверном проёме на пути эвакуации?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.25,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q016",
+      "category": "paraphrase",
+      "question": "Можно ли ставить стулья и скамьи для ожидания в эвакуационном коридоре?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q017",
+      "category": "exact_term",
+      "question": "Какие минимальные размеры тамбур-шлюза на пути эвакуации?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q018",
+      "category": "exact_term",
+      "question": "Какой максимальный уклон лестницы на пути эвакуации и минимальная ширина проступи?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q019",
+      "category": "exact_term",
+      "question": "Сколько подъёмов допускается в одном лестничном марше между площадками?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q020",
+      "category": "paraphrase",
+      "question": "Как учитывается протяжённость пути эвакуации по открытой внутренней лестнице внутри помещения?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q021",
+      "category": "exact_term",
+      "question": "Какая минимальная ширина марша лестницы для эвакуации из зданий класса Ф1.1?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.2,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q022",
+      "category": "exact_term",
+      "question": "Какая минимальная площадь световых проёмов в наружных стенах лестничной клетки на каждом этаже?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q023",
+      "category": "exact_term",
+      "question": "До какой высоты здания допускаются лестничные клетки типа Л1?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q024",
+      "category": "comparative",
+      "question": "Чем отличаются условия применения лестничных клеток типа Л1 и Л2?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q025",
+      "category": "paraphrase",
+      "question": "Какие лестничные клетки нужны в здании высотой более 28 метров?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q026",
+      "category": "exact_term",
+      "question": "Какие минимальные размеры окна, двери и люка для аварийного выхода наружу?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q027",
+      "category": "comparative",
+      "question": "В чём разница между эвакуационным и аварийным выходом и учитываются ли аварийные выходы в расчёте путей эвакуации?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.25,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q028",
+      "category": "exact_term",
+      "question": "При каком количестве людей в помещении требуется не менее двух эвакуационных выходов?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q029",
+      "category": "paraphrase",
+      "question": "Сколько выходов нужно из зала, рассчитанного на 800 посетителей?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q030",
+      "category": "exact_term",
+      "question": "При какой площади подвального этажа требуется не менее двух эвакуационных выходов?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q031",
+      "category": "exact_term",
+      "question": "Какое максимальное расстояние между эвакуационными выходами из технических этажей?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q032",
+      "category": "cross_chapter",
+      "question": "В каких случаях направление открывания дверей на путях эвакуации не нормируется?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q033",
+      "category": "paraphrase",
+      "question": "Как считается ширина двупольной двери, если одно полотно зафиксировано?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q034",
+      "category": "exact_term",
+      "question": "Какие требования к входной площадке перед наружной дверью эвакуационного выхода?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q035",
+      "category": "cross_chapter",
+      "question": "Какое максимальное усилие открывания дверей эвакуационных выходов нормирует СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q036",
+      "category": "table_lookup",
+      "question": "Какое предельное расстояние от выхода из групповой ячейки детского сада до лестничной клетки в здании класса С0?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q037",
+      "category": "exact_term",
+      "question": "Какой максимальный уклон наружных открытых лестниц для эвакуации из групповых ячеек детских дошкольных учреждений?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q038",
+      "category": "exact_term",
+      "question": "Через какое расстояние делят коридоры в палатных корпусах лечебных учреждений?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q039",
+      "category": "paraphrase",
+      "question": "Можно ли в больнице использовать открытую внутреннюю лестницу как эвакуационную?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q040",
+      "category": "comparative",
+      "question": "Чем отличаются предельные расстояния до эвакуационного выхода в больницах и в гостиницах по СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.25,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q041",
+      "category": "exact_term",
+      "question": "При какой общей площади квартир на этаже требуется два эвакуационных выхода с этажа жилого дома?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q042",
+      "category": "paraphrase",
+      "question": "На какой высоте квартира должна дополнительно иметь аварийный выход при единственном выходе с этажа?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q043",
+      "category": "exact_term",
+      "question": "Какое максимальное расстояние от двери квартиры до выхода, если в коридоре секции нет оконного проёма в торце?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q044",
+      "category": "exact_term",
+      "question": "Какая минимальная ширина коридора в многоквартирном жилом доме?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q045",
+      "category": "table_lookup",
+      "question": "Какая минимальная ширина и максимальный уклон марша лестницы, ведущей в подвал жилого дома?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q046",
+      "category": "exact_term",
+      "question": "Сколько выходов нужно из блока внеквартирных хозяйственных кладовых и как считать количество людей в нём?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q047",
+      "category": "comparative",
+      "question": "Чем отличаются требования по эвакуации для многоквартирных жилых домов от требований для одноквартирных жилых домов по СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q048",
+      "category": "paraphrase",
+      "question": "При каких условиях в трёхэтажном частном доме открытая внутренняя лестница считается эвакуационной?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q049",
+      "category": "exact_term",
+      "question": "Какой максимальный уклон пандуса на путях передвижения инвалидов на колясках?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q050",
+      "category": "exact_term",
+      "question": "На сколько человек может быть рассчитана наружная открытая лестница как второй выход со второго этажа здания II степени огнестойкости?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.3333333333333333,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q051",
+      "category": "exact_term",
+      "question": "Сколько человек допускается на 1 м ширины эвакуационного выхода из коридора в здании класса С0?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q052",
+      "category": "table_lookup",
+      "question": "Какое предельное расстояние от двери помещения до лестничной клетки в общественном здании С0 при плотности людского потока до 2 чел/м2?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q053",
+      "category": "exact_term",
+      "question": "Какая суммарная вместимость помещений, выходящих в тупиковый коридор общественного здания?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q054",
+      "category": "paraphrase",
+      "question": "Какие ограничения на размещение детских игровых комнат без сопровождения родителей?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q055",
+      "category": "exact_term",
+      "question": "Сколько мест допускается непрерывно устанавливать в ряду зрительного зала?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q056",
+      "category": "exact_term",
+      "question": "Какое необходимое время эвакуации со сцены (эстрады) и как считать число эвакуируемых с планшета сцены?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q057",
+      "category": "exact_term",
+      "question": "Какими замками должны оборудоваться двери выходов из зрительного зала спортивного сооружения?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q058",
+      "category": "comparative",
+      "question": "Как отличается расчёт числа посетителей на человека для магазинов и для рынков?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q059",
+      "category": "exact_term",
+      "question": "Какая минимальная ширина основного эвакуационного прохода в торговом зале площадью более 400 м2?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q060",
+      "category": "exact_term",
+      "question": "Какая суммарная вместимость помещений, выходящих в тупиковый коридор школы, и предельное расстояние до второго выхода?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q061",
+      "category": "paraphrase",
+      "question": "На каком этаже можно размещать классы для младших школьников?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q062",
+      "category": "exact_term",
+      "question": "На какие по площади зоны делят этаж здания школы?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q063",
+      "category": "exact_term",
+      "question": "Из какого расчёта площади на человека определяется число людей в офисных помещениях?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q064",
+      "category": "cross_chapter",
+      "question": "Где в СП 1.13130 разрешено применять лестницу 3-го типа в качестве второго эвакуационного выхода?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q065",
+      "category": "exact_term",
+      "question": "При какой численности работающих помещения категорий А и Б должны иметь не менее двух эвакуационных выходов?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q066",
+      "category": "paraphrase",
+      "question": "Можно ли считать эвакуационным выход из цеха в сторону примыкающей наружной установки категории АН?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q067",
+      "category": "exact_term",
+      "question": "Какая максимальная высота порога калитки в воротах для автотранспорта в производственном здании?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q068",
+      "category": "exact_term",
+      "question": "Какой поправочный коэффициент применяется к расстояниям таблицы 15 при площади разлива ЛВЖ более 50 м2?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q069",
+      "category": "multi_hop",
+      "question": "На сколько увеличиваются предельные расстояния до эвакуационного выхода при высоте производственного помещения 18 м и какой предел для помещений категории В?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q070",
+      "category": "exact_term",
+      "question": "Какая пропускная способность и минимальная ширина пешеходных тоннелей и галерей?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q071",
+      "category": "exact_term",
+      "question": "Через какое расстояние предусматриваются эвакуационные выходы из кабельных тоннелей?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q072",
+      "category": "exact_term",
+      "question": "Какое максимальное расстояние от тупикового конца тоннеля до ближайшего выхода?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q073",
+      "category": "exact_term",
+      "question": "Какие поперечные проходы должны быть в стеллажах складских зданий?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q074",
+      "category": "paraphrase",
+      "question": "Сколько выходов нужно с этажа автостоянки на 4 машиноместа?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q075",
+      "category": "comparative",
+      "question": "Чем отличается допустимое расстояние до эвакуационного выхода в подземной и надземной автостоянке?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q076",
+      "category": "exact_term",
+      "question": "Как определяется число людей в помещении для хранения автомобилей?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q077",
+      "category": "exact_term",
+      "question": "Сколько лестниц нужно на этажерке наружной установки длиной 60 м с горючими жидкостями?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q078",
+      "category": "exact_term",
+      "question": "Какие требования к огнезащитным экранам открытых лестниц наружных установок?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q079",
+      "category": "table_lookup",
+      "question": "К какой группе мобильности относятся люди, передвигающиеся на креслах-колясках?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q080",
+      "category": "exact_term",
+      "question": "Какой процент людей группы М1 принимается для зданий дошкольных учреждений?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q081",
+      "category": "exact_term",
+      "question": "Какие типы пожаробезопасных зон предусматривает СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q082",
+      "category": "paraphrase",
+      "question": "Какой предел огнестойкости ограждающих конструкций пожаробезопасной зоны в высотном здании?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q083",
+      "category": "exact_term",
+      "question": "В зданиях какого класса допускается пожаробезопасная зона 4-го типа?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q084",
+      "category": "exact_term",
+      "question": "На каком расстоянии от выхода из помещения должны располагаться места постоянного нахождения МГН групп М2-М4?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q085",
+      "category": "exact_term",
+      "question": "Какая максимальная высота порога в дверных проёмах на путях эвакуации МГН группы М4?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q086",
+      "category": "paraphrase",
+      "question": "Сколько колясочников можно разместить подряд в одном ряду зрительного зала?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q087",
+      "category": "cross_chapter",
+      "question": "При каких условиях допускается применение автоматических раздвижных дверей на путях эвакуации?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q088",
+      "category": "exact_term",
+      "question": "На какие объекты не распространяется СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q089",
+      "category": "cross_chapter",
+      "question": "Какие требования СП 1.13130 предъявляет к эксплуатируемой кровле как к пути эвакуации?",
+      "is_negative": false,
+      "candidate_recall@30": 0.75,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q090",
+      "category": "cross_chapter",
+      "question": "Какие есть исключения из общих требований к эвакуационным выходам в СП 1.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 0.3333333333333333,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q091",
+      "category": "multi_hop",
+      "question": "Сколько эвакуационных выходов нужно с этажа торгового центра класса Ф3.1, рассчитанного на 700 человек, и какой минимальной ширины должен быть каждый выход?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.3333333333333333,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q092",
+      "category": "multi_hop",
+      "question": "Помещение категории В2 объёмом 30 тыс. м3 в здании II степени огнестойкости класса С0, плотность потока до 1 чел/м2 — какое предельное расстояние от рабочего места до выхода?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q093",
+      "category": "multi_hop",
+      "question": "Нужен ли аварийный выход из квартиры на 5-м этаже 12-метрового дома с лестничной клеткой типа Л2?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q094",
+      "category": "negative_adjacent",
+      "question": "Какие требования к расходу воздуха системы приточной противодымной вентиляции лестничной клетки Н2?",
+      "is_negative": true,
+      "negative_rejection_rate": false
+    },
+    {
+      "id": "q095",
+      "category": "negative_adjacent",
+      "question": "Какие требования предъявляются к конструкции пожарных лестниц типов П1 и П2?",
+      "is_negative": true,
+      "negative_rejection_rate": false
+    },
+    {
+      "id": "q096",
+      "category": "negative_adjacent",
+      "question": "Как рассчитать необходимое количество спринклерных оросителей в торговом зале?",
+      "is_negative": true,
+      "negative_rejection_rate": true
+    },
+    {
+      "id": "q097",
+      "category": "negative",
+      "question": "Как приготовить борщ по классическому рецепту?",
+      "is_negative": true,
+      "negative_rejection_rate": true
+    },
+    {
+      "id": "q098",
+      "category": "negative",
+      "question": "Какая завтра погода в Москве?",
+      "is_negative": true,
+      "negative_rejection_rate": true
+    },
+    {
+      "id": "q099",
+      "category": "negative",
+      "question": "Как настроить Modbus RTU на ПЛК ОВЕН 160 для опроса модуля ввода?",
+      "is_negative": true,
+      "negative_rejection_rate": true
+    },
+    {
+      "id": "q100",
+      "category": "exact_term",
+      "question": "Что такое комбинированный способ огнезащиты по СП 2.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q101",
+      "category": "exact_term",
+      "question": "Какова цель пожарно-технической классификации согласно СП 2.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q102",
+      "category": "paraphrase",
+      "question": "Зачем нужна пожарно-техническая классификация строительных конструкций?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q103",
+      "category": "exact_term",
+      "question": "На сколько процентов можно увеличивать площадь этажа производственных зданий при оборудовании их автоматическими установками пожаротушения по СП 2.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q104",
+      "category": "exact_term",
+      "question": "На какую максимальную высоту допускается надстраивать мансардный этаж в жилых зданиях I, II и III степеней огнестойкости?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q105",
+      "category": "exact_term",
+      "question": "Какой предел огнестойкости должны иметь несущие элементы двухэтажных жилых зданий IV степени огнестойкости?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q106",
+      "category": "exact_term",
+      "question": "Нормируется ли класс пожарной опасности внутриквартирных раздвижных перегородок по СП 2.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q107",
+      "category": "comparative",
+      "question": "Чем отличаются требования к огнестойкости жилых зданий от требований к административно-бытовым зданиям по СП 2.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q108",
+      "category": "exact_term",
+      "question": "Что означает прочерк в таблице требований к административно-бытовым зданиям по СП 2.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q109",
+      "category": "comparative",
+      "question": "Чем отличаются требования к огнестойкости закрытых стоянок автомобилей от требований к надземным открытым стоянкам по СП 2.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q110",
+      "category": "exact_term",
+      "question": "Через какое расстояние по периметру зданий класса Ф5 должны располагаться пожарные лестницы по СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q111",
+      "category": "exact_term",
+      "question": "Начиная с какой высоты здания должны предусматриваться выходы на кровлю с лестничных клеток по СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q112",
+      "category": "paraphrase",
+      "question": "При какой высоте здания и сооружения обязательны выходы на кровлю согласно СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q113",
+      "category": "exact_term",
+      "question": "Допускается ли не предусматривать пожарные лестницы на главном фасаде здания шириной не более 150 метров?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q114",
+      "category": "exact_term",
+      "question": "С какого числа сторон должен быть обеспечен подъезд пожарных автомобилей к зданиям с площадью застройки более 10 000 м²?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q115",
+      "category": "exact_term",
+      "question": "К каким по высоте многоэтажным зданиям класса Ф1.3 подъезд пожарных автомобилей должен быть обеспечен с двух продольных сторон?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q116",
+      "category": "exact_term",
+      "question": "Какой минимальный расход воды на внутреннее пожаротушение принимается для складов лесоматериалов по СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q117",
+      "category": "exact_term",
+      "question": "Каким способом могут размещаться отдельно стоящие газорегуляторные пункты (ГРП) по СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q118",
+      "category": "exact_term",
+      "question": "На сколько процентов допускается уменьшение расстояний от ГРП до зданий в стеснённых условиях по СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q119",
+      "category": "cross_chapter",
+      "question": "Какие меры по ограничению распространения пожара предусмотрены общими требованиями пожарной безопасности СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.3333333333333333,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q120",
+      "category": "comparative",
+      "question": "Чем отличаются требования к пожарным проездам для жилых и общественных зданий от требований для производственных и складских зданий по СП 4.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 0.0,
+      "rerank_hit@5": false,
+      "rerank_mrr@5": 0.0,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q121",
+      "category": "abbrev",
+      "question": "Что означает аббревиатура АУП в СП 486.1311500?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q122",
+      "category": "abbrev",
+      "question": "Что означает аббревиатура ЛВЖ по СП 486.1311500?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q123",
+      "category": "abbrev",
+      "question": "Чем ЛВЖ отличается от ГЖ согласно терминам СП 486.1311500?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q124",
+      "category": "exact_term",
+      "question": "В каком диапазоне температур обычно поддерживается температурный режим в охлаждаемой камере по СП 486.1311500?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q125",
+      "category": "exact_term",
+      "question": "В какой последовательности определяется необходимость защиты объекта автоматическими установками пожаротушения и системой пожарной сигнализации по СП 486.1311500?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q126",
+      "category": "exact_term",
+      "question": "Какой минимальный предел огнестойкости должны иметь перегородки, выделяющие помещение по таблице 3 СП 486.1311500?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q127",
+      "category": "table_numeric",
+      "question": "При какой суммированной площади помещений категории А здание относится к категории А по СП 12.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q128",
+      "category": "paraphrase",
+      "question": "Какая доля площади помещений категории А в здании считается порогом для присвоения зданию категории А?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q129",
+      "category": "table_numeric",
+      "question": "При каком максимальном значении суммированной площади здание не относится к категории А, если помещения категории А оснащены автоматическим пожаротушением?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q130",
+      "category": "exact_term",
+      "question": "К какой категории относится здание, если оно не относится к категориям А, Б, В или Г по СП 12.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q131",
+      "category": "table_numeric",
+      "question": "Какая максимальная площадь допускается для здания категории В при оснащении помещений автоматическим пожаротушением по СП 12.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.3333333333333333,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q132",
+      "category": "exact_term",
+      "question": "В каком порядке (от какой категории к какой) проверяется принадлежность помещения к категориям по таблице 1 СП 12.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q133",
+      "category": "exact_term",
+      "question": "В каком приложении СП 12.13130 регламентируется разделение помещений на категории В1-В4?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q134",
+      "category": "comparative",
+      "question": "Чем отличается порядок определения категории здания от порядка определения категории помещения по СП 12.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 0.5,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 0.5,
+      "rerank_anchor_hit@5": false
+    },
+    {
+      "id": "q135",
+      "category": "exact_term",
+      "question": "Что такое логическое дерево событий согласно терминам СП 12.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    },
+    {
+      "id": "q136",
+      "category": "exact_term",
+      "question": "Что такое огненный шар согласно терминам СП 12.13130?",
+      "is_negative": false,
+      "candidate_recall@30": 1.0,
+      "rerank_hit@5": true,
+      "rerank_mrr@5": 1.0,
+      "rerank_anchor_hit@5": true
+    }
+  ]
+}

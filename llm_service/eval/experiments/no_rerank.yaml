@@ -1,0 +1,4 @@
+name: no_rerank
+rerank: false
+top_k_candidates: 30
+final_k: 5
