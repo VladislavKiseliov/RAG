@@ -20,7 +20,10 @@
   ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.28); border-radius: 9px; }
   ::-webkit-scrollbar-track { background: transparent; }
   .clamp2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .clamp1 { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
   @keyframes pFadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pFadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes pSlideIn { from { transform:translateX(16px); opacity:0; } to { transform:translateX(0); opacity:1; } }
   .field::placeholder { color: var(--muted,#7c7264); }
 </style>
 </helmet>
@@ -37,7 +40,13 @@
     <a href="Заметки.dc.html" title="Заметки" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">✎</a>
     <a href="Задачи на день.dc.html" title="Задачи на день" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">☑</a>
     <a href="Админ-панель.dc.html" title="Админ-панель" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">⚙</a>
-    <div onClick="{{ toggleTheme }}" title="Тема" style="margin-top:auto; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">{{ themeIcon }}</div>
+
+    <div style="margin-top:auto; display:flex; flex-direction:column; align-items:center; gap:4px; padding-top:10px; border-top:1px solid var(--border,rgba(255,255,255,.06));">
+      <span style="font-size:8.5px; letter-spacing:.06em; color:var(--muted,#7c7264); text-align:center; line-height:1.2;">Демо-роль</span>
+      <div onClick="{{ setRoleManager }}" title="Руководитель" style="width:34px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; cursor:pointer; background:{{ roleManagerBg }}; color:{{ roleManagerColor }};">Р</div>
+      <div onClick="{{ setRoleEngineer }}" title="Инженер" style="width:34px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; cursor:pointer; background:{{ roleEngineerBg }}; color:{{ roleEngineerColor }};">И</div>
+    </div>
+    <div onClick="{{ toggleTheme }}" title="Тема" style="width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text,#efe8dd);">{{ themeIcon }}</div>
   </nav>
 
   <!-- ===================== LIST VIEW ===================== -->
@@ -49,28 +58,27 @@
             <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Рабочее пространство</div>
             <div style="font-size:24px; font-weight:700; color:var(--strong,#f3ead9); margin-top:4px;">Проекты</div>
           </div>
-          <div onClick="{{ createProject }}" style="margin-left:auto; display:flex; align-items:center; gap:9px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13.5px; font-weight:600; padding:11px 18px; border-radius:11px; cursor:pointer;" style-hover="filter:brightness(1.07);">
+          <div onClick="{{ openNewProject }}" style="margin-left:auto; display:flex; align-items:center; gap:9px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13.5px; font-weight:600; padding:11px 18px; border-radius:11px; cursor:pointer;" style-hover="filter:brightness(1.07);">
             <span style="font-size:16px; line-height:1;">＋</span> Новый проект
           </div>
         </div>
 
-        <!-- stats strip -->
         <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:22px;">
           <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
-            <div class="mono" style="font-size:26px; font-weight:600; color:var(--accent,#d9a441);">{{ statOnMe }}</div>
-            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">проектов на вас</div>
+            <div class="mono" style="font-size:26px; font-weight:600; color:var(--accent,#d9a441);">{{ statTotal }}</div>
+            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">проектов</div>
           </div>
           <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
             <div class="mono" style="font-size:26px; font-weight:600; color:var(--strong,#f3ead9);">{{ statActive }}</div>
             <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">в активной работе</div>
           </div>
           <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
-            <div class="mono" style="font-size:26px; font-weight:600; color:var(--strong,#f3ead9);">{{ statTasks }}</div>
-            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">задач на вас</div>
+            <div class="mono" style="font-size:26px; font-weight:600; color:{{ statPendingColor }};">{{ statPending }}</div>
+            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">пакетов на утверждении</div>
           </div>
           <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; padding:16px 18px;">
-            <div class="mono" style="font-size:26px; font-weight:600; color:var(--ok,#86b98c);">+{{ statWeek }}</div>
-            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">обновлений за неделю</div>
+            <div class="mono" style="font-size:26px; font-weight:600; color:#d65f5f;">{{ statRejected }}</div>
+            <div style="font-size:12px; color:var(--muted,#7c7264); margin-top:4px;">отклонённых пакетов</div>
           </div>
         </div>
       </header>
@@ -78,31 +86,27 @@
       <div style="flex:1; overflow-y:auto; padding:24px 36px 40px;">
         <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin-bottom:14px;">Ваши проекты</div>
         <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px;">
-          <sc-for list="{{ projects }}" as="p" hint-placeholder-count="5">
-            <div onClick="{{ p.onOpen }}" style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:16px; padding:18px 20px; cursor:pointer; display:flex; flex-direction:column; transition:border-color .14s, transform .14s;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.45)); transform:translateY(-2px);">
+          <sc-for list="{{ projects }}" as="p" hint-placeholder-count="3">
+            <div onClick="{{ p.onOpen }}" style="position:relative; background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:16px; padding:18px 20px; cursor:pointer; display:flex; flex-direction:column; transition:border-color .14s, transform .14s;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.45)); transform:translateY(-2px);">
+              <sc-if value="{{ p.showPendingBadge }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute; top:-8px; right:14px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap;">ждут утверждения: {{ p.pendingCount }}</div>
+              </sc-if>
               <div style="display:flex; align-items:center; gap:12px;">
                 <div style="width:42px; height:42px; border-radius:12px; flex-shrink:0; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; color:var(--accent,#d9a441);">{{ p.glyph }}</div>
                 <div style="min-width:0; flex:1;">
                   <div style="font-size:15px; font-weight:600; color:var(--strong,#f3ead9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.name }}</div>
-                  <div style="display:flex; align-items:center; gap:6px; margin-top:3px;"><span style="width:7px; height:7px; border-radius:50%; flex-shrink:0; background:{{ p.statusColor }};"></span><span style="font-size:11.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ p.status }}</span></div>
+                  <div style="font-size:11px; color:var(--muted,#7c7264); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.type }}</div>
                 </div>
               </div>
-              <div class="clamp2" style="font-size:12.5px; line-height:1.5; color:var(--muted,#7c7264); margin-top:13px; min-height:37px;">{{ p.desc }}</div>
+              <div style="display:flex; align-items:center; gap:6px; margin-top:12px;"><span style="width:7px; height:7px; border-radius:50%; flex-shrink:0; background:{{ p.statusColor }};"></span><span style="font-size:11.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ p.status }} · {{ p.lead }}</span></div>
 
-              <!-- progress -->
-              <div style="margin-top:15px;">
-                <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:6px;"><span style="color:var(--muted,#7c7264);">Задачи</span><span class="mono" style="color:var(--text,#cabfae);">{{ p.tasksLabel }}</span></div>
-                <div style="height:6px; border-radius:6px; background:var(--surface,#15100a); overflow:hidden;"><div style="height:100%; width:{{ p.progressW }}; background:var(--accent,#d9a441); border-radius:6px;"></div></div>
-              </div>
-
-              <!-- footer -->
               <div style="display:flex; align-items:center; gap:14px; margin-top:15px; padding-top:13px; border-top:1px solid var(--border,rgba(255,255,255,.05));">
                 <div style="display:flex; align-items:center;">
                   <sc-for list="{{ p.members }}" as="m" hint-placeholder-count="3">
                     <div style="width:24px; height:24px; border-radius:50%; margin-right:-7px; border:2px solid var(--card,#110d08); background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--accent,#d9a441);">{{ m }}</div>
                   </sc-for>
                 </div>
-                <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264);">▤ {{ p.filesCount }}</span>
+                <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264);">▤ {{ p.docsCount }}</span>
                 <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264); margin-left:auto;">{{ p.updated }}</span>
               </div>
             </div>
@@ -112,121 +116,524 @@
     </main>
   </sc-if>
 
-  <!-- ===================== DETAIL VIEW ===================== -->
-  <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
-    <main style="flex:1; display:flex; min-width:0;">
-
-      <!-- center -->
-      <div style="flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden;">
-        <header style="padding:18px 28px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
-          <div onClick="{{ back }}" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted,#7c7264); cursor:pointer; margin-bottom:14px;" style-hover="color:var(--text);">← Все проекты</div>
-          <div style="display:flex; align-items:center; gap:14px;">
-            <div style="width:44px; height:44px; border-radius:12px; flex-shrink:0; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700; color:var(--accent,#d9a441);">{{ dGlyph }}</div>
-            <div style="min-width:0;">
-              <div style="font-size:19px; font-weight:700; color:var(--strong,#f3ead9);">{{ dName }}</div>
-              <div style="display:flex; align-items:center; gap:8px; margin-top:4px;"><span style="width:7px; height:7px; border-radius:50%; background:{{ dStatusColor }};"></span><span style="font-size:12px; color:var(--muted,#7c7264);">{{ dStatus }} · {{ dLead }} · {{ dDeadline }}</span></div>
-            </div>
-            <a href="Мессенджер.dc.html" style="margin-left:auto; text-decoration:none; display:flex; align-items:center; gap:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); color:var(--text,#efe8dd); font-size:13px; font-weight:500; padding:9px 14px; border-radius:10px;" style-hover="border-color:var(--accent-soft-border);"><span style="color:var(--accent,#d9a441);">✦</span> Чат проекта</a>
+  <!-- ===================== OVERVIEW ===================== -->
+  <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ false }}">
+    <main style="flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+      <header style="padding:18px 36px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+        <div onClick="{{ back }}" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted,#7c7264); cursor:pointer; margin-bottom:14px;" style-hover="color:var(--text);">← Все проекты</div>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div style="width:44px; height:44px; border-radius:12px; flex-shrink:0; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700; color:var(--accent,#d9a441);">{{ pGlyph }}</div>
+          <div style="min-width:0;">
+            <div style="font-size:19px; font-weight:700; color:var(--strong,#f3ead9);">{{ pName }}</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:4px;"><span style="width:7px; height:7px; border-radius:50%; background:{{ pStatusColor }};"></span><span style="font-size:12px; color:var(--muted,#7c7264);">{{ pType }} · {{ pStatus }} · Руководитель: {{ pLead }}</span></div>
           </div>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+            <div onClick="{{ goFiles }}" style="display:flex; align-items:center; gap:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); color:var(--text,#efe8dd); font-size:13px; font-weight:500; padding:9px 14px; border-radius:10px; cursor:pointer; white-space:nowrap;" style-hover="border-color:var(--accent-soft-border);"><span style="color:var(--accent,#d9a441);">▤</span> Файлы проекта</div>
+            <div onClick="{{ askProjectAi }}" style="display:flex; align-items:center; gap:8px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; padding:9px 14px; border-radius:10px; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">✦ Спросить AI по проекту</div>
+          </div>
+        </div>
+      </header>
+
+      <div style="flex:1; overflow-y:auto; padding:24px 36px 40px;">
+        <div style="font-size:14px; line-height:1.62; color:var(--text,#e7dccb); max-width:720px;">{{ pDesc }}</div>
+
+        <!-- role-specific widget -->
+        <sc-if value="{{ isManagerRole }}" hint-placeholder-val="{{ true }}">
+          <div onClick="{{ goQueue }}" style="display:flex; align-items:center; gap:16px; margin-top:22px; max-width:720px; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.32)); border-radius:14px; padding:16px 20px; cursor:pointer;" style-hover="filter:brightness(1.05);">
+            <span style="font-size:22px;">☑</span>
+            <div style="flex:1;"><div style="font-size:14px; font-weight:600; color:var(--strong,#f3ead9);">Ждут утверждения: {{ pPendingCount }}</div><div style="font-size:12px; color:var(--muted,#7c7264); margin-top:2px;">Перейти в очередь утверждения →</div></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isEngineerRole }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:22px; max-width:720px;">
+            <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Ваши пакеты изменений</div>
+            <sc-for list="{{ myChangesets }}" as="cs" hint-placeholder-count="2">
+              <div onClick="{{ cs.onOpen }}" style="display:flex; align-items:center; gap:12px; background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:12px; padding:12px 15px; cursor:pointer;" style-hover="border-color:var(--accent-soft-border);">
+                <span style="width:8px; height:8px; border-radius:50%; flex-shrink:0; background:{{ cs.dot }};"></span>
+                <span class="clamp1" style="font-size:13px; color:var(--text,#cabfae); flex:1; min-width:0;">{{ cs.title }}</span>
+                <span class="mono" style="font-size:11px; color:{{ cs.dot }}; white-space:nowrap; flex-shrink:0;">{{ cs.statusLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin:28px 0 12px;">Лента активности</div>
+        <div style="display:flex; flex-direction:column; gap:2px; max-width:720px;">
+          <sc-for list="{{ pActivity }}" as="a" hint-placeholder-count="5">
+            <div style="display:flex; gap:13px; padding:9px 0;">
+              <div style="width:28px; height:28px; border-radius:50%; flex-shrink:0; background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--accent,#d9a441);">{{ a.who }}</div>
+              <div style="min-width:0;"><div style="font-size:13px; color:var(--text,#cabfae); line-height:1.45;">{{ a.text }}</div><div style="font-size:11px; color:var(--muted,#7c7264); margin-top:2px;">{{ a.when }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ===================== FILES ===================== -->
+  <sc-if value="{{ isFiles }}" hint-placeholder-val="{{ false }}">
+    <main style="flex:1; display:flex; min-width:0; overflow:hidden;">
+      <aside style="width:230px; flex-shrink:0; border-right:1px solid var(--border,rgba(255,255,255,.06)); background:var(--sidebar,#0e0b08); display:flex; flex-direction:column; overflow-y:auto; padding:18px 12px;">
+        <div onClick="{{ backToOverview }}" style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted,#7c7264); cursor:pointer; margin:0 6px 14px;" style-hover="color:var(--text);">← {{ pNameShort }}</div>
+        <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin:0 6px 8px;">Разделы</div>
+        <div onClick="{{ selectAllSections }}" style="display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:9px; cursor:pointer; background:{{ sectionAllBg }};" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+          <span style="font-size:12.5px; color:{{ sectionAllColor }}; flex:1;">Все разделы</span>
+          <span class="mono" style="font-size:10.5px; color:var(--muted,#7c7264);">{{ sectionAllCount }}</span>
+        </div>
+        <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="7">
+          <div>
+            <div style="display:flex; align-items:center; gap:6px; padding:9px 10px; border-radius:9px; cursor:pointer; background:{{ sec.bg }};" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+              <span onClick="{{ sec.onToggleExpand }}" style="font-size:9px; color:var(--muted,#7c7264); width:12px; flex-shrink:0; cursor:pointer; transform:{{ sec.caretRotate }};">▸</span>
+              <span onClick="{{ sec.onSelect }}" class="clamp1" style="font-size:12.5px; color:{{ sec.color }}; flex:1; min-width:0;">{{ sec.name }}</span>
+              <span onClick="{{ sec.onSelect }}" class="mono" style="font-size:10.5px; color:var(--muted,#7c7264); flex-shrink:0;">{{ sec.count }}</span>
+            </div>
+            <sc-if value="{{ sec.expanded }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-direction:column; gap:1px; padding-left:20px; margin-top:1px;">
+                <sc-for list="{{ sec.subfolders }}" as="sf" hint-placeholder-count="0">
+                  <div onClick="{{ sf.onSelect }}" style="display:flex; align-items:center; gap:7px; padding:7px 10px; border-radius:8px; cursor:pointer; background:{{ sf.bg }};" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+                    <span style="font-size:10px; color:var(--muted,#7c7264); flex-shrink:0;">◇</span>
+                    <span class="clamp1" style="font-size:11.5px; color:{{ sf.color }}; flex:1; min-width:0;">{{ sf.name }}</span>
+                    <span class="mono" style="font-size:10px; color:var(--muted,#7c7264); flex-shrink:0;">{{ sf.count }}</span>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ sec.showAddRow }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex; align-items:center; gap:6px; padding:5px 10px;">
+                    <input class="field" value="{{ subfolderDraft }}" onInput="{{ onSubfolderDraftInput }}" onKeyDown="{{ sec.onAddKey }}" placeholder="Название подраздела…" style="flex:1; min-width:0; border:1px solid var(--border,rgba(255,255,255,.1)); border-radius:7px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:11px; padding:5px 7px; font-family:inherit;" />
+                    <span onClick="{{ sec.onAddConfirm }}" style="font-size:12px; color:var(--accent,#d9a441); cursor:pointer; flex-shrink:0;">✓</span>
+                    <span onClick="{{ cancelAddSubfolder }}" style="font-size:11px; color:var(--muted,#7c7264); cursor:pointer; flex-shrink:0;">✕</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ sec.showAddButton }}" hint-placeholder-val="{{ true }}">
+                  <div onClick="{{ sec.onStartAdd }}" style="padding:6px 10px; font-size:11px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="color:var(--accent);">+ Добавить подраздел</div>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </aside>
+
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden;">
+        <header style="padding:18px 26px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); border-radius:9px; padding:8px 12px; flex:1; min-width:220px; max-width:360px;">
+            <span style="color:var(--muted,#7c7264); font-size:12px;">⌕</span>
+            <input class="field" value="{{ filesQuery }}" onInput="{{ onFilesSearch }}" placeholder="Поиск по шифру или названию…" style="border:0; outline:0; background:transparent; color:var(--text,#efe8dd); font-size:12.5px; width:100%; font-family:inherit;" />
+          </div>
+          <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ filesCountLabel }}</span>
+          <div onClick="{{ openUpload }}" style="margin-left:auto; display:flex; align-items:center; gap:8px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; padding:9px 15px; border-radius:10px; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">＋ Загрузить изменения</div>
         </header>
 
-        <div style="flex:1; overflow-y:auto; padding:24px 28px 40px;">
-          <!-- desc -->
-          <div style="font-size:14px; line-height:1.62; color:var(--text,#e7dccb); max-width:680px;">{{ dDesc }}</div>
-
-          <!-- tasks -->
-          <div style="display:flex; align-items:center; justify-content:space-between; margin:26px 0 12px;">
-            <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Задачи</span>
-            <span class="mono" style="font-size:12px; color:var(--text,#cabfae);">{{ dTasksLabel }}</span>
+        <sc-if value="{{ filesEmptyState }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px;">
+            <span style="font-size:34px; color:var(--muted,#7c7264);">▤</span>
+            <div style="font-size:14.5px; font-weight:600; color:var(--strong,#f3ead9);">В этом проекте пока нет документов</div>
+            <div style="font-size:12.5px; color:var(--muted,#7c7264); max-width:340px; text-align:center; line-height:1.5;">Загрузите первые файлы — система разложит их по разделам шаблона и отправит на утверждение руководителю.</div>
+            <div onClick="{{ openUpload }}" style="margin-top:6px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; padding:10px 18px; border-radius:10px; cursor:pointer;" style-hover="filter:brightness(1.07);">＋ Загрузить изменения</div>
           </div>
-          <div style="height:6px; border-radius:6px; background:var(--surface,#15100a); overflow:hidden; margin-bottom:14px; max-width:680px;"><div style="height:100%; width:{{ dProgressW }}; background:var(--accent,#d9a441); border-radius:6px; transition:width .25s;"></div></div>
-          <div style="display:flex; flex-direction:column; gap:7px; max-width:680px;">
-            <sc-for list="{{ dTasks }}" as="t" hint-placeholder-count="5">
-              <div onClick="{{ t.onToggle }}" style="display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:11px; background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); cursor:pointer;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.4));">
-                <span style="width:19px; height:19px; border-radius:6px; flex-shrink:0; border:1.5px solid {{ t.boxBorder }}; background:{{ t.boxBg }}; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--accent-ink,#1a150f);">{{ t.check }}</span>
-                <span style="font-size:13.5px; color:{{ t.textColor }}; text-decoration:{{ t.strike }};">{{ t.t }}</span>
-                <span class="mono" style="margin-left:auto; font-size:11px; color:var(--muted,#7c7264);">{{ t.assignee }}</span>
+        </sc-if>
+
+        <sc-if value="{{ filesNoResults }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted,#7c7264);">Ничего не найдено по запросу «{{ filesQuery }}»</div>
+        </sc-if>
+
+        <sc-if value="{{ filesHasRows }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1; overflow-y:auto;">
+            <div style="display:grid; grid-template-columns:1.3fr 2.2fr 1fr 1.1fr 1fr; gap:0; padding:9px 26px; background:var(--surface,#15100a); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; position:sticky; top:0; z-index:1;">
+              <span>Шифр</span><span>Наименование</span><span>Статус</span><span>Версия · автор</span><span>Дата</span>
+            </div>
+            <sc-for list="{{ fileRows }}" as="d" hint-placeholder-count="10">
+              <div onClick="{{ d.onOpen }}" style="display:grid; grid-template-columns:1.3fr 2.2fr 1fr 1.1fr 1fr; gap:0; align-items:center; padding:11px 26px; border-top:1px solid var(--border,rgba(255,255,255,.05)); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.03));">
+                <span class="mono" style="font-size:12px; color:var(--accent,#d9a441); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ d.code }}</span>
+                <span style="min-width:0;">
+                  <span class="clamp1" style="font-size:12.5px; color:var(--strong,#f3ead9); display:block;">{{ d.name }}</span>
+                  <sc-if value="{{ d.hasSubfolderTag }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:10px; color:var(--muted,#7c7264);">◇ {{ d.subfolderTag }}</span>
+                  </sc-if>
+                </span>
+                <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:{{ d.statusColor }}; white-space:nowrap;"><span style="width:6px; height:6px; border-radius:50%; flex-shrink:0; background:{{ d.statusColor }};"></span>{{ d.statusLabel }}</span>
+                <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264); white-space:nowrap;">{{ d.versionLabel }}</span>
+                <span class="mono" style="font-size:11px; color:var(--muted,#7c7264); white-space:nowrap;">{{ d.date }}</span>
               </div>
             </sc-for>
+            <div style="text-align:center; padding:14px; font-size:11px; color:var(--muted,#7c7264);">{{ virtualizationNote }}</div>
+          </div>
+        </sc-if>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ===================== DOCUMENT CARD ===================== -->
+  <sc-if value="{{ isDocument }}" hint-placeholder-val="{{ false }}">
+    <main style="flex:1; display:flex; min-width:0; overflow:hidden;">
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden;">
+        <header style="padding:18px 26px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+          <div onClick="{{ backToFiles }}" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted,#7c7264); cursor:pointer; margin-bottom:12px;" style-hover="color:var(--text);">← Файлы проекта</div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <span class="mono" style="font-size:13px; color:var(--accent,#d9a441);">{{ docCode }}</span>
+            <span style="font-size:16.5px; font-weight:700; color:var(--strong,#f3ead9);">{{ docName }}</span>
+            <span style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:{{ docStatusColor }}; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); padding:5px 10px; border-radius:999px; white-space:nowrap;"><span style="width:6px; height:6px; border-radius:50%; background:{{ docStatusColor }};"></span>{{ docStatusLabel }}</span>
+            <div onClick="{{ openThreadDoc }}" style="margin-left:auto; display:flex; align-items:center; gap:7px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.07)); color:var(--text,#efe8dd); font-size:12.5px; font-weight:500; padding:8px 13px; border-radius:9px; cursor:pointer; white-space:nowrap;" style-hover="border-color:var(--accent-soft-border);"><span style="color:var(--accent,#d9a441);">✦</span> Обсудить</div>
+          </div>
+          <sc-if value="{{ docRejectedBannerVisible }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:12px; display:flex; align-items:flex-start; gap:10px; background:rgba(214,95,95,.1); border:1px solid rgba(214,95,95,.3); border-radius:10px; padding:11px 14px;">
+              <span style="color:#d65f5f; font-size:14px;">⚑</span>
+              <div style="flex:1; min-width:0;"><div style="font-size:12.5px; color:#d65f5f; font-weight:600;">Пакет отклонён руководителем</div><div style="font-size:12px; color:var(--text,#cabfae); margin-top:3px; line-height:1.5;">{{ docRejectionComment }}</div></div>
+              <sc-if value="{{ isEngineerRole }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ resubmitDoc }}" style="flex-shrink:0; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:12px; font-weight:600; padding:7px 13px; border-radius:8px; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">Отправить исправленный пакет</div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ docPendingBannerVisible }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:12px; display:flex; align-items:center; gap:10px; background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.3)); border-radius:10px; padding:11px 14px;">
+              <span style="color:var(--accent,#d9a441); font-size:14px;">◔</span>
+              <div style="font-size:12.5px; color:var(--text,#cabfae);">{{ docPendingLabel }}</div>
+            </div>
+          </sc-if>
+        </header>
+
+        <div style="flex:1; overflow-y:auto; padding:22px 26px 40px;">
+          <div onClick="{{ openPdfCurrent }}" style="max-width:640px; aspect-ratio:1.35; background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; cursor:pointer;" style-hover="border-color:var(--accent-soft-border);">
+            <span style="font-size:30px; color:var(--muted,#7c7264);">▤</span>
+            <span style="font-size:12.5px; color:var(--muted,#7c7264);">Превью PDF — {{ docCurrentFileLabel }}</span>
+            <span style="font-size:11.5px; color:var(--accent,#d9a441);">Открыть в читалке →</span>
           </div>
 
-          <!-- activity -->
-          <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin:28px 0 12px;">Активность</div>
-          <div style="display:flex; flex-direction:column; gap:2px; max-width:680px;">
-            <sc-for list="{{ dActivity }}" as="a" hint-placeholder-count="4">
-              <div style="display:flex; gap:13px; padding:9px 0;">
-                <div style="width:28px; height:28px; border-radius:50%; flex-shrink:0; background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--accent,#d9a441);">{{ a.who }}</div>
-                <div style="min-width:0;"><div style="font-size:13px; color:var(--text,#cabfae); line-height:1.45;">{{ a.text }}</div><div style="font-size:11px; color:var(--muted,#7c7264); margin-top:2px;">{{ a.when }}</div></div>
+          <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin:26px 0 12px;">История версий</div>
+          <div style="display:flex; flex-direction:column; gap:7px; max-width:640px;">
+            <sc-for list="{{ docVersions }}" as="v" hint-placeholder-count="3">
+              <div onClick="{{ v.onOpen }}" style="display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:11px; background:var(--card,#110d08); border:1px solid {{ v.border }}; cursor:pointer;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.4));">
+                <span class="mono" style="width:34px; height:28px; border-radius:7px; flex-shrink:0; background:var(--surface,#15100a); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:700; color:var(--accent,#d9a441);">v{{ v.v }}</span>
+                <div style="min-width:0; flex:1;">
+                  <div style="font-size:11px; color:var(--muted,#7c7264); font-weight:600; letter-spacing:.03em; text-transform:uppercase;">Что изменено</div>
+                  <div style="font-size:12.5px; color:var(--text,#cabfae); margin-top:2px;">{{ v.comment }}</div>
+                  <div style="font-size:11px; color:var(--muted,#7c7264); margin-top:4px;">Загрузил {{ v.uploadedBy }} · утвердил {{ v.approvedBy }} · {{ v.date }}</div>
+                </div>
+                <sc-if value="{{ v.isCurrent }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:10.5px; font-weight:600; color:var(--ok,#86b98c); white-space:nowrap; flex-shrink:0;">текущая</span>
+                </sc-if>
               </div>
             </sc-for>
+            <sc-if value="{{ docNoVersions }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12.5px; color:var(--muted,#7c7264); padding:8px 2px;">Утверждённых версий пока нет.</div>
+            </sc-if>
+          </div>
+
+          <div style="display:flex; align-items:center; justify-content:space-between; margin:26px 0 12px; max-width:640px;">
+            <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Заметки</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:9px; max-width:640px;">
+            <sc-for list="{{ docNotes }}" as="n" hint-placeholder-count="2">
+              <div style="display:flex; gap:11px; padding:11px 13px; border-radius:11px; background:{{ n.bg }}; border:1px solid {{ n.border }};">
+                <div style="min-width:0; flex:1;">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span style="font-size:12px; font-weight:600; color:var(--strong,#f3ead9);">{{ n.author }}</span>
+                    <sc-if value="{{ n.isAI }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:9.5px; font-weight:700; color:var(--accent,#d9a441); background:var(--accent-soft,#241a10); padding:2px 6px; border-radius:5px;">AI</span>
+                    </sc-if>
+                    <span style="font-size:10.5px; color:var(--muted,#7c7264); margin-left:auto;">{{ n.date }}</span>
+                  </div>
+                  <div style="font-size:12.5px; color:var(--text,#cabfae); line-height:1.5; margin-top:5px;">{{ n.text }}</div>
+                </div>
+                <sc-if value="{{ n.isAI }}" hint-placeholder-val="{{ false }}">
+                  <span onClick="{{ n.onDelete }}" style="font-size:12px; color:var(--muted,#7c7264); cursor:pointer; flex-shrink:0;" style-hover="color:#d65f5f;">✕</span>
+                </sc-if>
+              </div>
+            </sc-for>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
+              <input class="field" value="{{ noteDraft }}" onInput="{{ onNoteInput }}" onKeyDown="{{ onNoteKey }}" placeholder="Добавить заметку…" style="flex:1; border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:9px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:12.5px; padding:9px 12px; font-family:inherit;" />
+              <div onClick="{{ addNote }}" style="background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:12px; font-weight:600; padding:9px 14px; border-radius:9px; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">Добавить</div>
+            </div>
           </div>
         </div>
       </div>
-
-      <!-- ===== RIGHT PANEL ===== -->
-      <aside style="width:330px; flex-shrink:0; border-left:1px solid var(--border,rgba(255,255,255,.06)); background:var(--sidebar,#0e0b08); display:flex; flex-direction:column; overflow-y:auto;">
-
-        <!-- files -->
-        <div style="padding:20px 20px 8px; display:flex; align-items:center; justify-content:space-between;">
-          <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Файлы проекта · {{ dFileCount }}</span>
-          <span onClick="{{ addFile }}" title="Добавить файл" style="width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--accent,#d9a441); background:var(--accent-soft,#241a10); border:1px solid var(--accent-soft-border,rgba(217,164,65,.28)); cursor:pointer;" style-hover="filter:brightness(1.12);">＋</span>
-        </div>
-        <div style="padding:4px 12px 8px;">
-          <sc-for list="{{ dFiles }}" as="f" hint-placeholder-count="6">
-            <div style="display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:10px; cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045));">
-              <div class="mono" style="width:34px; height:34px; border-radius:9px; flex-shrink:0; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:600; color:var(--accent,#d9a441);">{{ f.ext }}</div>
-              <div style="min-width:0; flex:1;">
-                <div style="font-size:13px; color:var(--text,#efe8dd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ f.name }}</div>
-                <div style="font-size:11px; color:var(--muted,#7c7264);">{{ f.meta }}</div>
-              </div>
-              <span style="font-size:13px; color:{{ f.dotColor }};">{{ f.dot }}</span>
-            </div>
-          </sc-for>
-        </div>
-
-        <!-- linked docs -->
-        <div style="padding:16px 20px 8px; border-top:1px solid var(--border,rgba(255,255,255,.06)); margin-top:6px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Из базы знаний</span>
-            <a href="База знаний.dc.html" style="font-size:11px; color:var(--accent,#d9a441); text-decoration:none;">Открыть →</a>
-          </div>
-        </div>
-        <div style="padding:0 12px 8px;">
-          <sc-for list="{{ dDocs }}" as="d" hint-placeholder-count="3">
-            <a href="База знаний.dc.html" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; text-decoration:none;" style-hover="background:var(--hover,rgba(255,255,255,.045));">
-              <span style="color:var(--accent,#d9a441); font-size:13px;">▤</span>
-              <span style="font-size:12.5px; color:var(--text,#cabfae); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ d.title }}</span>
-              <span class="mono" style="margin-left:auto; font-size:10.5px; color:var(--muted,#7c7264); white-space:nowrap;">◆ {{ d.points }}</span>
-            </a>
-          </sc-for>
-        </div>
-
-        <!-- members -->
-        <div style="padding:16px 20px 8px; border-top:1px solid var(--border,rgba(255,255,255,.06)); margin-top:6px;">
-          <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Участники · {{ dMemberCount }}</span>
-        </div>
-        <div style="padding:0 12px 20px;">
-          <sc-for list="{{ dMembers }}" as="m" hint-placeholder-count="3">
-            <div style="display:flex; align-items:center; gap:11px; padding:8px 10px;">
-              <div style="width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--accent,#d9a441);">{{ m.init }}</div>
-              <div style="min-width:0;"><div style="font-size:13px; color:var(--text,#efe8dd);">{{ m.name }}</div><div style="font-size:11px; color:var(--muted,#7c7264);">{{ m.role }}</div></div>
-            </div>
-          </sc-for>
-        </div>
-      </aside>
     </main>
   </sc-if>
+
+  <!-- ===================== APPROVAL QUEUE ===================== -->
+  <sc-if value="{{ isQueue }}" hint-placeholder-val="{{ false }}">
+    <main style="flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+      <header style="padding:22px 36px 0; flex-shrink:0;">
+        <div onClick="{{ backToOverview }}" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted,#7c7264); cursor:pointer; margin-bottom:14px;" style-hover="color:var(--text);">← {{ pNameShort }}</div>
+        <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Руководитель проекта</div>
+        <div style="font-size:22px; font-weight:700; color:var(--strong,#f3ead9); margin-top:4px;">Очередь утверждения · {{ queueCount }}</div>
+      </header>
+
+      <div style="flex:1; overflow-y:auto; padding:20px 36px 40px;">
+        <sc-if value="{{ queueEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:60px 0; color:var(--muted,#7c7264);">
+            <span style="font-size:28px;">✓</span>
+            <span style="font-size:13.5px;">Очередь пуста — все пакеты рассмотрены.</span>
+          </div>
+        </sc-if>
+        <div style="display:flex; flex-direction:column; gap:14px; max-width:760px;">
+          <sc-for list="{{ queueItems }}" as="q" hint-placeholder-count="2">
+            <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:16px; padding:18px 20px;">
+              <div style="display:flex; align-items:flex-start; gap:12px;">
+                <div style="width:34px; height:34px; border-radius:50%; flex-shrink:0; background:var(--accent-soft,#241a10); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:var(--accent,#d9a441);">{{ q.authorInit }}</div>
+                <div style="min-width:0; flex:1;">
+                  <div style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9);">{{ q.author }}</div>
+                  <div style="font-size:11.5px; color:var(--muted,#7c7264); margin-top:1px;">{{ q.date }} · {{ q.filesCountLabel }}</div>
+                </div>
+              </div>
+              <div style="font-size:13px; color:var(--text,#cabfae); line-height:1.55; margin:12px 0 0; padding:11px 13px; background:var(--surface,#15100a); border-radius:10px;">«{{ q.comment }}»</div>
+
+              <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+                <sc-for list="{{ q.items }}" as="it" hint-placeholder-count="1">
+                  <div onClick="{{ it.onPreview }}" style="display:flex; align-items:center; gap:11px; padding:9px 12px; border-radius:10px; background:var(--surface,#15100a); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045));">
+                    <span style="font-size:15px; color:var(--accent,#d9a441);">▤</span>
+                    <div style="min-width:0; flex:1;">
+                      <div class="mono" style="font-size:12px; color:var(--accent,#d9a441);">{{ it.code }}</div>
+                      <div style="font-size:12px; color:var(--text,#cabfae);">{{ it.actionLabel }}</div>
+                    </div>
+                    <span style="font-size:11px; color:var(--accent,#d9a441); white-space:nowrap; flex-shrink:0;">Превью →</span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <sc-if value="{{ q.conflict }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:flex-start; gap:9px; margin-top:12px; background:rgba(214,95,95,.1); border:1px solid rgba(214,95,95,.3); border-radius:10px; padding:11px 13px;">
+                  <span style="color:#d65f5f; font-size:13px;">⚠</span>
+                  <div style="font-size:12px; color:var(--text,#cabfae); line-height:1.5;">{{ q.conflictText }}</div>
+                </div>
+              </sc-if>
+
+              <div style="display:flex; align-items:center; gap:10px; margin-top:15px;">
+                <div onClick="{{ q.onApprove }}" style="background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:12.5px; font-weight:600; padding:9px 16px; border-radius:9px; cursor:pointer;" style-hover="filter:brightness(1.07);">Утвердить пакет</div>
+                <div onClick="{{ q.onReject }}" style="background:transparent; border:1px solid var(--border,rgba(255,255,255,.1)); color:var(--text,#cabfae); font-size:12.5px; font-weight:600; padding:9px 16px; border-radius:9px; cursor:pointer;" style-hover="border-color:#d65f5f; color:#d65f5f;">Отклонить</div>
+                <a href="{{ q.projectHref }}" style="margin-left:auto; font-size:11.5px; color:var(--muted,#7c7264); text-decoration:none;">{{ q.projectName }}</a>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ===================== ARCHIVE ===================== -->
+  <sc-if value="{{ isArchive }}" hint-placeholder-val="{{ false }}">
+    <main style="flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+      <header style="padding:22px 36px 0; flex-shrink:0;">
+        <div onClick="{{ backToOverview }}" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted,#7c7264); cursor:pointer; margin-bottom:14px;" style-hover="color:var(--text);">← {{ pNameShort }}</div>
+        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+          <div>
+            <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Разбор редакций</div>
+            <div style="font-size:22px; font-weight:700; color:var(--strong,#f3ead9); margin-top:4px;">Архив версий</div>
+          </div>
+          <select onChange="{{ onArchiveSectionChange }}" style="margin-left:auto; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.08)); color:var(--text,#efe8dd); font-size:12.5px; padding:9px 12px; border-radius:9px; font-family:inherit;">
+            <option value="all">Все разделы</option>
+            <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="7">
+              <option value="{{ sec.id }}">{{ sec.name }}</option>
+            </sc-for>
+          </select>
+        </div>
+      </header>
+
+      <div style="flex:1; overflow-y:auto; padding:20px 36px 40px;">
+        <sc-if value="{{ archiveEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="text-align:center; padding:60px 0; font-size:13px; color:var(--muted,#7c7264);">В этом разделе пока нет утверждённых версий.</div>
+        </sc-if>
+        <div style="border:1px solid var(--border,rgba(255,255,255,.06)); border-radius:14px; overflow:hidden;">
+          <div style="display:grid; grid-template-columns:1.2fr 1.8fr .6fr 1.1fr 1.1fr .9fr 90px; gap:0; padding:10px 16px; background:var(--surface,#15100a); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">
+            <span>Шифр</span><span>Комментарий пакета</span><span>Версия</span><span>Загрузил</span><span>Утвердил</span><span>Дата</span><span></span>
+          </div>
+          <sc-for list="{{ archiveRows }}" as="r" hint-placeholder-count="6">
+            <div style="display:grid; grid-template-columns:1.2fr 1.8fr .6fr 1.1fr 1.1fr .9fr 90px; gap:0; align-items:center; padding:11px 16px; border-top:1px solid var(--border,rgba(255,255,255,.05));">
+              <span class="mono" style="font-size:12px; color:var(--accent,#d9a441); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.code }}</span>
+              <span class="clamp1" style="font-size:12.5px; color:var(--text,#cabfae);">{{ r.comment }}</span>
+              <span class="mono" style="font-size:12px; color:{{ r.vColor }};">v{{ r.v }}{{ r.currentTag }}</span>
+              <span style="font-size:12px; color:var(--muted,#7c7264);">{{ r.uploadedBy }}</span>
+              <span style="font-size:12px; color:var(--muted,#7c7264);">{{ r.approvedBy }}</span>
+              <span class="mono" style="font-size:11.5px; color:var(--muted,#7c7264);">{{ r.date }}</span>
+              <span onClick="{{ r.onPreview }}" style="font-size:11.5px; color:var(--accent,#d9a441); cursor:pointer; white-space:nowrap;">Смотреть →</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </sc-if>
+
+  <!-- ===================== MODAL: upload changeset ===================== -->
+  <sc-if value="{{ uploadModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeUpload }}" style="position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.55); animation:pFadeIn .12s ease;"></div>
+    <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:51; width:600px; max-width:92vw; max-height:84vh; background:var(--sidebar,#0e0b08); border:1px solid var(--border,rgba(255,255,255,.1)); border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.5); display:flex; flex-direction:column; overflow:hidden;">
+      <div style="padding:16px 20px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; gap:10px; flex-shrink:0;">
+        <span style="font-size:15px; font-weight:700; color:var(--strong,#f3ead9);">Загрузить изменения</span>
+        <span onClick="{{ closeUpload }}" style="margin-left:auto; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">✕</span>
+      </div>
+
+      <div style="padding:16px 20px; overflow-y:auto; flex:1;">
+        <div onClick="{{ addUploadFile }}" style="display:flex; align-items:center; justify-content:center; gap:9px; border:1.5px dashed var(--border,rgba(255,255,255,.16)); border-radius:12px; padding:16px; cursor:pointer; color:var(--muted,#7c7264); font-size:13px;" style-hover="border-color:var(--accent-soft-border); color:var(--text);">＋ Добавить файл</div>
+
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
+          <sc-for list="{{ uploadItems }}" as="u" hint-placeholder-count="1">
+            <div style="background:var(--card,#110d08); border:1px solid var(--card-border,rgba(255,255,255,.06)); border-radius:12px; padding:12px 14px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:14px; color:var(--accent,#d9a441);">▤</span>
+                <span class="clamp1" style="font-size:12.5px; color:var(--strong,#f3ead9); flex:1; min-width:0;">{{ u.fileName }}</span>
+                <span onClick="{{ u.onRemove }}" style="font-size:12px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="color:#d65f5f;">✕</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+                <div onClick="{{ u.onSetNew }}" style="font-size:11.5px; padding:6px 11px; border-radius:7px; cursor:pointer; background:{{ u.newBg }}; color:{{ u.newColor }};">Новый документ</div>
+                <div onClick="{{ u.onSetReplace }}" style="font-size:11.5px; padding:6px 11px; border-radius:7px; cursor:pointer; background:{{ u.replaceBg }}; color:{{ u.replaceColor }};">Заменяет версию</div>
+              </div>
+              <sc-if value="{{ u.showDocPicker }}" hint-placeholder-val="{{ false }}">
+                <select onChange="{{ u.onPickDoc }}" style="width:100%; margin-top:9px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.08)); color:var(--text,#efe8dd); font-size:12px; padding:8px 10px; border-radius:8px; font-family:inherit;">
+                  <option value="">Выбрать документ…</option>
+                  <sc-for list="{{ allDocsOptions }}" as="op" hint-placeholder-count="3">
+                    <option value="{{ op.id }}">{{ op.label }}</option>
+                  </sc-for>
+                </select>
+              </sc-if>
+              <sc-if value="{{ u.showNewCode }}" hint-placeholder-val="{{ false }}">
+                <input class="field" value="{{ u.newCode }}" onInput="{{ u.onNewCodeInput }}" placeholder="Шифр нового документа, напр. РЧ-101-07" style="width:100%; margin-top:9px; border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:8px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:12px; padding:8px 10px; font-family:inherit;" />
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ uploadEmptyHint }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:12px; color:var(--muted,#7c7264); text-align:center; padding:6px;">Файлы ещё не добавлены</div>
+          </sc-if>
+        </div>
+
+        <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin:18px 0 8px;">Что изменено и почему</div>
+        <textarea onInput="{{ onUploadCommentInput }}" placeholder="Обязательный комментарий: что изменилось в этом пакете и почему…" style="width:100%; min-height:74px; border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:10px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:12.5px; padding:10px 12px; font-family:inherit; resize:vertical;">{{ uploadComment }}</textarea>
+      </div>
+
+      <div style="padding:14px 20px; border-top:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; gap:10px; flex-shrink:0;">
+        <span class="mono" style="font-size:11px; color:var(--muted,#7c7264);">{{ uploadItems.length }} файл(ов)</span>
+        <div onClick="{{ submitUpload }}" style="margin-left:auto; padding:10px 18px; border-radius:10px; background:{{ submitUploadBg }}; color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">Отправить на утверждение</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== MODAL: reject with comment ===================== -->
+  <sc-if value="{{ rejectModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeReject }}" style="position:fixed; inset:0; z-index:52; background:rgba(0,0,0,.55);"></div>
+    <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:53; width:440px; max-width:90vw; background:var(--sidebar,#0e0b08); border:1px solid var(--border,rgba(255,255,255,.1)); border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.5); padding:20px;">
+      <div style="font-size:15px; font-weight:700; color:var(--strong,#f3ead9); margin-bottom:12px;">Отклонить пакет</div>
+      <div style="font-size:12.5px; color:var(--muted,#7c7264); margin-bottom:8px;">Комментарий обязателен — автор увидит его и сможет исправить пакет.</div>
+      <textarea onInput="{{ onRejectCommentInput }}" placeholder="Что нужно исправить…" style="width:100%; min-height:90px; border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:10px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:12.5px; padding:10px 12px; font-family:inherit; resize:vertical;">{{ rejectComment }}</textarea>
+      <div style="display:flex; align-items:center; gap:10px; margin-top:14px;">
+        <div onClick="{{ closeReject }}" style="flex:1; text-align:center; padding:10px; border-radius:9px; border:1px solid var(--border,rgba(255,255,255,.1)); color:var(--text,#cabfae); font-size:13px; cursor:pointer;">Отмена</div>
+        <div onClick="{{ confirmReject }}" style="flex:1; text-align:center; padding:10px; border-radius:9px; background:{{ confirmRejectBg }}; color:#fff; font-size:13px; font-weight:600; cursor:pointer;">Отклонить</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== MODAL: new project ===================== -->
+  <sc-if value="{{ newProjectModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeNewProject }}" style="position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.55);"></div>
+    <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:51; width:460px; max-width:90vw; background:var(--sidebar,#0e0b08); border:1px solid var(--border,rgba(255,255,255,.1)); border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.5); padding:20px;">
+      <div style="font-size:15px; font-weight:700; color:var(--strong,#f3ead9); margin-bottom:4px;">Новый проект</div>
+      <div style="font-size:12px; color:var(--muted,#7c7264); margin-bottom:14px;">Раздел документации создаётся автоматически по шаблону типа.</div>
+      <input class="field" value="{{ newProjectName }}" onInput="{{ onNewProjectNameInput }}" placeholder="Название проекта" style="width:100%; border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:9px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:13px; padding:10px 12px; font-family:inherit; margin-bottom:12px;" />
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <sc-for list="{{ projectTypeOptions }}" as="pt" hint-placeholder-count="3">
+          <div onClick="{{ pt.onSelect }}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; cursor:pointer; background:{{ pt.bg }}; border:1px solid {{ pt.border }};">
+            <span style="width:16px; height:16px; border-radius:50%; flex-shrink:0; border:1.5px solid {{ pt.dotBorder }}; background:{{ pt.dotBg }};"></span>
+            <span style="font-size:12.5px; color:var(--text,#cabfae);">{{ pt.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div onClick="{{ submitNewProject }}" style="margin-top:16px; text-align:center; padding:11px; border-radius:10px; background:{{ submitNewProjectBg }}; color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; cursor:pointer;">Создать проект</div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== PDF viewer overlay ===================== -->
+  <sc-if value="{{ pdfOverlayOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:30px; animation:pFadeIn .14s ease;">
+      <div style="width:100%; max-width:900px; height:100%; background:var(--sidebar,#0e0b08); border:1px solid var(--border,rgba(255,255,255,.1)); border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.5); display:flex; flex-direction:column; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:12px; padding:13px 18px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+          <span style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ pdfTitle }}</span>
+          <span onClick="{{ closePdf }}" style="margin-left:auto; width:28px; height:28px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">✕</span>
+        </div>
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; background:#fff;">
+          <span style="font-size:34px; color:#9a9a9a;">▤</span>
+          <span style="font-size:13px; color:#7a7a7a;">Предпросмотр PDF: {{ pdfTitle }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== discussion thread drawer ===================== -->
+  <sc-if value="{{ threadOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeThread }}" style="position:fixed; inset:0; z-index:55; background:rgba(0,0,0,.4);"></div>
+    <div style="position:fixed; top:0; right:0; bottom:0; z-index:56; width:380px; max-width:92vw; background:var(--sidebar,#0e0b08); border-left:1px solid var(--border,rgba(255,255,255,.1)); box-shadow:-16px 0 50px rgba(0,0,0,.35); display:flex; flex-direction:column; animation:pSlideIn .16s ease;">
+      <div style="padding:16px 18px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:14px; font-weight:700; color:var(--strong,#f3ead9);">Обсуждение</span>
+          <span style="font-size:10px; color:var(--muted,#7c7264); background:var(--surface,#15100a); padding:2px 7px; border-radius:999px; white-space:nowrap;">не сохраняется</span>
+          <span onClick="{{ closeThread }}" style="margin-left:auto; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">✕</span>
+        </div>
+        <div class="clamp1" style="font-size:12px; color:var(--muted,#7c7264); margin-top:5px;">{{ threadTitle }}</div>
+      </div>
+      <div style="flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+        <sc-for list="{{ threadMessages }}" as="m" hint-placeholder-count="3">
+          <div style="display:flex; flex-direction:column; align-items:{{ m.align }};">
+            <div style="max-width:82%; background:{{ m.bg }}; border:1px solid {{ m.border }}; border-radius:12px; padding:9px 12px;">
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
+                <span style="font-size:11px; font-weight:600; color:var(--strong,#f3ead9);">{{ m.author }}</span>
+                <sc-if value="{{ m.isAI }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:9px; font-weight:700; color:var(--accent,#d9a441); background:var(--accent-soft,#241a10); padding:1px 5px; border-radius:5px;">AI</span>
+                </sc-if>
+              </div>
+              <div style="font-size:12.5px; color:var(--text,#cabfae); line-height:1.5;">{{ m.text }}</div>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ threadTyping }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:11.5px; color:var(--muted,#7c7264);">AI печатает…</div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ threadHasMessages }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-top:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+          <div onClick="{{ saveThreadToNotes }}" style="flex:1; text-align:center; font-size:11.5px; color:var(--text,#cabfae); background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.08)); padding:7px 9px; border-radius:8px; cursor:pointer; white-space:nowrap;" style-hover="border-color:var(--accent-soft-border);">📋 Сохранить в заметки</div>
+          <div onClick="{{ exportThreadTxt }}" style="flex:1; text-align:center; font-size:11.5px; color:var(--text,#cabfae); background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.08)); padding:7px 9px; border-radius:8px; cursor:pointer; white-space:nowrap;" style-hover="border-color:var(--accent-soft-border);">⭳ Экспорт .txt</div>
+        </div>
+        <sc-if value="{{ threadSavedFlash }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:0 14px 8px; font-size:11px; color:var(--ok,#86b98c);">{{ threadSavedFlash }}</div>
+        </sc-if>
+      </sc-if>
+      <div style="padding:12px 14px; border-top:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; gap:8px; flex-shrink:0;">
+        <input class="field" value="{{ threadDraft }}" onInput="{{ onThreadInput }}" onKeyDown="{{ onThreadKey }}" placeholder="Написать сообщение…" style="flex:1; border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:9px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:12.5px; padding:9px 12px; font-family:inherit;" />
+        <div onClick="{{ sendThreadMessage }}" style="background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:12px; font-weight:600; padding:9px 13px; border-radius:9px; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">→</div>
+      </div>
+    </div>
+  </sc-if>
+
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1360,&quot;height&quot;:860}}">
 class Component extends DCLogic {
   constructor(props) {
     super(props);
     let saved = 'dark';
     try { saved = localStorage.getItem('msgr-theme') || 'dark'; } catch (e) {}
-    this.state = { theme: saved, view: 'list', selectedId: null, projects: this.seed() };
-    this._uid = 0;
+    const data = this.seed();
+    this.state = {
+      theme: saved, role: 'manager', view: 'list',
+      selectedProjectId: null, selectedSectionId: 'all', selectedDocId: null,
+      filesQuery: '',
+      projects: data.projects, docs: data.docs, changesets: data.changesets,
+      archiveSection: 'all',
+      uploadModalOpen: false, uploadItems: [], uploadComment: '',
+      rejectModalOpen: false, rejectTargetId: null, rejectComment: '',
+      newProjectModalOpen: false, newProjectName: '', newProjectType: 'new-equip',
+      pdfOverlayOpen: false, pdfTitle: '',
+      threadOpen: false, threadContext: null, threadDraft: '', threadTyping: false,
+      threadsByKey: {}, noteDraft: '',
+      selectedSubfolderId: 'all', expandedSections: ['raw'], addingSubfolderSectionId: null, subfolderDraft: '',
+      threadSavedFlash: '',
+    };
   }
+
+  sectionDefs = [
+    { id:'inLetters', name:'Письма входящие' },
+    { id:'outLetters', name:'Письма исходящие' },
+    { id:'input', name:'Исходные данные' },
+    { id:'design', name:'Проектные чертежи' },
+    { id:'raw', name:'Рабочие чертежи' },
+    { id:'equipment', name:'Оборудование' },
+    { id:'tkp', name:'ТКП' },
+  ];
 
   themes = {
     dark: {
@@ -234,164 +641,333 @@ class Component extends DCLogic {
       border:'rgba(255,255,255,.06)', cardBorder:'rgba(255,255,255,.06)',
       text:'#cabfae', strong:'#f3ead9', muted:'#7c7264',
       accent:'#d9a441', accentInk:'#1a150f', accentSoft:'#241a10', accentSoftBorder:'rgba(217,164,65,.3)',
-      hover:'rgba(255,255,255,.045)', logoA:'#d9a441', logoB:'#b97e2e', ok:'#86b98c',
+      hover:'rgba(255,255,255,.045)', ok:'#86b98c',
     },
     light: {
       bg:'#fbfcfc', rail:'#f0f3f3', sidebar:'#f6f8f8', surface:'#eef1f1', card:'#ffffff',
       border:'#e8eaec', cardBorder:'#e8eaec',
       text:'#374151', strong:'#0e1213', muted:'#8b9197',
       accent:'#0891b2', accentInk:'#ffffff', accentSoft:'#e6f4f7', accentSoftBorder:'#c5e6ee',
-      hover:'rgba(0,0,0,.035)', logoA:'#22b8d6', logoB:'#0891b2', ok:'#3f9d54',
+      hover:'rgba(0,0,0,.035)', ok:'#3f9d54',
     },
   };
 
   seed() {
-    return [
-      {
-        id:'pay', name:'Платёжный шлюз v2', glyph:'ПШ', status:'В работе', kind:'active', lead:'Ведёт Влад', deadline:'до 12 июля',
-        desc:'Новая версия платёжного шлюза: переход на идемпотентные операции, поддержка нескольких провайдеров и сверка транзакций.',
-        members:[{init:'ВЛ',name:'Влад Логинов',role:'Тимлид'},{init:'ИП',name:'Иван Петров',role:'Бэкенд'},{init:'СК',name:'Соня Кравец',role:'QA'}],
-        updated:'2 ч назад',
-        tasks:[
-          {t:'Контракт API провайдера', done:true, assignee:'ИП'},
-          {t:'Идемпотентность начислений', done:true, assignee:'ИП'},
-          {t:'Сверка транзакций (cron)', done:true, assignee:'ВЛ'},
-          {t:'Обработка частичных возвратов', done:false, assignee:'ВЛ'},
-          {t:'Нагрузочное тестирование', done:false, assignee:'СК'},
-          {t:'Документация для интеграторов', done:false, assignee:'ВЛ'},
+    const extraRaw = [];
+    const rawSub = ['heating','vent','tech'];
+    for (let i = 6; i <= 61; i++) {
+      const n = String(i).padStart(2,'0');
+      extraRaw.push({ id:'raw'+n, code:'РЧ-БПГ-101-'+n, name:'Рабочий чертёж обвязки БПГ-101, лист '+i, sectionId:'raw', subfolderId: rawSub[i%3], projectId:'bpg',
+        approvedVersion: 1, pendingChangesetId: null, lastRejectedChangesetId: null,
+        versions:[{ v:1, fileName:'РЧ-101-'+n+'_v1.pdf', uploadedBy:'Иван Петров', approvedBy:'Влад Логинов', date:'12 мая', comment:'Первая редакция по ТЗ' }],
+        notes: [] });
+    }
+
+    const docs = [
+      { id:'docA', code:'РЧ-БПГ-101-05', name:'Рабочий чертёж обвязки БПГ-101, лист 5', sectionId:'raw', subfolderId:'tech', projectId:'bpg',
+        approvedVersion:4, pendingChangesetId:'cs1', lastRejectedChangesetId:null,
+        versions:[
+          { v:1, fileName:'РЧ-101-05_v1.pdf', uploadedBy:'Иван Петров', approvedBy:'Влад Логинов', date:'12 мая', comment:'Первая редакция по ТЗ' },
+          { v:2, fileName:'РЧ-101-05_v2.pdf', uploadedBy:'Иван Петров', approvedBy:'Влад Логинов', date:'2 июня', comment:'Правки по замечаниям экспертизы' },
+          { v:3, fileName:'РЧ-101-05_v3.pdf', uploadedBy:'Иван Петров', approvedBy:'Влад Логинов', date:'20 июня', comment:'Уточнение диаметров труб DN80/DN100' },
+          { v:4, fileName:'РЧ-101-05_v4.pdf', uploadedBy:'Влад Логинов', approvedBy:'Влад Логинов', date:'вчера', comment:'Обновлена высотная отметка узла А по полевым замерам' },
         ],
-        files:[
-          {name:'Спецификация шлюза.pdf', ext:'PDF', size:'1.4 МБ', by:'Влад', when:'2 ч назад', ok:true},
-          {name:'provider-contract.yaml', ext:'YAML', size:'24 КБ', by:'Иван', when:'вчера', ok:true},
-          {name:'Схема сверки.fig', ext:'FIG', size:'3.1 МБ', by:'Соня', when:'2 дня', ok:true},
-          {name:'reconcile.sql', ext:'SQL', size:'8 КБ', by:'Влад', when:'3 дня', ok:true},
-          {name:'Тест-план.docx', ext:'DOC', size:'120 КБ', by:'Соня', when:'4 дня', ok:true},
-        ],
-        docs:[{title:'API Reference — Orders v2', points:312},{title:'Архитектура сервисов', points:268}],
-        activity:[
-          {who:'ИП', text:'Иван закрыл задачу «Идемпотентность начислений»', when:'2 часа назад'},
-          {who:'ВЛ', text:'Влад добавил файл «Спецификация шлюза.pdf»', when:'2 часа назад'},
-          {who:'СК', text:'Соня оставила комментарий к тест-плану', when:'вчера'},
-          {who:'ИП', text:'Иван открыл ветку feature/multi-provider', when:'2 дня назад'},
-        ],
-      },
-      {
-        id:'mig', name:'Миграция БД на v2', glyph:'МБ', status:'На ревью', kind:'review', lead:'Ведёт SRE', deadline:'до 30 июня',
-        desc:'Перевод схемы базы данных на версию 2 с минимальным даунтаймом: dry-run, посервисный rollout и план отката.',
-        members:[{init:'АР',name:'Артём Рыжов',role:'SRE'},{init:'ВЛ',name:'Влад Логинов',role:'Ревью'}],
-        updated:'5 ч назад',
-        tasks:[
-          {t:'Снапшот и заморозка схемы', done:true, assignee:'АР'},
-          {t:'Dry-run на реплике', done:true, assignee:'АР'},
-          {t:'Online-DDL для больших таблиц', done:true, assignee:'АР'},
-          {t:'Финальное ревью', done:false, assignee:'ВЛ'},
-        ],
-        files:[
-          {name:'Runbook миграции.md', ext:'MD', size:'180 КБ', by:'Артём', when:'5 ч назад', ok:true},
-          {name:'migration_v2.sql', ext:'SQL', size:'42 КБ', by:'Артём', when:'вчера', ok:true},
-          {name:'rollback.sql', ext:'SQL', size:'18 КБ', by:'Артём', when:'вчера', ok:true},
-        ],
-        docs:[{title:'Runbook: миграция БД на v2', points:96}],
-        activity:[
-          {who:'АР', text:'Артём отправил проект на ревью', when:'5 часов назад'},
-          {who:'АР', text:'Артём приложил rollback.sql', when:'вчера'},
-        ],
-      },
-      {
-        id:'red', name:'Редизайн портала', glyph:'РП', status:'В работе', kind:'active', lead:'Ведёт дизайн', deadline:'до 20 июля',
-        desc:'Обновление инженерного портала: новая структура навигации, тёмная и светлая темы, единая система компонентов.',
-        members:[{init:'СК',name:'Соня Кравец',role:'Дизайн'},{init:'ВЛ',name:'Влад Логинов',role:'Фронтенд'}],
-        updated:'вчера',
-        tasks:[
-          {t:'Аудит текущих экранов', done:true, assignee:'СК'},
-          {t:'Система токенов и тем', done:true, assignee:'СК'},
-          {t:'Сборка библиотеки компонентов', done:false, assignee:'ВЛ'},
-          {t:'Перенос экранов', done:false, assignee:'ВЛ'},
-          {t:'Юзабилити-тест', done:false, assignee:'СК'},
-        ],
-        files:[
-          {name:'Портал — макеты.fig', ext:'FIG', size:'8.2 МБ', by:'Соня', when:'вчера', ok:true},
-          {name:'Гайд по темам.pdf', ext:'PDF', size:'640 КБ', by:'Соня', when:'2 дня', ok:true},
-        ],
-        docs:[{title:'Гайд по код-стайлу', points:64}],
-        activity:[
-          {who:'СК', text:'Соня обновила макеты в Figma', when:'вчера'},
-          {who:'ВЛ', text:'Влад начал сборку компонентов', when:'2 дня назад'},
-        ],
-      },
-      {
-        id:'ci', name:'Ускорение CI/CD', glyph:'CI', status:'Планирование', kind:'plan', lead:'Ведёт DevEx', deadline:'до 5 авг',
-        desc:'Сокращение времени сборки и деплоя: кэширование зависимостей, параллельные джобы и blue-green выкатка.',
-        members:[{init:'ИП',name:'Иван Петров',role:'DevEx'}],
-        updated:'3 дня назад',
-        tasks:[
-          {t:'Замер текущих времён', done:true, assignee:'ИП'},
-          {t:'План кэширования', done:false, assignee:'ИП'},
-          {t:'Параллелизация тестов', done:false, assignee:'ИП'},
-        ],
-        files:[
-          {name:'Метрики сборок.xlsx', ext:'XLS', size:'56 КБ', by:'Иван', when:'3 дня', ok:true},
-        ],
-        docs:[{title:'Руководство по CI/CD', points:148}],
-        activity:[
-          {who:'ИП', text:'Иван собрал метрики текущих сборок', when:'3 дня назад'},
-        ],
-      },
-      {
-        id:'bil', name:'Биллинг', glyph:'БИ', status:'В работе', kind:'active', lead:'Ведёт Влад', deadline:'до 28 июля',
-        desc:'Запуск сервиса тарификации: модель тарифов, начисления по событиям использования и сверка с провайдером платежей.',
-        members:[{init:'ВЛ',name:'Влад Логинов',role:'Тимлид'},{init:'АР',name:'Артём Рыжов',role:'Бэкенд'}],
-        updated:'сегодня',
-        tasks:[
-          {t:'Модель тарифных планов', done:true, assignee:'ВЛ'},
-          {t:'Начисления по событиям', done:false, assignee:'АР'},
-          {t:'Сверка с провайдером', done:false, assignee:'АР'},
-          {t:'Отчёты по начислениям', done:false, assignee:'ВЛ'},
-        ],
-        files:[
-          {name:'Заметки: биллинг.md', ext:'MD', size:'64 КБ', by:'Влад', when:'сегодня', ok:true},
-          {name:'billing-schema.json', ext:'JSON', size:'12 КБ', by:'Артём', when:'вчера', ok:true},
-        ],
-        docs:[{title:'Архитектура сервисов', points:268}],
-        activity:[
-          {who:'ВЛ', text:'Влад зафиксировал модель тарифов', when:'сегодня'},
-        ],
-      },
+        notes:[
+          { id:'n1', author:'Соня Кравец', text:'Проверила отметки по трубопроводу — совпадают со штампом.', isAI:false, date:'вчера' },
+          { id:'n2', author:'AI', text:'Краткая выжимка: чертёж описывает обвязку БПГ-101, класс давления PN16. Изменение v3→v4: скорректирована высотная отметка узла А по результатам полевых замеров.', isAI:true, date:'вчера' },
+        ] },
+      { id:'docB', code:'РЧ-БПГ-101-02', name:'Рабочий чертёж опоры трубопровода, лист 2', sectionId:'raw', subfolderId:'vent', projectId:'bpg',
+        approvedVersion:null, pendingChangesetId:'cs3', lastRejectedChangesetId:null, versions:[], notes:[] },
+      { id:'docC', code:'ИД-БПГ-101-01', name:'Исходные данные площадки строительства', sectionId:'input', projectId:'bpg',
+        approvedVersion:1, pendingChangesetId:null, lastRejectedChangesetId:null,
+        versions:[{ v:1, fileName:'ИД-101-01_v1.pdf', uploadedBy:'Иван Петров', approvedBy:'Влад Логинов', date:'3 мая', comment:'Топосъёмка и геология площадки' }], notes:[] },
+      { id:'docD', code:'ПЧ-БПГ-101-03', name:'Проектный чертёж генплана площадки', sectionId:'design', projectId:'bpg',
+        approvedVersion:null, pendingChangesetId:null, lastRejectedChangesetId:'cs4', versions:[], notes:[] },
+      { id:'docE', code:'ТКП-БПГ-101-01', name:'ТКП на поставку узла редуцирования', sectionId:'tkp', projectId:'bpg',
+        approvedVersion:1, pendingChangesetId:null, lastRejectedChangesetId:null,
+        versions:[{ v:1, fileName:'ТКП-101-01_v1.pdf', uploadedBy:'Артём Рыжов', approvedBy:'Влад Логинов', date:'неделю назад', comment:'ТКП поставщика узла редуцирования' }], notes:[] },
+      ...extraRaw,
     ];
+
+    const changesets = [
+      { id:'cs1', projectId:'bpg', author:'Иван Петров', authorInit:'ИП', date:'сегодня, 10:20', status:'pending',
+        comment:'Скорректирована высотная отметка узла А по результатам повторных полевых замеров.',
+        items:[{ docId:'docA', code:'РЧ-БПГ-101-05', name:'Рабочий чертёж обвязки БПГ-101, лист 5', action:'replace', fromVersion:3, fileName:'РЧ-101-05_v4_ivan.pdf' }] },
+      { id:'cs2', projectId:'bpg', author:'Влад Логинов', authorInit:'ВЛ', date:'вчера', status:'approved',
+        comment:'Обновлена высотная отметка узла А по полевым замерам.',
+        items:[{ docId:'docA', code:'РЧ-БПГ-101-05', name:'Рабочий чертёж обвязки БПГ-101, лист 5', action:'replace', fromVersion:3, toVersion:4, fileName:'РЧ-101-05_v4.pdf' }] },
+      { id:'cs3', projectId:'bpg', author:'Соня Кравец', authorInit:'СК', date:'сегодня, 09:05', status:'pending',
+        comment:'Новый чертёж опоры трубопровода по свежей трассировке.',
+        items:[{ docId:'docB', code:'РЧ-БПГ-101-02', name:'Рабочий чертёж опоры трубопровода, лист 2', action:'new', toVersion:1, fileName:'РЧ-101-02_v1.pdf' }] },
+      { id:'cs4', projectId:'bpg', author:'Иван Петров', authorInit:'ИП', date:'3 дня назад', status:'rejected',
+        comment:'Генплан по актуальной трассировке трубопровода.',
+        rejectionComment:'Не совпадает нумерация листов со штампом проекта — пересмотрите оформление и пришлите повторно.',
+        items:[{ docId:'docD', code:'ПЧ-БПГ-101-03', name:'Проектный чертёж генплана площадки', action:'new', toVersion:1, fileName:'ПЧ-101-03_v1_draft.pdf' }] },
+    ];
+
+    const projects = [
+      { id:'bpg', name:'БПГ-101 — новая газовая станция', type:'Новое оборудование · БПГ', glyph:'БГ', status:'В работе', kind:'active',
+        lead:'Влад Логинов', members:[{init:'ВЛ',name:'Влад Логинов'},{init:'ИП',name:'Иван Петров'},{init:'СК',name:'Соня Кравец'}],
+        updated:'2 ч назад',
+        subfolders: { raw: [ {id:'heating',name:'Отопление'}, {id:'vent',name:'Вентиляция'}, {id:'tech',name:'Технология'} ] },
+        desc:'Строительство БПГ-101: комплект рабочей документации по обвязке, опорам трубопровода и генплану площадки, поставка узла редуцирования.',
+        activity:[
+          { who:'ИП', text:'Иван Петров отправил пакет изменений по РЧ-БПГ-101-05 на утверждение', when:'сегодня, 10:20' },
+          { who:'СК', text:'Соня Кравец отправила новый документ РЧ-БПГ-101-02 на утверждение', when:'сегодня, 09:05' },
+          { who:'ВЛ', text:'Влад Логинов утвердил версию 4 документа РЧ-БПГ-101-05', when:'вчера' },
+          { who:'ВЛ', text:'Влад Логинов отклонил пакет по ПЧ-БПГ-101-03 — нужны правки штампа', when:'3 дня назад' },
+          { who:'ИП', text:'Иван Петров загрузил исходные данные площадки', when:'3 мая' },
+        ] },
+      { id:'grs', name:'ГРС-14 — модернизация', type:'Апгрейд · ГРС', glyph:'Г14', status:'Только создан', kind:'plan',
+        lead:'Артём Рыжов', members:[{init:'АР',name:'Артём Рыжов'}],
+        updated:'сегодня',
+        subfolders: {},
+        desc:'Модернизация газораспределительной станции №14: замена узла редуцирования и обновление системы телемеханики.',
+        activity:[ { who:'АР', text:'Артём Рыжов создал проект', when:'сегодня' } ] },
+    ];
+
+    return { projects, docs, changesets };
   }
 
-  statusColor(kind, t) {
-    if (kind === 'active') return t.ok;
-    if (kind === 'review') return t.accent;
-    return t.muted;
+  // ---- helpers ----
+  currentUser() { return this.state.role === 'manager' ? 'Влад Логинов' : 'Иван Петров'; }
+  projectDocs(pid) { return this.state.docs.filter(d => d.projectId === pid); }
+  projectChangesets(pid) { return this.state.changesets.filter(c => c.projectId === pid); }
+  pendingCount(pid) { return this.projectChangesets(pid).filter(c => c.status === 'pending').length; }
+
+  docBadge(d, t) {
+    if (d.pendingChangesetId && d.approvedVersion) return { label:'На утверждении (поверх v'+d.approvedVersion+')', color:t.accent };
+    if (d.pendingChangesetId && !d.approvedVersion) return { label:'На утверждении', color:t.accent };
+    if (d.lastRejectedChangesetId && !d.pendingChangesetId) return { label:'Отклонено — требует правок', color:'#d65f5f' };
+    if (d.approvedVersion) return { label:'Утверждён', color:t.ok };
+    return { label:'Черновик', color:t.muted };
   }
 
+  // ---- nav ----
   setTheme(v){ try{localStorage.setItem('msgr-theme',v);}catch(e){} this.setState({theme:v}); }
   toggleTheme(){ this.setTheme(this.state.theme==='dark'?'light':'dark'); }
-  openProject(id){ this.setState({view:'detail', selectedId:id}); }
-  back(){ this.setState({view:'list', selectedId:null}); }
+  setRole(r){ this.setState({ role:r }); }
+  openProject(id){ this.setState({ view:'overview', selectedProjectId:id }); }
+  back(){ this.setState({ view:'list', selectedProjectId:null }); }
+  backToOverview(){ this.setState({ view:'overview' }); }
+  goFiles(){ this.setState({ view:'files', selectedSectionId:'all', selectedSubfolderId:'all', filesQuery:'' }); }
+  backToFiles(){ this.setState({ view:'files' }); }
+  goQueue(){ this.setState({ view:'queue' }); }
+  goArchive(){ this.setState({ view:'archive' }); }
+  openDoc(id){ this.setState({ view:'document', selectedDocId:id }); }
+  selectSection(id){ this.setState({ selectedSectionId:id, selectedSubfolderId:'all' }); }
+  selectSubfolder(id){ this.setState({ selectedSubfolderId:id }); }
+  toggleExpandSection(id){
+    this.setState(s => ({ expandedSections: s.expandedSections.includes(id) ? s.expandedSections.filter(x=>x!==id) : [...s.expandedSections, id] }));
+  }
+  startAddSubfolder(sectionId){ this.setState({ addingSubfolderSectionId:sectionId, subfolderDraft:'', expandedSections:[...new Set([...this.state.expandedSections, sectionId])] }); }
+  cancelAddSubfolder(){ this.setState({ addingSubfolderSectionId:null, subfolderDraft:'' }); }
+  onSubfolderDraftInput(e){ this.setState({ subfolderDraft:e.target.value }); }
+  confirmAddSubfolder(){
+    const name = this.state.subfolderDraft.trim(); const sectionId = this.state.addingSubfolderSectionId;
+    if (!name || !sectionId) return;
+    const pid = this.state.selectedProjectId;
+    const id = 'sf'+Date.now();
+    this.setState(s => ({
+      projects: s.projects.map(p => {
+        if (p.id!==pid) return p;
+        const subfolders = { ...(p.subfolders||{}) };
+        subfolders[sectionId] = [...(subfolders[sectionId]||[]), { id, name }];
+        return { ...p, subfolders };
+      }),
+      addingSubfolderSectionId:null, subfolderDraft:'',
+    }));
+  }
+  onFilesSearch(e){ this.setState({ filesQuery:e.target.value }); }
+  onArchiveSectionChange(e){ this.setState({ archiveSection:e.target.value }); }
 
-  toggleTask(pid, idx){
-    this.setState(s => ({ projects: s.projects.map(p => p.id!==pid ? p : { ...p, tasks: p.tasks.map((t,i)=> i!==idx ? t : {...t, done:!t.done}) }) }));
+  // ---- notes ----
+  onNoteInput(e){ this.setState({ noteDraft:e.target.value }); }
+  addNote(){
+    const val = this.state.noteDraft.trim(); if(!val) return;
+    const did = this.state.selectedDocId;
+    this.setState(s => ({
+      docs: s.docs.map(d => d.id!==did ? d : { ...d, notes:[...d.notes, { id:'note'+Date.now(), author:this.currentUser(), text:val, isAI:false, date:'только что' }] }),
+      noteDraft:'',
+    }));
+  }
+  deleteNote(did, nid){ this.setState(s => ({ docs: s.docs.map(d => d.id!==did ? d : { ...d, notes:d.notes.filter(n=>n.id!==nid) }) })); }
+
+  // ---- upload changeset flow ----
+  openUpload(){ this.setState({ uploadModalOpen:true, uploadItems:[], uploadComment:'' }); }
+  closeUpload(){ this.setState({ uploadModalOpen:false }); }
+  addUploadFile(){
+    const idx = this.state.uploadItems.length + 1;
+    const item = { id:'u'+Date.now()+idx, fileName:'скан_00'+idx+'.pdf', mode:'new', docId:'', newCode:'' };
+    this.setState(s => ({ uploadItems:[...s.uploadItems, item] }));
+  }
+  removeUploadItem(id){ this.setState(s => ({ uploadItems:s.uploadItems.filter(u=>u.id!==id) })); }
+  setUploadItemMode(id, mode){ this.setState(s => ({ uploadItems:s.uploadItems.map(u=>u.id!==id?u:{...u, mode}) })); }
+  setUploadItemDoc(id, docId){ this.setState(s => ({ uploadItems:s.uploadItems.map(u=>u.id!==id?u:{...u, docId}) })); }
+  setUploadItemCode(id, code){ this.setState(s => ({ uploadItems:s.uploadItems.map(u=>u.id!==id?u:{...u, newCode:code}) })); }
+  onUploadCommentInput(e){ this.setState({ uploadComment:e.target.value }); }
+  submitUpload(){
+    const items = this.state.uploadItems;
+    if (!items.length || !this.state.uploadComment.trim()) return;
+    const pid = this.state.selectedProjectId;
+    const csId = 'cs'+Date.now();
+    const csItems = items.map(u => {
+      if (u.mode === 'replace' && u.docId) {
+        const doc = this.state.docs.find(d=>d.id===u.docId);
+        return { docId:u.docId, code:doc.code, name:doc.name, action:'replace', fromVersion:doc.approvedVersion||0, fileName:u.fileName };
+      }
+      return { docId:null, code:u.newCode||('НОВ-'+Math.floor(Math.random()*900+100)), name:u.fileName, action:'new', toVersion:1, fileName:u.fileName };
+    });
+    this.setState(s => {
+      let docs = s.docs;
+      csItems.forEach(it => {
+        if (it.action === 'replace') {
+          docs = docs.map(d => d.id!==it.docId ? d : { ...d, pendingChangesetId:csId, lastRejectedChangesetId:null });
+        } else {
+          docs = [...docs, { id:'doc'+Date.now()+Math.random(), code:it.code, name:it.name, sectionId:'raw', projectId:pid,
+            approvedVersion:null, pendingChangesetId:csId, lastRejectedChangesetId:null, versions:[], notes:[] }];
+        }
+      });
+      return {
+        docs,
+        changesets:[...s.changesets, { id:csId, projectId:pid, author:this.currentUser(), authorInit: this.currentUser().split(' ').map(w=>w[0]).join(''),
+          date:'только что', status:'pending', comment:s.uploadComment.trim(), items:csItems }],
+        uploadModalOpen:false, uploadItems:[], uploadComment:'',
+      };
+    });
   }
 
-  addFile(pid){
-    const input = document.createElement('input');
-    input.type='file'; input.multiple=true;
-    input.onchange=()=>{
-      const list=[...(input.files||[])];
-      if(!list.length) return;
-      this.setState(s => ({ projects: s.projects.map(p => {
-        if(p.id!==pid) return p;
-        const added=list.map(f=>{
-          const ext=(f.name.split('.').pop()||'file').toUpperCase().slice(0,4);
-          const kb=Math.max(1,Math.round(f.size/1024));
-          return { name:f.name, ext, size: kb>=1024?(kb/1024).toFixed(1)+' МБ':kb+' КБ', by:'Влад', when:'только что', ok:true, fresh:true };
+  resubmitDoc(){
+    const did = this.state.selectedDocId;
+    const doc = this.state.docs.find(d=>d.id===did);
+    if (!doc) return;
+    const oldCsId = doc.lastRejectedChangesetId;
+    const oldCs = this.state.changesets.find(c=>c.id===oldCsId);
+    const csId = 'cs'+Date.now();
+    this.setState(s => ({
+      docs: s.docs.map(d => d.id!==did ? d : { ...d, pendingChangesetId:csId, lastRejectedChangesetId:null }),
+      changesets: [...s.changesets, { id:csId, projectId:doc.projectId, author:this.currentUser(), authorInit:this.currentUser().split(' ').map(w=>w[0]).join(''),
+        date:'только что', status:'pending', comment:'Исправлено по замечанию: ' + (oldCs?oldCs.rejectionComment:''),
+        items:[{ docId:did, code:doc.code, name:doc.name, action:doc.approvedVersion?'replace':'new', fromVersion:doc.approvedVersion||0, toVersion:(doc.approvedVersion||0)+1, fileName:doc.code+'_fix.pdf' }], supersedes:oldCsId }],
+    }));
+  }
+
+  // ---- approval queue ----
+  approveChangeset(csId){
+    const cs = this.state.changesets.find(c=>c.id===csId); if(!cs) return;
+    this.setState(s => {
+      let docs = s.docs;
+      cs.items.forEach(it => {
+        docs = docs.map(d => {
+          if (d.id !== it.docId && !(it.action==='new' && d.pendingChangesetId===csId)) return d;
+          const realDoc = d.pendingChangesetId===csId ? d : d;
+          const nextV = (realDoc.approvedVersion||0) + 1;
+          return { ...realDoc, approvedVersion:nextV, pendingChangesetId:null, lastRejectedChangesetId:null,
+            versions:[...realDoc.versions, { v:nextV, fileName:it.fileName, uploadedBy:cs.author, approvedBy:this.currentUser(), date:'только что', comment:cs.comment }] };
         });
-        return { ...p, files:[...added, ...p.files] };
-      }) }));
-    };
-    input.click();
+      });
+      return { docs, changesets: s.changesets.map(c=>c.id!==csId?c:{...c, status:'approved'}) };
+    });
+  }
+  openReject(csId){ this.setState({ rejectModalOpen:true, rejectTargetId:csId, rejectComment:'' }); }
+  closeReject(){ this.setState({ rejectModalOpen:false }); }
+  onRejectCommentInput(e){ this.setState({ rejectComment:e.target.value }); }
+  confirmReject(){
+    const csId = this.state.rejectTargetId;
+    const cs = this.state.changesets.find(c=>c.id===csId); if(!cs || !this.state.rejectComment.trim()) return;
+    this.setState(s => ({
+      docs: s.docs.map(d => {
+        const affected = cs.items.some(it => it.docId===d.id || d.pendingChangesetId===csId);
+        if (!affected) return d;
+        return { ...d, pendingChangesetId:null, lastRejectedChangesetId:csId };
+      }),
+      changesets: s.changesets.map(c=>c.id!==csId?c:{...c, status:'rejected', rejectionComment:s.rejectComment.trim()}),
+      rejectModalOpen:false,
+    }));
+  }
+
+  // ---- pdf overlay ----
+  openPdf(title){ this.setState({ pdfOverlayOpen:true, pdfTitle:title }); }
+  closePdf(){ this.setState({ pdfOverlayOpen:false }); }
+
+  // ---- new project ----
+  openNewProject(){ this.setState({ newProjectModalOpen:true, newProjectName:'', newProjectType:'new-equip' }); }
+  closeNewProject(){ this.setState({ newProjectModalOpen:false }); }
+  onNewProjectNameInput(e){ this.setState({ newProjectName:e.target.value }); }
+  setNewProjectType(t){ this.setState({ newProjectType:t }); }
+  submitNewProject(){
+    const name = this.state.newProjectName.trim(); if (!name) return;
+    const typeLabels = { 'new-equip':'Новое оборудование', 'upgrade':'Апгрейд существующего', 'bpg':'Газовая станция / БПГ / ГРС' };
+    const id = 'proj'+Date.now();
+    this.setState(s => ({
+      projects:[...s.projects, { id, name, type:typeLabels[s.newProjectType], glyph:name.slice(0,2).toUpperCase(), status:'Только создан', kind:'plan',
+        lead:this.currentUser(), members:[{init:this.currentUser().split(' ').map(w=>w[0]).join(''), name:this.currentUser()}], updated:'сейчас',
+        desc:'Проект создан. Шаблон разделов документации по типу «'+typeLabels[s.newProjectType]+'» уже готов — загрузите первые документы.', activity:[] }],
+      newProjectModalOpen:false,
+    }));
+  }
+
+  // ---- discussion thread ----
+  openThread(kind, id, title){
+    const key = kind+':'+id;
+    this.setState(s => {
+      const existing = s.threadsByKey[key];
+      const seedMsgs = existing || (kind==='project'
+        ? [{ author:'AI', text:'Спросите что угодно про документы и статус проекта «'+title+'» — отвечу на основе базы знаний проекта.', isAI:true, align:'flex-start' }]
+        : [{ author:'Соня Кравец', text:'Проверила по штампу — совпадает.', isAI:false, align:'flex-start' }]);
+      return { threadOpen:true, threadContext:{ kind, id, title }, threadsByKey:{...s.threadsByKey, [key]: seedMsgs} };
+    });
+  }
+  closeThread(){ this.setState({ threadOpen:false, threadSavedFlash:'' }); }
+
+  // Hybrid chat persistence: the thread itself stays ephemeral (in-memory threadsByKey, gone on
+  // page reload). These two actions are the "promote to permanent" escape hatches from the brief.
+  threadPlainText() {
+    const ctx = this.state.threadContext; if (!ctx) return '';
+    const key = ctx.kind+':'+ctx.id;
+    const msgs = this.state.threadsByKey[key] || [];
+    const header = 'Обсуждение: ' + ctx.title + '\n' + new Date().toLocaleString('ru-RU') + '\n\n';
+    return header + msgs.map(m => (m.isAI ? 'AI' : m.author) + ': ' + m.text).join('\n\n');
+  }
+  saveThreadToNotes(){
+    const ctx = this.state.threadContext; if (!ctx) return;
+    const text = this.threadPlainText();
+    // On the real backend this posts to the Заметки service, tagged with the source doc/project.
+    try {
+      const key = 'pending-note-from-thread';
+      localStorage.setItem(key, JSON.stringify({ title: 'Диалог: ' + ctx.title, text, savedAt: Date.now() }));
+    } catch (e) {}
+    this.setState({ threadSavedFlash: 'Сохранено в Заметки ✓' });
+    setTimeout(() => this.setState({ threadSavedFlash:'' }), 2400);
+  }
+  exportThreadTxt(){
+    const ctx = this.state.threadContext; if (!ctx) return;
+    const text = this.threadPlainText();
+    const blob = new Blob([text], { type:'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'обсуждение — ' + ctx.title.replace(/[\\/:*?"<>|]/g,'') + '.txt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }
+  onThreadInput(e){ this.setState({ threadDraft:e.target.value }); }
+  onThreadKey(e){ if (e.key==='Enter') this.sendThreadMessage(); }
+  sendThreadMessage(){
+    const val = this.state.threadDraft.trim(); if(!val || !this.state.threadContext) return;
+    const key = this.state.threadContext.kind+':'+this.state.threadContext.id;
+    const isAiContext = this.state.threadContext.kind==='project';
+    this.setState(s => ({
+      threadsByKey:{ ...s.threadsByKey, [key]: [...(s.threadsByKey[key]||[]), { author:this.currentUser(), text:val, isAI:false, align:'flex-end' }] },
+      threadDraft:'', threadTyping: isAiContext,
+    }));
+    if (isAiContext) {
+      setTimeout(() => {
+        this.setState(s => ({
+          threadsByKey:{ ...s.threadsByKey, [key]: [...(s.threadsByKey[key]||[]), { author:'AI', text:'По документам проекта: пока утверждена одна версия РЧ-БПГ-101-05 (v4), два пакета ждут решения руководителя.', isAI:true, align:'flex-start' }] },
+          threadTyping:false,
+        }));
+      }, 1100);
+    }
   }
 
   renderVals() {
@@ -400,66 +976,247 @@ class Component extends DCLogic {
       `--bg:${t.bg};--rail:${t.rail};--sidebar:${t.sidebar};--surface:${t.surface};--card:${t.card};` +
       `--border:${t.border};--card-border:${t.cardBorder};--text:${t.text};--strong:${t.strong};--muted:${t.muted};` +
       `--accent:${t.accent};--accent-ink:${t.accentInk};--accent-soft:${t.accentSoft};--accent-soft-border:${t.accentSoftBorder};` +
-      `--hover:${t.hover};--logo-a:${t.logoA};--logo-b:${t.logoB};--ok:${t.ok};`;
+      `--hover:${t.hover};--ok:${t.ok};`;
 
-    const ps = this.state.projects;
-    const done = p => p.tasks.filter(x=>x.done).length;
-
-    const projects = ps.map(p => ({
-      id:p.id, name:p.name, glyph:p.glyph, status:p.status, desc:p.desc, updated:p.updated,
-      onOpen: ()=>this.openProject(p.id),
-      statusColor: this.statusColor(p.kind, t),
-      tasksLabel: done(p)+'/'+p.tasks.length,
-      progressW: Math.round(done(p)/p.tasks.length*100)+'%',
-      members: p.members.map(m=>m.init),
-      filesCount: p.files.length,
-    }));
-
-    const statActive = ps.filter(p=>p.kind==='active').length;
-    const statTasks = ps.reduce((a,p)=>a + p.tasks.filter(x=>!x.done && x.assignee==='ВЛ').length, 0);
+    const isManagerRole = this.state.role === 'manager';
+    const allChangesets = this.state.changesets;
 
     const base = {
-      rootStyle,
-      themeIcon: this.state.theme==='dark'?'☾':'☀',
-      toggleTheme: ()=>this.toggleTheme(),
-      isList: this.state.view==='list',
-      isDetail: this.state.view==='detail',
-      projects,
-      statOnMe: ps.length, statActive, statTasks, statWeek: 24,
-      createProject: ()=>{},
-      back: ()=>this.back(),
+      rootStyle, themeIcon: this.state.theme==='dark'?'☾':'☀', toggleTheme: ()=>this.toggleTheme(),
+      setRoleManager: ()=>this.setRole('manager'), setRoleEngineer: ()=>this.setRole('engineer'),
+      roleManagerBg: isManagerRole?'var(--accent)':'transparent', roleManagerColor: isManagerRole?'var(--accent-ink)':'var(--muted)',
+      roleEngineerBg: !isManagerRole?'var(--accent)':'transparent', roleEngineerColor: !isManagerRole?'var(--accent-ink)':'var(--muted)',
+      isManagerRole, isEngineerRole: !isManagerRole,
+      isList: this.state.view==='list', isOverview: this.state.view==='overview', isFiles: this.state.view==='files',
+      isDocument: this.state.view==='document', isQueue: this.state.view==='queue', isArchive: this.state.view==='archive',
+      back: ()=>this.back(), backToOverview: ()=>this.backToOverview(), backToFiles: ()=>this.backToFiles(),
+      goFiles: ()=>this.goFiles(), goQueue: ()=>this.goQueue(), goArchive: ()=>this.goArchive(),
+      openUpload: ()=>this.openUpload(), closeUpload: ()=>this.closeUpload(),
+      openNewProject: ()=>this.openNewProject(), closeNewProject: ()=>this.closeNewProject(),
+      closePdf: ()=>this.closePdf(), pdfOverlayOpen: this.state.pdfOverlayOpen, pdfTitle: this.state.pdfTitle,
+      closeThread: ()=>this.closeThread(), threadOpen: this.state.threadOpen,
+      threadTitle: this.state.threadContext ? this.state.threadContext.title : '',
+      threadMessages: this.state.threadContext ? (this.state.threadsByKey[this.state.threadContext.kind+':'+this.state.threadContext.id]||[]).map(m=>({
+        author:m.author, text:m.text, isAI:m.isAI, align:m.align,
+        bg: m.isAI ? 'var(--accent-soft)' : (m.align==='flex-end' ? 'var(--accent-soft)' : 'var(--card)'),
+        border: m.isAI ? 'var(--accent-soft-border)' : 'var(--card-border)',
+      })) : [],
+      threadTyping: this.state.threadTyping, threadDraft: this.state.threadDraft,
+      onThreadInput: (e)=>this.onThreadInput(e), onThreadKey: (e)=>this.onThreadKey(e), sendThreadMessage: ()=>this.sendThreadMessage(),
+      threadHasMessages: this.state.threadContext ? (this.state.threadsByKey[this.state.threadContext.kind+':'+this.state.threadContext.id]||[]).length > 0 : false,
+      saveThreadToNotes: ()=>this.saveThreadToNotes(), exportThreadTxt: ()=>this.exportThreadTxt(),
+      threadSavedFlash: this.state.threadSavedFlash,
+      uploadModalOpen: this.state.uploadModalOpen,
+      rejectModalOpen: this.state.rejectModalOpen, rejectComment: this.state.rejectComment,
+      onRejectCommentInput: (e)=>this.onRejectCommentInput(e), confirmReject: ()=>this.confirmReject(),
+      confirmRejectBg: this.state.rejectComment.trim() ? '#c0392b' : 'var(--muted)',
+      newProjectModalOpen: this.state.newProjectModalOpen, newProjectName: this.state.newProjectName,
+      onNewProjectNameInput: (e)=>this.onNewProjectNameInput(e), submitNewProject: ()=>this.submitNewProject(),
+      submitNewProjectBg: this.state.newProjectName.trim() ? 'var(--accent)' : 'var(--surface)',
+      projectTypeOptions: [
+        { id:'new-equip', label:'Новое оборудование' }, { id:'upgrade', label:'Апгрейд существующего' }, { id:'bpg', label:'Газовая станция / БПГ / ГРС' },
+      ].map(o => ({ ...o, onSelect: ()=>this.setNewProjectType(o.id),
+        bg: this.state.newProjectType===o.id?'var(--accent-soft)':'transparent', border: this.state.newProjectType===o.id?'var(--accent-soft-border)':'var(--border)',
+        dotBg: this.state.newProjectType===o.id?'var(--accent)':'transparent', dotBorder: this.state.newProjectType===o.id?'var(--accent)':'var(--muted)' })),
     };
 
-    const p = ps.find(x=>x.id===this.state.selectedId);
+    const ps = this.state.projects;
+    const projects = ps.map(p => {
+      const pending = this.pendingCount(p.id);
+      return {
+        id:p.id, name:p.name, type:p.type, glyph:p.glyph, status:p.status, lead:p.lead,
+        onOpen: ()=>this.openProject(p.id),
+        statusColor: p.kind==='active'?t.ok:(p.kind==='review'?t.accent:t.muted),
+        members: p.members.map(m=>m.init),
+        docsCount: this.projectDocs(p.id).length, updated:p.updated,
+        showPendingBadge: isManagerRole && pending>0, pendingCount: pending,
+      };
+    });
+    const statTotal = ps.length;
+    const statActive = ps.filter(p=>p.kind==='active').length;
+    const statPending = allChangesets.filter(c=>c.status==='pending').length;
+    const statRejected = allChangesets.filter(c=>c.status==='rejected').length;
+
+    Object.assign(base, {
+      projects, statTotal, statActive, statPending, statRejected,
+      statPendingColor: statPending>0 ? t.accent : t.muted,
+    });
+
+    const pid = this.state.selectedProjectId;
+    const p = ps.find(x=>x.id===pid);
     if (!p) return base;
 
-    const dn = done(p);
-    return {
-      ...base,
-      dGlyph:p.glyph, dName:p.name, dStatus:p.status, dStatusColor:this.statusColor(p.kind,t),
-      dLead:p.lead, dDeadline:p.deadline, dDesc:p.desc,
-      dTasksLabel: dn+' из '+p.tasks.length,
-      dProgressW: Math.round(dn/p.tasks.length*100)+'%',
-      dTasks: p.tasks.map((tk,i)=>({
-        t:tk.t, assignee:tk.assignee,
-        onToggle: ()=>this.toggleTask(p.id,i),
-        check: tk.done?'✓':'',
-        boxBg: tk.done?'var(--accent)':'transparent',
-        boxBorder: tk.done?'var(--accent)':'var(--muted)',
-        textColor: tk.done?'var(--muted)':'var(--text)',
-        strike: tk.done?'line-through':'none',
-      })),
-      dActivity: p.activity.map(a=>({who:a.who, text:a.text, when:a.when})),
-      dFileCount: p.files.length,
-      dFiles: p.files.map(f=>({
-        name:f.name, ext:f.ext, meta: f.size+' · '+f.by+' · '+f.when,
-        dot: f.fresh?'●':'', dotColor:'var(--ok)',
-      })),
-      dDocs: p.docs,
-      dMemberCount: p.members.length,
-      dMembers: p.members,
-      addFile: ()=>this.addFile(p.id),
+    const pDocs = this.projectDocs(pid);
+    const pCs = this.projectChangesets(pid);
+    const pPendingCount = pCs.filter(c=>c.status==='pending').length;
+
+    Object.assign(base, {
+      pGlyph:p.glyph, pName:p.name, pNameShort:p.name.split(' — ')[0], pType:p.type, pStatus:p.status,
+      pStatusColor: p.kind==='active'?t.ok:(p.kind==='review'?t.accent:t.muted),
+      pLead:p.lead, pDesc:p.desc, pPendingCount,
+      goFiles: ()=>this.goFiles(), askProjectAi: ()=>this.openThread('project', p.id, p.name),
+      pActivity: p.activity.map(a=>({who:a.who, text:a.text, when:a.when})),
+      myChangesets: pCs.filter(c => c.author===this.currentUser()).map(c => {
+        const dot = c.status==='pending' ? t.accent : (c.status==='rejected' ? '#d65f5f' : t.ok);
+        const label = c.status==='pending' ? 'На утверждении' : (c.status==='rejected' ? 'Отклонён' : 'Утверждён');
+        return { title: '«'+c.comment+'»', dot, statusLabel: label, onOpen: ()=>{
+          const it = c.items[0]; if (it && it.docId) this.openDoc(it.docId); else this.goFiles();
+        } };
+      }),
+    });
+
+    // ---- files view ----
+    const projSubfolders = p.subfolders || {};
+    const sections = this.sectionDefs.map(sec => {
+      const expanded = this.state.expandedSections.includes(sec.id);
+      const secDocs = pDocs.filter(d=>d.sectionId===sec.id);
+      const subfolders = (projSubfolders[sec.id]||[]).map(sf => ({
+        id:sf.id, name:sf.name, count: secDocs.filter(d=>d.subfolderId===sf.id).length,
+        onSelect: ()=>{ this.selectSection(sec.id); this.selectSubfolder(sf.id); },
+        bg: (this.state.selectedSectionId===sec.id && this.state.selectedSubfolderId===sf.id) ? 'var(--accent-soft)' : 'transparent',
+        color: (this.state.selectedSectionId===sec.id && this.state.selectedSubfolderId===sf.id) ? 'var(--accent)' : 'var(--text)',
+      }));
+      const isAdding = this.state.addingSubfolderSectionId===sec.id;
+      return {
+        id:sec.id, name:sec.name, onSelect: ()=>this.selectSection(sec.id),
+        count: secDocs.length,
+        bg: this.state.selectedSectionId===sec.id ? 'var(--accent-soft)' : 'transparent',
+        color: this.state.selectedSectionId===sec.id ? 'var(--accent)' : 'var(--text)',
+        expanded, caretRotate: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+        onToggleExpand: ()=>this.toggleExpandSection(sec.id),
+        subfolders, showAddRow:isAdding, showAddButton: !isAdding,
+        onStartAdd: ()=>this.startAddSubfolder(sec.id), onAddConfirm: ()=>this.confirmAddSubfolder(),
+        onAddKey: (e)=>{ if(e.key==='Enter') this.confirmAddSubfolder(); },
+      };
+    });
+    Object.assign(base, {
+      sections, selectAllSections: ()=>this.selectSection('all'),
+      sectionAllBg: this.state.selectedSectionId==='all' ? 'var(--accent-soft)' : 'transparent',
+      sectionAllColor: this.state.selectedSectionId==='all' ? 'var(--accent)' : 'var(--text)',
+      sectionAllCount: pDocs.length,
+      subfolderDraft: this.state.subfolderDraft, onSubfolderDraftInput: (e)=>this.onSubfolderDraftInput(e), cancelAddSubfolder: ()=>this.cancelAddSubfolder(),
+    });
+
+    const q = this.state.filesQuery.trim().toLowerCase();
+    let scoped = this.state.selectedSectionId==='all' ? pDocs : pDocs.filter(d=>d.sectionId===this.state.selectedSectionId);
+    if (this.state.selectedSectionId!=='all' && this.state.selectedSubfolderId!=='all') scoped = scoped.filter(d=>d.subfolderId===this.state.selectedSubfolderId);
+    if (q) scoped = scoped.filter(d => (d.code+' '+d.name).toLowerCase().includes(q));
+
+    const sfName = (sectionId, subfolderId) => {
+      const list = projSubfolders[sectionId]||[]; const f = list.find(x=>x.id===subfolderId); return f ? f.name : '';
     };
+    const fileRows = scoped.map(d => {
+      const b = this.docBadge(d, t);
+      const lastV = d.versions[d.versions.length-1];
+      return {
+        code:d.code, name:d.name, onOpen: ()=>this.openDoc(d.id),
+        subfolderTag: d.subfolderId ? sfName(d.sectionId, d.subfolderId) : '',
+        hasSubfolderTag: !!d.subfolderId,
+        statusLabel:b.label, statusColor:b.color,
+        versionLabel: lastV ? ('v'+lastV.v+' · '+lastV.uploadedBy) : '—',
+        date: lastV ? lastV.date : '—',
+      };
+    });
+    Object.assign(base, {
+      filesQuery: this.state.filesQuery, onFilesSearch: (e)=>this.onFilesSearch(e),
+      filesCountLabel: scoped.length + ' документов',
+      filesEmptyState: pDocs.length===0,
+      filesNoResults: pDocs.length>0 && scoped.length===0 && !!q,
+      filesHasRows: pDocs.length>0 && scoped.length>0,
+      fileRows,
+      virtualizationNote: scoped.length>40 ? scoped.length+' документов — на проде таблица использует виртуализацию строк' : '',
+    });
+
+    // ---- document view ----
+    const doc = this.state.docs.find(x=>x.id===this.state.selectedDocId);
+    if (doc) {
+      const b = this.docBadge(doc, t);
+      const rejectedCs = doc.lastRejectedChangesetId ? this.state.changesets.find(c=>c.id===doc.lastRejectedChangesetId) : null;
+      const pendingCs = doc.pendingChangesetId ? this.state.changesets.find(c=>c.id===doc.pendingChangesetId) : null;
+      const lastV = doc.versions[doc.versions.length-1];
+      Object.assign(base, {
+        docCode:doc.code, docName:doc.name, docStatusLabel:b.label, docStatusColor:b.color,
+        docCurrentFileLabel: lastV ? lastV.fileName : 'файл ещё не утверждён',
+        openPdfCurrent: ()=>this.openPdf(doc.code + (lastV?(' · v'+lastV.v):'')),
+        openThreadDoc: ()=>this.openThread('document', doc.id, doc.code+' — '+doc.name),
+        docRejectedBannerVisible: !!rejectedCs && !doc.pendingChangesetId,
+        docRejectionComment: rejectedCs ? rejectedCs.rejectionComment : '',
+        resubmitDoc: ()=>this.resubmitDoc(),
+        docPendingBannerVisible: !!pendingCs,
+        docPendingLabel: pendingCs ? ('Пакет от '+pendingCs.author+' ожидает утверждения руководителем («'+pendingCs.comment+'»)') : '',
+        docVersions: doc.versions.slice().reverse().map(v => ({
+          v:v.v, comment:v.comment, uploadedBy:v.uploadedBy, approvedBy:v.approvedBy, date:v.date,
+          isCurrent: v.v===doc.approvedVersion, border: v.v===doc.approvedVersion?'var(--accent-soft-border)':'var(--card-border)',
+          onOpen: ()=>this.openPdf(doc.code+' · v'+v.v),
+        })),
+        docNoVersions: doc.versions.length===0,
+        docNotes: doc.notes.map(n => ({
+          author:n.author, text:n.text, isAI:n.isAI, date:n.date,
+          bg: n.isAI ? 'var(--accent-soft)' : 'var(--card)', border: n.isAI ? 'var(--accent-soft-border)' : 'var(--card-border)',
+          onDelete: ()=>this.deleteNote(doc.id, n.id),
+        })),
+        noteDraft: this.state.noteDraft, onNoteInput: (e)=>this.onNoteInput(e), addNote: ()=>this.addNote(),
+        onNoteKey: (e)=>{ if(e.key==='Enter') this.addNote(); },
+      });
+    }
+
+    // ---- upload modal doc options ----
+    base.allDocsOptions = pDocs.map(d => ({ id:d.id, label:d.code+' — v'+(d.approvedVersion||0) }));
+    base.uploadItems = this.state.uploadItems.map(u => ({
+      id:u.id, fileName:u.fileName, onRemove: ()=>this.removeUploadItem(u.id),
+      onSetNew: ()=>this.setUploadItemMode(u.id,'new'), onSetReplace: ()=>this.setUploadItemMode(u.id,'replace'),
+      newBg: u.mode==='new'?'var(--accent)':'var(--surface)', newColor: u.mode==='new'?'var(--accent-ink)':'var(--muted)',
+      replaceBg: u.mode==='replace'?'var(--accent)':'var(--surface)', replaceColor: u.mode==='replace'?'var(--accent-ink)':'var(--muted)',
+      showDocPicker: u.mode==='replace', showNewCode: u.mode==='new',
+      onPickDoc: (e)=>this.setUploadItemDoc(u.id, e.target.value), onNewCodeInput: (e)=>this.setUploadItemCode(u.id, e.target.value),
+      newCode: u.newCode,
+    }));
+    base.uploadEmptyHint = this.state.uploadItems.length===0;
+    base.uploadComment = this.state.uploadComment;
+    base.addUploadFile = ()=>this.addUploadFile();
+    base.submitUploadBg = (this.state.uploadItems.length && this.state.uploadComment.trim()) ? 'var(--accent)' : 'var(--surface)';
+
+    // ---- approval queue ----
+    const pendingCs = pCs.filter(c=>c.status==='pending');
+    base.queueCount = pendingCs.length;
+    base.queueEmpty = pendingCs.length===0;
+    base.queueItems = pendingCs.map(cs => {
+      const conflictItem = cs.items.find(it => {
+        if (it.action!=='replace') return false;
+        const d = this.state.docs.find(x=>x.id===it.docId);
+        return d && d.approvedVersion !== it.fromVersion;
+      });
+      return {
+        author:cs.author, authorInit:cs.authorInit, date:cs.date, comment:cs.comment,
+        filesCountLabel: cs.items.length + (cs.items.length===1?' файл':' файла'),
+        projectName:p.name, projectHref:'#',
+        items: cs.items.map(it => {
+          const d = it.docId ? this.state.docs.find(x=>x.id===it.docId) : null;
+          const actionLabel = it.action==='new' ? 'Новый документ' : ('Заменяет версию '+it.fromVersion+' документа');
+          return { code: it.code, actionLabel, onPreview: ()=>this.openPdf(it.code+' — '+it.fileName) };
+        }),
+        conflict: !!conflictItem,
+        conflictText: conflictItem ? ('Документ '+conflictItem.code+' изменился с момента загрузки пакета (текущая версия сейчас v'+(this.state.docs.find(x=>x.id===conflictItem.docId)?.approvedVersion)+', а не v'+conflictItem.fromVersion+') — при утверждении он получит следующий свободный номер версии.') : '',
+        onApprove: ()=>this.approveChangeset(cs.id), onReject: ()=>this.openReject(cs.id),
+      };
+    });
+
+    // ---- archive ----
+    let archiveDocs = this.state.archiveSection==='all' ? pDocs : pDocs.filter(d=>d.sectionId===this.state.archiveSection);
+    const rows = [];
+    archiveDocs.forEach(d => {
+      d.versions.slice().reverse().forEach(v => {
+        rows.push({
+          code:d.code, comment:v.comment, v:v.v, uploadedBy:v.uploadedBy, approvedBy:v.approvedBy, date:v.date,
+          currentTag: v.v===d.approvedVersion ? ' (текущая)' : '', vColor: v.v===d.approvedVersion ? 'var(--ok)' : 'var(--muted)',
+          onPreview: ()=>this.openPdf(d.code+' · v'+v.v),
+        });
+      });
+    });
+    base.archiveRows = rows;
+    base.archiveEmpty = rows.length===0;
+
+    return base;
   }
 }
 </script>

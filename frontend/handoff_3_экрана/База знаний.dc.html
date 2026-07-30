@@ -153,6 +153,46 @@
     </div>
   </main>
 
+  <!-- ===================== ASSISTANT CHAT (hybrid: ephemeral, promote to notes/export) — docked, non-blocking ===================== -->
+  <sc-if value="{{ chatOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; top:0; right:0; bottom:0; z-index:56; width:360px; max-width:40vw; background:var(--sidebar,#0e0b08); border-left:1px solid var(--border,rgba(255,255,255,.1)); box-shadow:-16px 0 40px rgba(0,0,0,.28); display:flex; flex-direction:column; animation:kbFadeIn .16s ease;">
+      <div style="padding:16px 18px; border-bottom:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:14px; font-weight:700; color:var(--strong,#f3ead9);">✦ Ассистент</span>
+          <span style="font-size:10px; color:var(--muted,#7c7264); background:var(--surface,#15100a); padding:2px 7px; border-radius:999px; white-space:nowrap;">не сохраняется</span>
+          <span onClick="{{ closeChat }}" style="margin-left:auto; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="background:var(--hover,rgba(255,255,255,.045)); color:var(--text);">✕</span>
+        </div>
+        <div class="clamp1" style="font-size:12px; color:var(--muted,#7c7264); margin-top:5px;">{{ dTitle }}</div>
+      </div>
+      <div style="flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+        <sc-for list="{{ chatMessages }}" as="m" hint-placeholder-count="2">
+          <div style="display:flex; flex-direction:column; align-items:{{ m.align }};">
+            <div style="max-width:82%; background:{{ m.bg }}; border:1px solid {{ m.border }}; border-radius:12px; padding:9px 12px;">
+              <div style="font-size:11px; font-weight:600; color:var(--strong,#f3ead9); margin-bottom:3px;">{{ m.author }}</div>
+              <div style="font-size:12.5px; color:var(--text,#cabfae); line-height:1.5;">{{ m.text }}</div>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ chatTyping }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:11.5px; color:var(--muted,#7c7264);">Ассистент печатает…</div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ chatHasMessages }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-top:1px solid var(--border,rgba(255,255,255,.06)); flex-shrink:0;">
+          <div onClick="{{ saveChatToNotes }}" style="flex:1; text-align:center; font-size:11.5px; color:var(--text,#cabfae); background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.08)); padding:7px 9px; border-radius:8px; cursor:pointer; white-space:nowrap;" style-hover="border-color:var(--accent-soft-border);">📋 Сохранить в заметки</div>
+          <div onClick="{{ exportChatTxt }}" style="flex:1; text-align:center; font-size:11.5px; color:var(--text,#cabfae); background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.08)); padding:7px 9px; border-radius:8px; cursor:pointer; white-space:nowrap;" style-hover="border-color:var(--accent-soft-border);">⭳ Экспорт .txt</div>
+        </div>
+        <sc-if value="{{ chatSavedFlash }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:0 14px 8px; font-size:11px; color:var(--ok,#86b98c);">{{ chatSavedFlash }}</div>
+        </sc-if>
+      </sc-if>
+      <div style="padding:12px 14px; border-top:1px solid var(--border,rgba(255,255,255,.06)); display:flex; align-items:center; gap:8px; flex-shrink:0;">
+        <input class="field" value="{{ chatDraft }}" onInput="{{ onChatInput }}" onKeyDown="{{ onChatKey }}" placeholder="Спросить про документ…" style="flex:1; border:1px solid var(--border,rgba(255,255,255,.08)); border-radius:9px; background:var(--surface,#15100a); color:var(--text,#efe8dd); font-size:12.5px; padding:9px 12px; font-family:inherit;" />
+        <div onClick="{{ sendChatMessage }}" style="background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:12px; font-weight:600; padding:9px 13px; border-radius:9px; cursor:pointer; white-space:nowrap;" style-hover="filter:brightness(1.07);">→</div>
+      </div>
+    </div>
+  </sc-if>
+
   <!-- ===================== DETAIL DRAWER ===================== -->
   <sc-if value="{{ showDrawer }}" hint-placeholder-val="{{ false }}">
     <div style="position:absolute; inset:0; z-index:40; background:var(--bg,#0a0806); display:flex; flex-direction:column; animation:kbFadeIn .14s ease;">
@@ -165,7 +205,7 @@
           <div style="font-size:11.5px; color:var(--muted,#7c7264); margin-top:2px;">{{ dType }} · {{ dOwner }} · обновлён {{ dUpdated }}</div>
         </div>
         <div onClick="{{ openSource }}" title="Открыть исходный файл на этой странице" style="margin-left:auto; display:flex; align-items:center; gap:7px; padding:9px 14px; border-radius:9px; border:1px solid var(--border,rgba(255,255,255,.08)); color:var(--text,#cabfae); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="border-color:var(--accent-soft-border,rgba(217,164,65,.4)); color:var(--strong);">⤢ Открыть исходник</div>
-        <div onClick="{{ openChat }}" style="padding:9px 16px; border-radius:9px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="filter:brightness(1.07);">Спросить ассистента →</div>
+        <div onClick="{{ openChat }}" style="padding:9px 16px; border-radius:9px; background:var(--accent,#d9a441); color:var(--accent-ink,#1a150f); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="filter:brightness(1.07);">✦ Спросить ассистента</div>
         <sc-if value="{{ dPersonal }}" hint-placeholder-val="{{ false }}">
           <div onClick="{{ reindex }}" title="Переиндексировать" style="width:38px; height:38px; flex-shrink:0; border-radius:9px; border:1px solid var(--border,rgba(255,255,255,.08)); display:flex; align-items:center; justify-content:center; font-size:14px; color:var(--muted,#7c7264); cursor:pointer;" style-hover="color:var(--accent); border-color:var(--accent-soft-border);">↻</div>
         </sc-if>
@@ -185,7 +225,7 @@
         </div>
       </sc-if>
 
-      <div style="flex:1; display:flex; min-height:0;">
+      <div style="flex:1; display:flex; min-height:0; transition:margin-right .16s ease; margin-right:{{ chatMarginRight }};">
 
         <!-- LEFT: outline + vector info -->
         <aside style="width:340px; flex-shrink:0; border-right:1px solid var(--border,rgba(255,255,255,.06)); background:var(--sidebar,#0e0b08); display:flex; flex-direction:column; overflow-y:auto;">
@@ -194,13 +234,13 @@
               <span style="display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); font-size:11px; color:var(--text,#cabfae); white-space:nowrap;"><span style="width:7px; height:7px; border-radius:50%; flex-shrink:0; background:{{ dStatusColor }}; animation:{{ dStatusAnim }};"></span>{{ dStatusLabel }}</span>
               <span class="mono" style="padding:5px 10px; border-radius:8px; background:var(--surface,#15100a); border:1px solid var(--border,rgba(255,255,255,.06)); font-size:11px; color:var(--muted,#7c7264);">{{ dSize }} · {{ dPages }} стр.</span>
             </div>
-            <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin-bottom:8px;">Векторизация</div>
+            <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600; margin-bottom:8px;">Характеристики</div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border,rgba(255,255,255,.06)); border:1px solid var(--border,rgba(255,255,255,.06)); border-radius:11px; overflow:hidden; margin-bottom:18px;">
-              <div style="background:var(--surface,#15100a); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Чанк</div><div class="mono" style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dChunkSize }}<span style="font-size:10px; color:var(--muted,#7c7264);"> ток.</span></div></div>
-              <div style="background:var(--surface,#15100a); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Перекрытие</div><div class="mono" style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dOverlap }}<span style="font-size:10px; color:var(--muted,#7c7264);"> ток.</span></div></div>
-              <div style="background:var(--surface,#15100a); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Чанков</div><div class="mono" style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dChunks }}</div></div>
-              <div style="background:var(--accent-soft,#241a10); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--accent,#d9a441);">Точек в БД</div><div class="mono" style="font-size:13.5px; font-weight:700; color:var(--accent,#d9a441); margin-top:2px;">{{ dPoints }}</div></div>
-              <div style="background:var(--surface,#15100a); padding:10px 12px; grid-column:1 / -1;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Модель · размерность · метрика</div><div class="mono" style="font-size:12px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dModel }} · {{ dDim }}d · {{ dMetric }}</div></div>
+              <div style="background:var(--surface,#15100a); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Объём</div><div class="mono" style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dPages }}<span style="font-size:10px; color:var(--muted,#7c7264);"> стр.</span></div></div>
+              <div style="background:var(--surface,#15100a); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Структура</div><div class="mono" style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dSectionCount }}<span style="font-size:10px; color:var(--muted,#7c7264);"> глав</span></div></div>
+              <div style="background:var(--surface,#15100a); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Чанков (фрагментов)</div><div class="mono" style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dChunks }}</div></div>
+              <div style="background:var(--surface,#15100a); padding:10px 12px;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted,#7c7264);">Таблиц и схем</div><div class="mono" style="font-size:13.5px; font-weight:600; color:var(--strong,#f3ead9); margin-top:2px;">{{ dTablesCount }}<span style="font-size:10px; color:var(--muted,#7c7264);"> табл.</span></div></div>
+              <div style="background:var(--accent-soft,#241a10); padding:10px 12px; grid-column:1 / -1;"><div style="font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--accent,#d9a441);">Статус документа</div><div class="mono" style="font-size:12.5px; font-weight:700; color:var(--accent,#d9a441); margin-top:2px;">{{ dLifecycleStatus }}</div></div>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
               <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7c7264); font-weight:600;">Оглавление</span>
@@ -305,6 +345,7 @@ class Component extends DCLogic {
       contentMode: 'summary',
       sourceViewerOpen: false,
       extraDocs: [],
+      chatOpen: false, chatMessages: [], chatDraft: '', chatTyping: false, chatSavedFlash: '',
     };
     this._uid = 0;
   }
@@ -332,7 +373,7 @@ class Component extends DCLogic {
     {
       id:'api', title:'API Reference — Orders v2', type:'OpenAPI 3.1', typeAbbr:'API', collection:'api',
       size:'1.2 МБ', pages:48, chunkSize:512, overlap:64, chunks:312, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'Платформа', updated:'2 дня назад', status:'indexed', fileUrl:'uploads/api-reference-orders-v2.pdf',
+      owner:'Платформа', updated:'2 дня назад', status:'indexed', fileUrl:'uploads/api-reference-orders-v2.pdf', tablesCount:24, lifecycleStatus:'Действует (Изм. от 01.06.2026)',
       summary:'Полное описание REST API сервиса заказов: аутентификация по OAuth2, ресурсы orders и line_items, курсорная пагинация, единый формат ошибок и вебхуки. Версия 2 сохраняет обратную совместимость с v1 через заголовок Accept-Version.',
       sections:[
         {title:'Аутентификация', chunks:28, summary:'OAuth2 client_credentials, время жизни access-токена 1 час, скоупы orders:read и orders:write. Ротация секрета без даунтайма.',
@@ -353,7 +394,7 @@ class Component extends DCLogic {
     {
       id:'cicd', title:'Руководство по CI/CD', type:'Markdown', typeAbbr:'MD', collection:'process',
       size:'340 КБ', pages:22, chunkSize:512, overlap:64, chunks:148, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'DevEx', updated:'5 дней назад', status:'indexed',
+      owner:'DevEx', updated:'5 дней назад', status:'indexed', tablesCount:6, lifecycleStatus:'Действует (Изм. от 12.03.2026)',
       summary:'Стандарт пайплайнов: этапы lint → test → build → deploy, кэширование зависимостей, стратегия деплоя blue-green и процедура отката. Описаны required-чеки и политика веток.',
       sections:[
         {title:'Структура пайплайна', chunks:44, summary:'Параллельные джобы lint/test, артефакты между стадиями, матрица версий рантайма.',
@@ -369,7 +410,7 @@ class Component extends DCLogic {
     {
       id:'arch', title:'Архитектура сервисов', type:'Confluence', typeAbbr:'CONF', collection:'infra',
       size:'2.1 МБ', pages:64, chunkSize:640, overlap:80, chunks:268, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'Архитектура', updated:'неделю назад', status:'indexed',
+      owner:'Архитектура', updated:'неделю назад', status:'indexed', tablesCount:15, lifecycleStatus:'Действует (Изм. от 20.07.2026)',
       summary:'Карта доменных сервисов и их контрактов: orders, billing, notifications, identity. Описаны синхронные вызовы, событийная шина и границы транзакций. Добавлен сервис billing.',
       sections:[
         {title:'Доменные границы', chunks:58, summary:'Каждый сервис владеет своими данными, межсервисные обращения только через публичные контракты.',
@@ -386,7 +427,7 @@ class Component extends DCLogic {
     {
       id:'runbook', title:'Runbook: миграция БД на v2', type:'Markdown', typeAbbr:'MD', collection:'infra',
       size:'180 КБ', pages:14, chunkSize:512, overlap:64, chunks:96, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'SRE', updated:'3 дня назад', status:'indexed',
+      owner:'SRE', updated:'3 дня назад', status:'indexed', tablesCount:4, lifecycleStatus:'Действует (Изм. от 27.04.2026)',
       summary:'Пошаговый сценарий перехода схемы на v2: dry-run, посервисное применение миграций, проверка консистентности и план отката. Указаны окна обслуживания и владельцы шагов.',
       sections:[
         {title:'Подготовка', chunks:22, summary:'Снапшот БД, проверка свободного места, заморозка схемных изменений на время окна.',
@@ -402,7 +443,7 @@ class Component extends DCLogic {
     {
       id:'style', title:'Гайд по код-стайлу', type:'Markdown', typeAbbr:'MD', collection:'process',
       size:'96 КБ', pages:11, chunkSize:384, overlap:48, chunks:64, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'DevEx', updated:'2 недели назад', status:'indexed',
+      owner:'DevEx', updated:'2 недели назад', status:'indexed', tablesCount:2, lifecycleStatus:'Действует (без изменений)',
       summary:'Соглашения по именованию, форматированию и структуре модулей, правила ревью и требования к покрытию тестами. Линтер и форматтер настроены как pre-commit и required-чек в CI.',
       sections:[
         {title:'Именование', chunks:18, summary:'Единые правила для пакетов, типов и функций, запрет на сокращения вне согласованного списка.',
@@ -416,7 +457,7 @@ class Component extends DCLogic {
     {
       id:'onb', title:'Onboarding инженера', type:'Confluence', typeAbbr:'CONF', collection:'process',
       size:'420 КБ', pages:18, chunkSize:512, overlap:64, chunks:112, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'People', updated:'месяц назад', status:'indexed',
+      owner:'People', updated:'месяц назад', status:'indexed', tablesCount:8, lifecycleStatus:'Действует (Изм. от 01.07.2025)',
       summary:'План первых двух недель: доступы, локальное окружение, первый коммит и знакомство с командами. Чеклист по дням и ответственные наставники для каждого блока.',
       sections:[
         {title:'Доступы', chunks:26, summary:'Запрос прав через единый портал, минимально необходимый набор на старте, ревизия через месяц.',
@@ -431,7 +472,7 @@ class Component extends DCLogic {
     {
       id:'p1', title:'Заметки: архитектура биллинга', type:'Markdown', typeAbbr:'MD', collection:'personal', personal:true,
       size:'64 КБ', pages:6, chunkSize:384, overlap:48, chunks:36, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'Влад Логинов', updated:'сегодня', status:'indexed',
+      owner:'Влад Логинов', updated:'сегодня', status:'indexed', tablesCount:3, lifecycleStatus:'Черновик',
       summary:'Личные заметки по новому сервису биллинга: модель тарифов, идемпотентность начислений, открытые вопросы по сверке с провайдером. Черновик для обсуждения на следующем синке.',
       sections:[
         {title:'Модель тарифов', chunks:14, summary:'Тарифные планы как версионируемые сущности, расчёт по событиям использования.',
@@ -445,7 +486,7 @@ class Component extends DCLogic {
     {
       id:'p2', title:'Чеклист релиза', type:'PDF', typeAbbr:'PDF', collection:'personal', personal:true,
       size:'48 КБ', pages:3, chunkSize:384, overlap:48, chunks:22, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'Влад Логинов', updated:'вчера', status:'indexed',
+      owner:'Влад Логинов', updated:'вчера', status:'indexed', tablesCount:1, lifecycleStatus:'Действует',
       summary:'Персональный чеклист перед выкаткой: фиче-флаги, миграции, метрики и дежурный. Использую как финальную проверку перед нажатием deploy.',
       sections:[
         {title:'Перед деплоем', chunks:12, summary:'Состояние фиче-флагов, обратимость миграций, готовность дашбордов.',
@@ -457,7 +498,7 @@ class Component extends DCLogic {
     {
       id:'p3', title:'Выжимка из созвона 12.06', type:'DOCX', typeAbbr:'DOC', collection:'personal', personal:true,
       size:'88 КБ', pages:5, chunkSize:384, overlap:48, chunks:51, model:'bge-m3', dim:1024, metric:'cosine',
-      owner:'Влад Логинов', updated:'2 часа назад', status:'processing', progress:64,
+      owner:'Влад Логинов', updated:'2 часа назад', status:'processing', progress:64, tablesCount:0, lifecycleStatus:'Черновик',
       summary:'Расшифровка и выжимка из обсуждения роадмапа: приоритеты квартала, зависимости между командами, договорённости и дедлайны. Документ ещё индексируется.',
       sections:[
         {title:'Приоритеты', chunks:18, summary:'Билинг и стабильность пайплайна — верхний приоритет квартала.',
@@ -489,6 +530,46 @@ class Component extends DCLogic {
   setMode(m) { this.setState({ contentMode: m }); }
   openSource() { this.setState({ sourceViewerOpen: true }); }
   closeSource() { this.setState({ sourceViewerOpen: false }); }
+
+  // Hybrid chat: ephemeral by default (state only, gone on close/reload); "save" actions promote it.
+  openChat() {
+    this.setState({ chatOpen: true, chatMessages: [], chatDraft: '', chatSavedFlash: '' });
+  }
+  closeChat() { this.setState({ chatOpen: false }); }
+  onChatInput(e) { this.setState({ chatDraft: e.target.value }); }
+  onChatKey(e) { if (e.key === 'Enter') this.sendChatMessage(); }
+  sendChatMessage() {
+    const val = this.state.chatDraft.trim(); if (!val) return;
+    this.setState(s => ({ chatMessages: [...s.chatMessages, { author: 'Вы', text: val, align: 'flex-end', bg: 'var(--accent-soft)', border: 'var(--accent-soft-border)' }], chatDraft: '', chatTyping: true }));
+    setTimeout(() => {
+      this.setState(s => ({
+        chatMessages: [...s.chatMessages, { author: 'Ассистент', text: 'На основе документа «' + (this.currentDocTitle() || '') + '»: см. соответствующий раздел — краткая выжимка и релевантные чанки подобраны по вашему вопросу.', align: 'flex-start', bg: 'var(--card)', border: 'var(--card-border)' }],
+        chatTyping: false,
+      }));
+    }, 1000);
+  }
+  currentDocTitle() {
+    return this._currentDocTitle || '';
+  }
+  chatPlainText() {
+    const header = 'Диалог с ассистентом по документу: ' + (this.currentDocTitle() || '') + '\n' + new Date().toLocaleString('ru-RU') + '\n\n';
+    return header + this.state.chatMessages.map(m => m.author + ': ' + m.text).join('\n\n');
+  }
+  saveChatToNotes() {
+    const text = this.chatPlainText();
+    try { localStorage.setItem('pending-note-from-thread', JSON.stringify({ title: 'Диалог: ' + (this.currentDocTitle() || 'документ'), text, savedAt: Date.now() })); } catch (e) {}
+    this.setState({ chatSavedFlash: 'Сохранено в Заметки ✓' });
+    setTimeout(() => this.setState({ chatSavedFlash: '' }), 2400);
+  }
+  exportChatTxt() {
+    const text = this.chatPlainText();
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'диалог — ' + (this.currentDocTitle() || 'документ').replace(/[\\/:*?"<>|]/g, '') + '.txt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
   search(e) { this.setState({ query: e.target.value }); }
 
   pickFile() {
@@ -600,6 +681,7 @@ class Component extends DCLogic {
 
     // reader
     const sel = all.find(d => d.id === this.state.selectedId);
+    this._currentDocTitle = sel ? sel.title : '';
     let drawer = { showDrawer: false, dSections: [] };
     if (sel) {
       const sv = this.statusView(sel, t);
@@ -616,6 +698,7 @@ class Component extends DCLogic {
         dStatusLabel: sv.label, dStatusColor: sv.color, dStatusAnim: sv.anim,
         dChunkSize: sel.chunkSize, dOverlap: sel.overlap, dChunks: sel.chunks, dPoints: sel.chunks,
         dModel: sel.model, dDim: sel.dim, dMetric: sel.metric,
+        dTablesCount: sel.tablesCount ?? 0, dLifecycleStatus: sel.lifecycleStatus || 'Действует',
         dFileUrl: sel.fileUrl || ('#file-not-uploaded'),
         showSourceViewer: this.state.sourceViewerOpen,
         openSource: () => this.openSource(), closeSource: () => this.closeSource(),
@@ -673,7 +756,13 @@ class Component extends DCLogic {
       query: this.state.query, onSearch: (e) => this.search(e),
       cards, isEmpty: cards.length === 0 && !!q,
       closeDrawer: () => this.close(),
-      openChat: () => this.close(),
+      openChat: () => this.openChat(),
+      closeChat: () => this.closeChat(),
+      chatOpen: this.state.chatOpen, chatMessages: this.state.chatMessages, chatDraft: this.state.chatDraft,
+      chatMarginRight: this.state.chatOpen ? '360px' : '0px',
+      chatTyping: this.state.chatTyping, chatHasMessages: this.state.chatMessages.length > 0, chatSavedFlash: this.state.chatSavedFlash,
+      onChatInput: (e) => this.onChatInput(e), onChatKey: (e) => this.onChatKey(e), sendChatMessage: () => this.sendChatMessage(),
+      saveChatToNotes: () => this.saveChatToNotes(), exportChatTxt: () => this.exportChatTxt(),
       reindex: () => this.reindex(),
       ...drawer,
     };
