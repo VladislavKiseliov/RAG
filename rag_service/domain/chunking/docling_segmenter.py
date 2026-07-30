@@ -14,6 +14,16 @@ from rag_service.domain.chunking.docling_models import Chapter, MetaSection
 _FALLBACK_CHAPTER_CHUNK_SIZE = 3000
 _FALLBACK_CHAPTER_CHUNK_OVERLAP = 200
 
+# Тот же порог, что и ChildChunkBuilder._is_valid (chunk_builder.py) - намеренно.
+# Глава, чьё тело (без строки заголовка) короче этого порога, не даст ни одного
+# валидного child-чанка вообще - parent_chunk для неё просто не создастся, и
+# контент молча пропадёт из поиска (см. ISSUES.md). Пример из реального документа:
+# "3.25" в разделе "Термины и определения" СП 2.13130 - однострочная отсылка к
+# ГОСТ, добавленная поправкой и потому визуально жирная в PDF (Docling видит
+# заголовок), хотя по сути это рядовой пункт списка терминов, а не подглава.
+_MIN_CHAPTER_BODY_LENGTH = 80
+_MIN_CHAPTER_BODY_WORDS = 10
+
 
 class _HeadingPatterns:
     """Общие регэкспы для поиска структурных заголовков документа."""
@@ -143,7 +153,35 @@ class ChapterSplitter:
         if not chapters:
             return self._fallback_split(markdown)
 
-        return chapters
+        return self._merge_bodyless_chapters(chapters)
+
+    @staticmethod
+    def _merge_bodyless_chapters(chapters: list[Chapter]) -> list[Chapter]:
+        """Глава без собственного тела (см. _MIN_CHAPTER_BODY_LENGTH выше) - не
+        самостоятельная тема, а рядовой пункт. Приклеиваем её markdown в конец
+        предыдущей главы вместо того, чтобы плодить главы, контент которых потом
+        молча потеряется на этапе child-чанкинга.
+
+        Исключение: если у главы дальше по документу есть свои подглавы (номер
+        следующих глав начинается с "{number}."), это настоящий родительский
+        раздел с короткой вводной частью (например, "4" перед "4.1"-"4.4", или
+        "5" перед "5.1"-"5.4") - не пункт-сирота, а организующий заголовок.
+        Такую главу не трогаем независимо от длины её собственного тела -
+        реальный контент лежит в её подглавах, не в ней самой."""
+        merged: list[Chapter] = []
+        for index, chapter in enumerate(chapters):
+            _, _, body = chapter.markdown.partition("\n")
+            body = body.strip()
+            has_body = len(body) >= _MIN_CHAPTER_BODY_LENGTH and len(body.split()) >= _MIN_CHAPTER_BODY_WORDS
+            has_children = any(
+                later.number.startswith(f"{chapter.number}.") for later in chapters[index + 1:]
+            )
+            if merged and not has_body and not has_children:
+                prev = merged[-1]
+                merged[-1] = Chapter(number=prev.number, title=prev.title, markdown=prev.markdown + chapter.markdown)
+            else:
+                merged.append(chapter)
+        return merged
 
     def _fallback_split(self, markdown: str) -> list[Chapter]:
         """Документ без единого пронумерованного заголовка - режем весь текст

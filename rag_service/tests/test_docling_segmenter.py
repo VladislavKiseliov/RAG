@@ -1,19 +1,23 @@
 from rag_service.domain.chunking.docling_segmenter import ChapterSplitter
 
 
+_BODY_1 = "Текст главы один содержит достаточно слов, чтобы не считаться пустой главой при склейке."
+_BODY_2 = "Текст главы два тоже содержит достаточно слов, чтобы не считаться пустой главой при склейке."
+
+
 def test_split_creates_chapter_per_numbered_heading() -> None:
     markdown = (
         "## 1 ОБЩИЕ ПОЛОЖЕНИЯ\n"
-        "Текст главы 1.\n"
+        f"{_BODY_1}\n"
         "## 2 ПОРЯДОК ОПРЕДЕЛЕНИЯ\n"
-        "Текст главы 2.\n"
+        f"{_BODY_2}\n"
     )
 
     chapters = ChapterSplitter().split(markdown)
 
     assert [c.number for c in chapters] == ["1", "2"]
-    assert "Текст главы 1." in chapters[0].markdown
-    assert "Текст главы 2." in chapters[1].markdown
+    assert _BODY_1 in chapters[0].markdown
+    assert _BODY_2 in chapters[1].markdown
 
 
 def test_split_ignores_reused_chapter_number_from_worked_example() -> None:
@@ -21,17 +25,17 @@ def test_split_ignores_reused_chapter_number_from_worked_example() -> None:
     номера уже открытых глав — не должны порождать новую главу/дубликат номера."""
     markdown = (
         "## 1 ОБЩИЕ ПОЛОЖЕНИЯ\n"
-        "Текст главы 1.\n"
+        f"{_BODY_1}\n"
         "## 2 ПОРЯДОК ОПРЕДЕЛЕНИЯ\n"
-        "Текст главы 2.\n"
+        f"{_BODY_2}\n"
         "## 5.8.2. Здания категории Б\n"
         "## Пример 23\n"
         "## 1. Исходные данные.\n"
-        "Шаг решения примера.\n"
+        "Шаг решения примера содержит достаточно слов, чтобы не считаться пустой главой.\n"
         "## 2. Определение категории здания.\n"
-        "Ещё шаг решения.\n"
+        "Ещё один шаг решения тоже содержит достаточно слов для той же цели проверки.\n"
         "## 5.8.3. Здания категории В\n"
-        "Текст следующей главы.\n"
+        "Текст следующей главы тоже должен быть достаточно длинным для этой проверки регрессии.\n"
     )
 
     chapters = ChapterSplitter().split(markdown)
@@ -41,8 +45,8 @@ def test_split_ignores_reused_chapter_number_from_worked_example() -> None:
     assert len(numbers) == len(set(numbers)), "chapter_number должен быть уникален для bulk_insert_chapters"
 
     body_5_8_2 = next(c for c in chapters if c.number == "5.8.2").markdown
-    assert "Шаг решения примера." in body_5_8_2
-    assert "Ещё шаг решения." in body_5_8_2
+    assert "Шаг решения примера" in body_5_8_2
+    assert "Ещё один шаг решения" in body_5_8_2
 
 
 def test_split_stops_at_appendix() -> None:
@@ -102,3 +106,42 @@ def test_split_fallback_on_short_document_returns_single_chapter() -> None:
     assert len(chapters) == 1
     assert chapters[0].number == "1"
     assert "short-tool" in chapters[0].markdown
+
+
+def test_bodyless_chapter_with_children_is_not_merged() -> None:
+    """Регрессия: глава с короткой вводной частью, но с настоящими подглавами
+    дальше ("4" перед "4.1"-"4.4") - это организующий заголовок, а не пункт-сирота.
+    Раньше _merge_bodyless_chapters сливала такую главу в конец предыдущей
+    (нашли на реальном документе: "4" уехала в конец "3", "5" - в конец "4.4")."""
+    markdown = (
+        "## 3 Термины\n"
+        f"{_BODY_1}\n"
+        "## 4 Основные положения\n"
+        "## 4.1 Первая подглава\n"
+        f"{_BODY_2}\n"
+        "## 4.2 Вторая подглава\n"
+        f"{_BODY_1}\n"
+    )
+
+    chapters = ChapterSplitter().split(markdown)
+
+    numbers = [c.number for c in chapters]
+    assert numbers == ["3", "4", "4.1", "4.2"], "глава 4 не должна сливаться с 3, у неё есть подглавы"
+
+
+def test_bodyless_chapter_without_children_is_merged() -> None:
+    """Пункт-сирота без своего тела и без подглав (например, короткая ссылка на
+    ГОСТ в разделе "Термины и определения") - действительно сливается с предыдущей."""
+    markdown = (
+        "## 3 Термины\n"
+        f"{_BODY_1}\n"
+        "## 3.25 Короткий термин\n"
+        "## 4 Следующая глава\n"
+        f"{_BODY_2}\n"
+    )
+
+    chapters = ChapterSplitter().split(markdown)
+
+    numbers = [c.number for c in chapters]
+    assert numbers == ["3", "4"], "3.25 без тела и без подглав должна слиться с 3"
+    assert "3.25 Короткий термин" in chapters[0].markdown
