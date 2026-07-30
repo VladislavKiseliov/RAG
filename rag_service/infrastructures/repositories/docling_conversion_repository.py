@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from io import BytesIO
 from pathlib import Path
 
@@ -18,11 +19,127 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.transforms.serializer.base import BaseTableSerializer, SerializationResult
 from docling_core.transforms.serializer.common import create_ser_result
 from docling_core.transforms.serializer.markdown import MarkdownDocSerializer
-from docling_core.types.doc.document import DoclingDocument, TableItem
+from docling_core.types.doc.document import DocItemLabel, DoclingDocument, SectionHeaderItem, TableItem, TextItem
+from docling_core.types.doc.page import SegmentedPdfPage
 
 from rag_service.domain.chunking.docling_models import ConversionOutput, SavedTable
 
 _log = logging.getLogger(__name__)
+
+
+def _is_bold_heading(item: SectionHeaderItem, parsed_pages: dict[int, SegmentedPdfPage]) -> bool | None:
+    """Жирный ли заголовок по факту рендеринга в PDF. `None` - не удалось определить
+    (нет parsed_page для страницы, нет текстовых ячеек под bbox - например, скан без
+    текстового слоя) - в этом случае заголовок не трогаем, а не считаем "не жирным"."""
+    if not item.prov:
+        return None
+    prov = item.prov[0]
+    parsed = parsed_pages.get(prov.page_no)
+    if parsed is None:
+        return None
+
+    page_height = parsed.dimension.height
+    hbox = prov.bbox.to_top_left_origin(page_height)
+    fonts = [
+        cell.font_name
+        for cell in parsed.textline_cells
+        if cell.text.strip()
+        and getattr(cell, "font_name", None)
+        and hbox.overlaps(cell.rect.to_bounding_box().to_top_left_origin(page_height))
+    ]
+    if not fonts:
+        return None
+    return any("bold" in font.lower() for font in fonts)
+
+
+_NUMBER_PATTERN = re.compile(r"^(\d+(?:\.\d+)+)\.?\s+\S")
+
+
+def _parse_number(text: str) -> tuple[int, ...] | None:
+    """Ведущий составной номер пункта (X.Y, X.Y.Z...) как кортеж int, или None,
+    если строка не начинается с такого номера."""
+    m = _NUMBER_PATTERN.match(text.strip())
+    if not m:
+        return None
+    return tuple(int(part) for part in m.group(1).split("."))
+
+
+def _find_same_series_neighbor(texts: list, index: int, parent: tuple[int, ...], direction: int):
+    """Ближайший (в порядке документа, в указанном направлении: -1 назад, +1
+    вперёд) пункт той же родительской серии (совпадают все сегменты номера,
+    кроме последнего) - независимо от точной арифметики (переиндексация/
+    "утратил силу" могут давать разрывы в номерах, см. ISSUES.md)."""
+    rng = range(index - 1, -1, -1) if direction < 0 else range(index + 1, len(texts))
+    for i in rng:
+        num = _parse_number(texts[i].text)
+        if num is not None and num[:-1] == parent:
+            return texts[i]
+    return None
+
+
+def _has_non_heading_series_neighbor(texts: list, index: int, number: tuple[int, ...]) -> bool:
+    """True, если ближайший сосед той же серии (до или после) - НЕ заголовок.
+    Один такой сосед - веский сигнал, что и текущий пункт не настоящая глава
+    (реальный пример: "3.24 Простенок" - обычный текст рядом с ложным "3.25" в
+    СП 2.13130 - жирный не потому что это структура документа, а потому что
+    добавлен более поздней поправкой)."""
+    parent = number[:-1]
+    for item in (
+        _find_same_series_neighbor(texts, index, parent, -1),
+        _find_same_series_neighbor(texts, index, parent, 1),
+    ):
+        if item is not None and not isinstance(item, SectionHeaderItem):
+            return True
+    return False
+
+
+def _demote_false_positive_headings(document: DoclingDocument, parsed_pages: dict[int, SegmentedPdfPage]) -> None:
+    """Docling на нормативных документах (СП/ГОСТ) иногда распознаёт нумерованный
+    пункт внутри раздела (например, "4.2.3.") как SECTION_HEADER из-за
+    несогласованного форматирования в исходном PDF. Без фикса весь текст ДО
+    следующего настоящего заголовка ошибочно приписывается такому пункту вместо
+    родительской главы (см. ISSUES.md, реальный пример: "4.2.3" в СП 1.13130
+    утащил 19КБ чужого текста).
+
+    Два независимых сигнала (любой срабатывает - демоутим):
+    - шрифт: настоящие заголовки в этих документах жирные, ложные - нет (тот же
+      шрифт, что у соседних пунктов тела раздела);
+    - сосед по номеру: если ближайший пункт той же родительской серии - обычный
+      текст, а не заголовок, значит и текущий, скорее всего, тоже не заголовок
+      (ловит случаи вроде "3.25" в СП 2.13130 - жирный из-за пометки правки, а
+      не из-за структуры документа, шрифтовый сигнал такое не поймает).
+
+    Работаем по одному замороженному снимку document.texts - решения по соседям
+    не должны зависеть от уже принятых в этом же проходе решений по другим
+    пунктам. Понижаем заголовки до обычного текста ДО экспорта в markdown -
+    тогда ChapterSplitter (и любой другой потребитель) просто не видит их как
+    заголовки, чинить каждого потребителя отдельно не нужно.
+    """
+    texts = list(document.texts)
+    for index, item in enumerate(texts):
+        if not isinstance(item, SectionHeaderItem):
+            continue
+
+        is_false_positive = _is_bold_heading(item, parsed_pages) is False
+        if not is_false_positive:
+            number = _parse_number(item.text)
+            if number is not None and len(number) >= 2:
+                is_false_positive = _has_non_heading_series_neighbor(texts, index, number)
+
+        if is_false_positive:
+            demoted = TextItem(
+                self_ref=item.self_ref,
+                parent=item.parent,
+                content_layer=item.content_layer,
+                prov=item.prov,
+                orig=item.orig,
+                text=item.text,
+                formatting=item.formatting,
+                hyperlink=item.hyperlink,
+                label=DocItemLabel.TEXT,
+            )
+            document.replace_item(new_item=demoted, old_item=item)
+            _log.info("Demoted false-positive heading to text: %r", item.text[:80])
 
 
 def _page_range(item: TableItem) -> tuple[int, int] | None:
@@ -167,9 +284,12 @@ class DoclingConversionRepository:
         pipeline_options.generate_picture_images = False
         # По умолчанию Docling кладёт все SECTION_HEADER на level=1 (плоско) — включаем
         # реальную иерархию: закладки PDF (если есть) → нумерация (5.8.2 глубже, чем 1.) →
-        # шрифт как фолбэк. use_style без generate_parsed_pages молча не сработает — не
-        # включаем, use_numbering и так основной сигнал на нормативных документах.
+        # шрифт как фолбэк (use_style). Уровень эту логику всё равно не спасает от ложных
+        # заголовков (numbering побеждает style безусловно, см. ISSUES.md) — для этого
+        # ниже отдельно есть _demote_non_bold_headings, которому и нужен generate_parsed_pages.
         pipeline_options.heading_hierarchy_options = HeadingHierarchyOptions(enabled=True)
+        # Даёт доступ к parsed_page.textline_cells (шрифт/bbox) для _demote_non_bold_headings.
+        pipeline_options.generate_parsed_pages = True
         pipeline_options.accelerator_options = AcceleratorOptions(num_threads=num_threads, device=device)
         pipeline_options.ocr_batch_size = ocr_batch_size
         pipeline_options.layout_batch_size = layout_batch_size
@@ -191,10 +311,13 @@ class DoclingConversionRepository:
 
         stream = DocumentStream(name=filename, stream=BytesIO(content))
         result = self._converter.convert(stream)
+        page_count = len(result.pages)
+        parsed_pages = {page.page_no: page.parsed_page for page in result.pages if page.parsed_page is not None}
+        _demote_false_positive_headings(result.document, parsed_pages)
 
         markdown = MarkdownDocSerializer(
             doc=result.document, table_serializer=table_serializer
         ).serialize().text
         del result
 
-        return ConversionOutput(markdown=markdown, tables=table_serializer.saved_tables)
+        return ConversionOutput(markdown=markdown, tables=table_serializer.saved_tables, page_count=page_count)
