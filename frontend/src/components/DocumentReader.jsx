@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import AssistantChatPanel from './AssistantChatPanel.jsx';
 
 const fmt = (v) => (v === null || v === undefined ? '—' : v);
 
@@ -33,6 +34,7 @@ function DocumentReader({
     const chapter = chapterIdx !== null ? doc.sections[chapterIdx] : null;
     const isProcessing = doc.status === 'processing';
     const chapterTables = chapterContent?.tables ?? [];
+    const [chatOpen, setChatOpen] = useState(false);
 
     return (
         <div className="kb-reader">
@@ -45,7 +47,7 @@ function DocumentReader({
                 {doc.file_url && (
                     <div className="kb-reader-source-btn" title="Открыть исходный файл на этой странице" onClick={onOpenSource}>⤢ Открыть исходник</div>
                 )}
-                <div className="kb-reader-ask" onClick={onClose}>Спросить ассистента →</div>
+                <div className="kb-reader-ask" onClick={() => setChatOpen(true)}>Спросить ассистента →</div>
                 {onReindex && (
                     <div className="kb-reader-icon-btn" title="Переиндексировать" onClick={onReindex}>↻</div>
                 )}
@@ -65,7 +67,11 @@ function DocumentReader({
                 </div>
             )}
 
-            <div className="kb-reader-body">
+            {chatOpen && (
+                <AssistantChatPanel title={doc.title} onClose={() => setChatOpen(false)} />
+            )}
+
+            <div className={`kb-reader-body${chatOpen ? ' chat-open' : ''}`}>
                 <aside className="kb-reader-outline">
                     <div className="kb-reader-chips">
                         <span className="kb-pill">

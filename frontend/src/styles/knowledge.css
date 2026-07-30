@@ -428,7 +428,8 @@
     background: #fff;
 }
 
-.kb-reader-body { flex: 1; display: flex; min-height: 0; }
+.kb-reader-body { flex: 1; display: flex; min-height: 0; transition: margin-right .16s ease; }
+.kb-reader-body.chat-open { margin-right: 360px; }
 
 .kb-reader-outline {
     width: 340px;
