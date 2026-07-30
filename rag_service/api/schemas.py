@@ -102,6 +102,9 @@ class DocumentDetailResponse(DocumentSummaryResponse):
     summary: str | None = None
     chapters: list[ChapterSummary] = Field(default_factory=list)
     tables: list[TableSummary] = Field(default_factory=list)
+    page_count: int | None = None
+    chapter_count: int = 0
+    table_count: int = 0
 
 
 class DocumentStatusResponse(BaseModel):

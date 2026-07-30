@@ -44,6 +44,7 @@ class DocumentListItemDTO(Base):
     s3key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     chunk_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     parent_chunks: Mapped[list["ParentChunks"]] = relationship(
         back_populates="document",

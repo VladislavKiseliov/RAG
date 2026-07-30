@@ -19,6 +19,7 @@ class ConversionOutput:
 
     markdown: str
     tables: list[SavedTable] = field(default_factory=list)
+    page_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -42,3 +43,4 @@ class ParsedDocument:
     chapters: list[Chapter] = field(default_factory=list)
     meta_sections: list[MetaSection] = field(default_factory=list)
     tables: list[SavedTable] = field(default_factory=list)
+    page_count: int | None = None

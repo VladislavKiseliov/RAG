@@ -75,6 +75,14 @@ function DocumentReader({
                         <span className="kb-pill mono">{doc.size} · {fmt(doc.pages)} стр.</span>
                     </div>
 
+                    <div className="kb-drawer-section-title">Характеристики</div>
+                    <div className="kb-vec-grid">
+                        <div className="kb-vec-cell"><div className="kb-vec-label">Объём</div><div className="mono kb-vec-value">{fmt(doc.pages)} <span className="kb-vec-unit">стр.</span></div></div>
+                        <div className="kb-vec-cell"><div className="kb-vec-label">Структура</div><div className="mono kb-vec-value">{fmt(doc.chapters_count)} <span className="kb-vec-unit">глав</span></div></div>
+                        <div className="kb-vec-cell"><div className="kb-vec-label">Чанков (фрагментов)</div><div className="mono kb-vec-value">{fmt(doc.chunks)}</div></div>
+                        <div className="kb-vec-cell"><div className="kb-vec-label">Таблиц и схем</div><div className="mono kb-vec-value">{fmt(doc.tables_count)} <span className="kb-vec-unit">табл.</span></div></div>
+                    </div>
+
                     <div className="kb-drawer-section-title">Векторизация</div>
                     <div className="kb-vec-grid">
                         <div className="kb-vec-cell"><div className="kb-vec-label">Размер чанка</div><div className="mono kb-vec-value">{fmt(doc.chunk_size)} <span className="kb-muted">ток.</span></div></div>

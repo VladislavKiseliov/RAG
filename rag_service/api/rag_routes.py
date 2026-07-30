@@ -264,6 +264,9 @@ async def get_document_details(
         summary=doc.summary,
         chapters=[ChapterSummary(chapter_number=c.chapter_number, title=c.title, summary=c.summary) for c in chapters],
         tables=[TableSummary(table_index=t.table_index) for t in tables],
+        page_count=doc.page_count,
+        chapter_count=len(chapters),
+        table_count=len(tables),
     )
 
 

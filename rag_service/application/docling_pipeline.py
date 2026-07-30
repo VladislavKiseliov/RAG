@@ -60,4 +60,5 @@ class DocumentConversionPipeline:
             chapters=self._chapter_splitter.split(cleaned_markdown),
             meta_sections=self._meta_extractor.extract(cleaned_markdown),
             tables=conversion.tables,
+            page_count=conversion.page_count,
         )

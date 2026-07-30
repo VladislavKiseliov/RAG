@@ -58,11 +58,13 @@ def _split_ext(filename: str) -> tuple[str, str]:
 def _to_ui_document(summary: dict, detail: dict | None) -> dict:
     """Map rag_service document (summary + optional detail) to the KB screen shape.
 
-    Полей `collection`/`personal`/`owner`/`pages`/`chunk_size`/`overlap`/
-    `models`/`dim`/`metric` в rag_service нет (нет тегов документа, нет
-    привязки к пользователю, нет постраничного трекинга, чанкинг не
-    токен-оконный). Оставлены как явные заглушки по договорённости — не
-    выдумываем правдоподобные числа.
+    Полей `collection`/`personal`/`owner`/`chunk_size`/`overlap`/`models`/`dim`/
+    `metric` в rag_service нет (нет тегов документа, нет привязки к пользователю,
+    чанкинг не токен-оконный). Оставлены как явные заглушки по договорённости —
+    не выдумываем правдоподобные числа. `pages`/`chapters_count`/`tables_count`
+    рag_service считает и отдаёт (page_count/chapter_count/table_count в
+    DocumentDetailResponse) — только в `detail`, не в `summary` (списочный
+    ответ их не содержит).
     """
     title, ext = _split_ext(summary["filename"])
     detail = detail or {}
@@ -76,10 +78,12 @@ def _to_ui_document(summary: dict, detail: dict | None) -> dict:
         "collection": "all",
         "personal": False,
         "size": _format_size(summary.get("size")),
-        "pages": None,
+        "pages": detail.get("page_count"),
         "chunk_size": None,
         "overlap": None,
         "chunks": summary.get("chunk_count"),
+        "chapters_count": detail.get("chapter_count"),
+        "tables_count": detail.get("table_count"),
         "models": None,
         "dim": None,
         "metric": None,

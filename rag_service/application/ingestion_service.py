@@ -138,6 +138,7 @@ class IngestionService:
 
             # ШАГ 2: Извлечение сырых данных (Docling)
             parsed_document = self._extract_raw_content(file_bytes, file_name)
+            doc.page_count = parsed_document.page_count
 
             # ШАГ 3: Получение чанков по тексту
             parent_chunks, children_chunks = self.store_chunks(parsed_document, file_name)

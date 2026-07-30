@@ -18,6 +18,7 @@ class IngestionDocument:
     status: DocumentStatus
     file_hash: str | None = field(default=None)
     chunk_count: int | None = field(default=None)
+    page_count: int | None = field(default=None)
 
     @classmethod
     def create_new(cls, filename: str, file_size: int) -> "IngestionDocument":
