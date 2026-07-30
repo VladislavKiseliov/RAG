@@ -257,3 +257,118 @@
 .proj-member-name { font-size: 13px; color: var(--text); }
 .proj-member-role { font-size: 11px; }
 
+/* =====================================================
+   Projects screen — page shell (обёртка под чат-панель)
+   ===================================================== */
+.proj-page-shell { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.proj-page-shell > main { transition: margin-right .16s ease; }
+.proj-page-shell.chat-open > main { margin-right: 360px; }
+
+.proj-role-bar { flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 28px 0; font-size: 12px; }
+.proj-role-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.proj-role-switch span { padding: 5px 12px; cursor: pointer; color: var(--muted); font-weight: 600; }
+.proj-role-switch span.active { background: var(--accent); color: var(--accent-ink); }
+
+.proj-pending-badge { flex-shrink: 0; font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft-border); border-radius: 8px; padding: 4px 9px; white-space: nowrap; }
+
+.proj-queue-widget { margin-top: 18px; display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft-border); border-radius: 11px; padding: 12px 16px; cursor: pointer; }
+.proj-queue-widget:hover { filter: brightness(1.07); }
+
+.proj-empty-state { font-size: 13.5px; color: var(--muted); padding: 30px 0; }
+
+/* ===== Files view: дерево разделов/подразделов ===== */
+.proj-files-tree-aside { width: 280px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 18px 14px; overflow-y: auto; }
+
+.proj-file-tree { display: flex; flex-direction: column; gap: 1px; }
+
+.proj-tree-row { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+.proj-tree-row:hover { background: var(--hover); }
+.proj-tree-row.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.proj-tree-row.sub { padding-left: 22px; font-size: 12.5px; }
+
+.proj-tree-caret { display: inline-block; width: 14px; flex-shrink: 0; color: var(--muted); transition: transform .12s; }
+.proj-tree-caret.open { transform: rotate(90deg); }
+
+.proj-tree-children { display: flex; flex-direction: column; gap: 1px; margin-bottom: 2px; }
+
+.proj-tree-add-trigger { color: var(--accent); font-size: 12px; }
+.proj-tree-add-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 22px; }
+.proj-tree-add-row input.field { flex: 1; padding: 5px 8px; font-size: 12px; }
+.proj-tree-add-confirm, .proj-tree-add-cancel { cursor: pointer; color: var(--muted); flex-shrink: 0; }
+.proj-tree-add-confirm:hover { color: var(--ok); }
+.proj-tree-add-cancel:hover { color: #d65f5f; }
+
+/* ===== Files/Document/Archive: таблицы ===== */
+.proj-files-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.proj-files-table th { text-align: left; padding: 8px 12px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+.proj-files-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.proj-files-table tbody tr { cursor: pointer; }
+.proj-files-table tbody tr:hover { background: var(--hover); }
+
+/* ===== Document view ===== */
+.proj-rejected-banner, .proj-pending-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 13px;
+    border-radius: 11px;
+    padding: 13px 16px;
+    max-width: 680px;
+    margin-bottom: 18px;
+}
+.proj-rejected-banner { background: rgba(214, 95, 95, .1); border: 1px solid rgba(214, 95, 95, .35); color: var(--text); }
+.proj-pending-banner { background: var(--accent-soft); border: 1px solid var(--accent-soft-border); color: var(--text); }
+
+.proj-doc-preview {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    color: var(--accent);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 12px 16px;
+    max-width: 680px;
+    cursor: pointer;
+    margin-bottom: 8px;
+}
+.proj-doc-preview:hover { border-color: var(--accent-soft-border); }
+
+.proj-notes-list { display: flex; flex-direction: column; gap: 10px; max-width: 680px; }
+.proj-note-item { display: flex; align-items: flex-start; gap: 11px; padding: 9px 0; }
+.proj-note-delete { cursor: pointer; color: var(--muted); flex-shrink: 0; }
+.proj-note-delete:hover { color: #d65f5f; }
+.proj-note-input-row { display: flex; gap: 10px; margin-top: 12px; max-width: 680px; }
+.proj-note-input-row input.field { flex: 1; }
+
+/* ===== Queue view ===== */
+.proj-queue-list { display: flex; flex-direction: column; gap: 14px; max-width: 780px; }
+.proj-queue-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 16px 18px; }
+.proj-queue-card-head { display: flex; align-items: center; gap: 11px; }
+
+.proj-conflict-banner { margin-top: 12px; font-size: 12.5px; color: #d65f5f; background: rgba(214, 95, 95, .1); border: 1px solid rgba(214, 95, 95, .35); border-radius: 9px; padding: 9px 12px; }
+
+.proj-queue-items { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.proj-queue-item { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: var(--surface); cursor: pointer; }
+.proj-queue-item:hover { background: var(--hover); }
+
+.proj-queue-actions { display: flex; gap: 10px; margin-top: 14px; }
+.proj-reject-btn { display: flex; align-items: center; font-size: 13.5px; font-weight: 600; color: #d65f5f; background: rgba(214, 95, 95, .1); border: 1px solid rgba(214, 95, 95, .35); border-radius: 11px; padding: 11px 18px; cursor: pointer; }
+.proj-reject-btn:hover { filter: brightness(1.07); }
+
+/* ===== Archive view ===== */
+.proj-archive-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.proj-archive-filter { font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 7px 13px; cursor: pointer; }
+.proj-archive-filter.active { background: var(--accent-soft); border-color: var(--accent-soft-border); color: var(--accent); font-weight: 600; }
+
+/* ===== Upload changeset modal ===== */
+.proj-upload-items { display: flex; flex-direction: column; gap: 8px; }
+.proj-upload-item { display: flex; align-items: center; gap: 10px; }
+.proj-upload-add-btn { margin-top: 10px; font-size: 12.5px; color: var(--accent); cursor: pointer; }
+
+/* ===== PDF preview overlay ===== */
+.proj-pdf-preview-box { width: 560px; max-width: 90vw; }
+.proj-pdf-preview-body { padding: 40px 20px; text-align: center; font-size: 13px; }
+

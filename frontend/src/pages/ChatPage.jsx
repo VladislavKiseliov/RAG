@@ -238,12 +238,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
 
                 {section === 'knowledge' && <KnowledgeBasePage />}
 
-                {section === 'projects' && (
-                    <ProjectsPage
-                        onOpenMessenger={() => goToSection('chats')}
-                        onOpenKnowledge={() => goToSection('knowledge')}
-                    />
-                )}
+                {section === 'projects' && <ProjectsPage />}
 
                 {section === 'notes' && <NotesPage theme={theme} />}
 
