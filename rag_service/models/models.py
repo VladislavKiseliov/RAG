@@ -6,7 +6,7 @@ import uuid6
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from rag_service.api.schemas import DocumentStatus
+from rag_service.domain.document import DocumentStatus
 
 
 class Base(DeclarativeBase):
@@ -57,6 +57,11 @@ class DocumentListItemDTO(Base):
         passive_deletes=True,
     )
     document_tables: Mapped[list["DocumentTables"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    document_meta_sections: Mapped[list["DocumentMetaSections"]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -128,5 +133,35 @@ class DocumentTables(Base):
     title: Mapped[str | None] = mapped_column(String(512), nullable=True)
     s3_csv_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     s3_html_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parent_chunk_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("rag_kernel.parent_chunks.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     document: Mapped[DocumentListItemDTO] = relationship(back_populates="document_tables")
+
+
+class DocumentMetaSections(Base):
+    __tablename__ = "document_meta_sections"
+    __table_args__ = (
+        UniqueConstraint("doc_id", "section_type", name="uq_document_meta_sections_doc_section_type"),
+        Index("ix_document_meta_sections_doc_id", "doc_id"),
+        CheckConstraint(
+            "section_type IN ('TOC', 'ABBREVIATIONS', 'APPENDICES')",
+            name="ck_document_meta_sections_section_type",
+        ),
+        {"schema": "rag_kernel"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7)
+    doc_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("rag_kernel.documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    section_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    s3_md_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+
+    document: Mapped[DocumentListItemDTO] = relationship(back_populates="document_meta_sections")

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from pathlib import PurePath
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Any
 
@@ -11,18 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.exc import IntegrityError
 
 from rag_service.domain.chunking.chunk_builder import ParentChunk
+from rag_service.domain.document import _sanitize_filename
 from rag_service.domain.errors.postgres import DocumentAlreadyExists
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
 from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks
-
-
-def _sanitize_filename(filename: str) -> str:
-    """Normalize uploaded filename and strip path traversal segments."""
-    cleaned = filename.replace("\x00", "").replace("\\", "/")
-    cleaned = cleaned.split("/")[-1].strip()
-    if not cleaned or cleaned in {".", ".."}:
-        raise ValueError("Invalid filename")
-    return PurePath(cleaned).name
 
 
 class DataBaseDocumentService:
@@ -55,7 +46,7 @@ class DataBaseDocumentService:
         async with self.session_scope() as (_, repo):
             return await repo.get_document_by_s3key(s3key)
 
-    async def update_document_hash_atomically(self, doc_id: uuid.UUID, file_hash: str, status: str) -> bool:
+    async def update_document_hash_atomically(self, doc_id: uuid.UUID, file_hash: str, status: DocumentStatus) -> bool:
         """
             Attempts to link a file hash to a document record while ensuring uniqueness.
 
@@ -83,7 +74,7 @@ class DataBaseDocumentService:
                 await repo.update_document_hash_atomically(
                     doc_id=doc_id,
                     file_hash=file_hash,
-                    status=status
+                    status=status.value
                 )
                 await session.commit()
             return True
@@ -123,9 +114,9 @@ class DataBaseDocumentService:
         safe_name = _sanitize_filename(filename)
 
         async with self.session_scope() as (session, repo):
-            existing_by_name = await repo.get_document_by_id(doc_id)
+            existing_by_id = await repo.get_document_by_id(doc_id)
 
-            if existing_by_name:
+            if existing_by_id:
                 raise DocumentAlreadyExists(f"Document {doc_id} already exists")
 
             new_id = await repo.create_document(filename=safe_name,
@@ -186,6 +177,16 @@ class DataBaseDocumentService:
             await repo.update_document_summary(doc_id, summary)
             await session.commit()
 
+    async def update_table_summary(self, table_id: uuid.UUID, summary: str) -> None:
+        async with self.session_scope() as (session, repo):
+            await repo.update_table_summary(table_id, summary)
+            await session.commit()
+
+    async def update_table_parent_chunk_id(self, table_id: uuid.UUID, parent_chunk_id: uuid.UUID) -> None:
+        async with self.session_scope() as (session, repo):
+            await repo.update_table_parent_chunk_id(table_id, parent_chunk_id)
+            await session.commit()
+
     async def add_document_tables(self, doc_id: uuid.UUID, tables: list[dict]) -> None:
         if not tables:
             return
@@ -193,6 +194,22 @@ class DataBaseDocumentService:
         async with self.session_scope() as (session, repo):
             await repo.bulk_insert_tables(doc_id, tables)
             await session.commit()
+
+    async def get_tables_by_doc_id(self, doc_id: uuid.UUID) -> list:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_tables_by_doc_id(doc_id)
+
+    async def add_document_meta_sections(self, doc_id: uuid.UUID, sections: list[dict]) -> None:
+        if not sections:
+            return
+
+        async with self.session_scope() as (session, repo):
+            await repo.bulk_insert_meta_sections(doc_id, sections)
+            await session.commit()
+
+    async def get_meta_sections_by_doc_id(self, doc_id: uuid.UUID) -> list:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_meta_sections_by_doc_id(doc_id)
 
     async def set_status(
             self,
@@ -299,3 +316,7 @@ class DocumentQueryService:
     async def get_tables_by_doc_id(self, doc_id: uuid.UUID) -> list:
         async with self.session_scope() as (_, repo):
             return await repo.get_tables_by_doc_id(doc_id)
+
+    async def get_meta_sections_by_doc_id(self, doc_id: uuid.UUID) -> list:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_meta_sections_by_doc_id(doc_id)

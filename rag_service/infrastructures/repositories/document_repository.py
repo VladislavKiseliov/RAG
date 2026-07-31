@@ -12,7 +12,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables
+from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables, DocumentMetaSections
 
 
 class DocumentRepository:
@@ -393,6 +393,17 @@ class DocumentRepository:
         )
         return list(result.scalars().all())
 
+    async def get_meta_sections_by_doc_id(self, doc_id: uuid.UUID) -> list[DocumentMetaSections]:
+        """Return document meta sections (TOC/abbreviations/appendices).
+
+        Args:
+            doc_id: Target document UUID.
+        """
+        result = await self._session.execute(
+            select(DocumentMetaSections).where(DocumentMetaSections.doc_id == doc_id)
+        )
+        return list(result.scalars().all())
+
     async def update_chapter_summary(self, chapter_id: uuid.UUID, summary: str) -> None:
         """Set the LLM-generated summary for one already-inserted chapter row.
 
@@ -402,6 +413,33 @@ class DocumentRepository:
         """
         await self._session.execute(
             update(DocumentChapters).where(DocumentChapters.id == chapter_id).values(summary=summary)
+        )
+
+    async def update_table_summary(self, table_id: uuid.UUID, summary: str) -> None:
+        """Set the LLM-generated summary for one already-inserted table row.
+
+        Args:
+            table_id: `document_tables.id` of the target table.
+            summary: Generated summary text.
+        """
+        await self._session.execute(
+            update(DocumentTables).where(DocumentTables.id == table_id).values(summary=summary)
+        )
+
+    async def update_table_parent_chunk_id(self, table_id: uuid.UUID, parent_chunk_id: uuid.UUID) -> None:
+        """Link a table row to the parent_chunks row created for its Qdrant summary point.
+
+        Lets callers check `parent_chunk_id IS NOT NULL` to know a table is already
+        vectorized (idempotency for manual re-runs of summarize_document_chapters_task —
+        see rag_service/workers/task.py) and JOIN document_tables/parent_chunks directly
+        instead of matching on the `[→ Таблица N]` marker text.
+
+        Args:
+            table_id: `document_tables.id` of the target table.
+            parent_chunk_id: `parent_chunks.id` created for this table's summary point.
+        """
+        await self._session.execute(
+            update(DocumentTables).where(DocumentTables.id == table_id).values(parent_chunk_id=parent_chunk_id)
         )
 
     async def update_document_summary(self, doc_id: uuid.UUID, summary: str) -> None:
@@ -428,6 +466,7 @@ class DocumentRepository:
         await self._session.execute(delete(ParentChunks).where(ParentChunks.doc_id == doc_id))
         await self._session.execute(delete(DocumentChapters).where(DocumentChapters.doc_id == doc_id))
         await self._session.execute(delete(DocumentTables).where(DocumentTables.doc_id == doc_id))
+        await self._session.execute(delete(DocumentMetaSections).where(DocumentMetaSections.doc_id == doc_id))
 
     async def bulk_insert_chapters(self, doc_id: uuid.UUID, chapters: Iterable[dict]) -> None:
         """Bulk insert document chapters (one document has tens of chapters, no batching needed).
@@ -470,3 +509,23 @@ class DocumentRepository:
             return
 
         await self._session.execute(insert(DocumentTables), rows)
+
+    async def bulk_insert_meta_sections(self, doc_id: uuid.UUID, sections: Iterable[dict]) -> None:
+        """Bulk insert document meta sections (TOC/abbreviations/appendices - at most a few per document).
+
+        Args:
+            doc_id: Target document UUID used for all inserted rows.
+            sections: Iterable of dicts with `section_type`, `s3_md_path`.
+        """
+        rows = [
+            {
+                "doc_id": doc_id,
+                "section_type": section["section_type"],
+                "s3_md_path": section["s3_md_path"],
+            }
+            for section in sections
+        ]
+        if not rows:
+            return
+
+        await self._session.execute(insert(DocumentMetaSections), rows)

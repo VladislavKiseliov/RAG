@@ -1,12 +1,40 @@
+import enum
 import os
 import uuid
 from dataclasses import dataclass, field
+from pathlib import PurePath
 
 import uuid6
 
-from rag_service.api.schemas import DocumentStatus
 from rag_service.domain.errors.base import InvalidIngestionStateError, UploadValidationError
 from rag_service.settings import settings
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Normalize uploaded filename and strip path traversal segments."""
+    cleaned = filename.replace("\x00", "").replace("\\", "/")
+    cleaned = cleaned.split("/")[-1].strip()
+    if not cleaned or cleaned in {".", ".."}:
+        raise UploadValidationError("Invalid filename")
+    return PurePath(cleaned).name
+
+
+class DocumentStatus(str, enum.Enum):
+    # 1. Начальные этапы
+    PENDING = "pending"  # Запись создана, ждем начала загрузки
+    UPLOAD = "uploading"  # Файл загружен в Хранилище
+
+    # 2. Процессинг
+    PROCESSING = "processing"  # Общий статус (уже есть у тебя)
+    EXTRACTING = "extracting"  # Идет парсинг текста из PDF/файла
+    INDEXING = "indexing"  # Идет генерация эмбеддингов и запись в Qdrant
+    DUPLICATE  = "duplicate" # Дупликат документа
+
+    RETRY = "retry"  # Временная ошибка, задача будет перезапущена Celery
+
+    # 3. Финалы
+    COMPLETED = "completed"  # Все готово, можно искать по документу
+    ERROR = "error"  # Произошла ошибка
 
 
 @dataclass
@@ -31,12 +59,18 @@ class IngestionDocument:
         if file_size > settings.upload_max_size_bytes:
             raise UploadValidationError(f"Файл слишком велик ({file_size} байт). Лимит {settings.upload_max_size_bytes // (1024*1024)}МБ.")
 
+        # Санитизация ДО построения s3key — раньше s3key строился из сырого имени клиента,
+        # а _sanitize_filename применялся только позже, к значению для колонки documents.filename
+        # (см. application/document_service.py::create_doc). display-имя и реальный
+        # MinIO-ключ могли разойтись для имён с "/"/".." (T18 в rag_service/ISSUES.md).
+        safe_filename = _sanitize_filename(filename)
+
         doc_id = uuid6.uuid7()
-        s3key = f"{doc_id}/{filename}"
+        s3key = f"{doc_id}/{safe_filename}"
 
         return cls(
             id=doc_id,
-            filename=filename,
+            filename=safe_filename,
             s3key=s3key,
             file_size=file_size,
             status=DocumentStatus.PENDING,
