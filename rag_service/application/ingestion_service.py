@@ -6,7 +6,6 @@ import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import List, Dict
 import hashlib
 
 from sqlalchemy.exc import OperationalError
@@ -183,19 +182,23 @@ class IngestionService:
             # Детерминированная ошибка (пустой/битый PDF, нарушение порядка стадий) —
             # ретрай не поможет, тот же файл сломается точно так же
             logger.error("Non-retryable ingestion error doc_id=%s: %s", doc_id, e)
-            doc.fail()
-            await self._document_service.update_document(doc_id, update_data={"status": doc.status})
-            self._schedule_delayed_cleanup(doc_id)
-            return IngestionResult(doc_id=doc_id, status=doc.status)
+            return await self._fail_document(doc, doc_id)
 
-        except Exception as e:
+        except Exception:
             # Неизвестная ошибка — по умолчанию не ретраим: безопаснее один раз
             # пометить ERROR и разобраться, чем молча повторять баг три раза
             logger.exception("Unhandled ingestion error doc_id=%s", doc_id)
-            doc.fail()
-            await self._document_service.update_document(doc_id, update_data={"status": doc.status})
-            self._schedule_delayed_cleanup(doc_id)
-            return IngestionResult(doc_id=doc_id, status=doc.status)
+            return await self._fail_document(doc, doc_id)
+
+    async def _fail_document(self, doc: IngestionDocument, doc_id: uuid.UUID) -> IngestionResult:
+        """Общая часть двух no-retry веток process_document (T22 в ISSUES.md) — раньше
+        обе вручную повторяли одни и те же три строки. Помечает документ ERROR, планирует
+        отложенную очистку, возвращает результат.
+        """
+        doc.fail()
+        await self._document_service.update_document(doc_id, update_data={"status": doc.status})
+        self._schedule_delayed_cleanup(doc_id)
+        return IngestionResult(doc_id=doc_id, status=doc.status)
 
     def _schedule_delayed_cleanup(self, doc_id: uuid.UUID) -> None:
         """Планирует отложенное удаление документа со статусом ERROR (через пару часов).
@@ -261,11 +264,11 @@ class IngestionService:
                 update_data=update_data,
             )
 
-    async def _run_pipeline(self, doc_id: uuid.UUID, children: List[Dict], batch_size: int = 25) -> None:
+    async def _run_pipeline(self, doc_id: uuid.UUID, children: list[dict], batch_size: int = 25) -> None:
         semaphore = asyncio.Semaphore(3)
         background_tasks = set()
 
-        async def process_batch_chain(batch_data: List[Dict]):
+        async def process_batch_chain(batch_data: list[dict]):
             async with semaphore:
                 batch_texts = [str(c["text"]) for c in batch_data]
 
@@ -291,7 +294,7 @@ class IngestionService:
             await asyncio.gather(*background_tasks)
 
 
-    def store_chunks(self,parse_document:ParsedDocument,file_name:str) -> tuple[list[ParentChunk], list[Dict]]:
+    def store_chunks(self,parse_document:ParsedDocument,file_name:str) -> tuple[list[ParentChunk], list[dict]]:
         """Строит parent/child chunks из глав документа (фильтрация, дедупликация, нарезка)."""
 
         parents, children = self._build_chunks(parse_document, source=file_name)
@@ -305,7 +308,7 @@ class IngestionService:
     async def _store_structural_data(
             self,
             doc_id,
-            parent_chunks: List[ParentChunk],
+            parent_chunks: list[ParentChunk],
             parsed_document:ParsedDocument,
     )->None:
         # Ретрай стартует ингест с нуля — чистим то, что успело закоммититься
@@ -313,9 +316,10 @@ class IngestionService:
         await self._document_service.reset_structural_data(doc_id)
 
         await self._document_service.add_parent_chunks(doc_id,parent_chunks)
-        chapter_rows, table_rows = await self._store_docling_artifacts(doc_id, parsed_document)
+        chapter_rows, table_rows, meta_section_rows = await self._store_docling_artifacts(doc_id, parsed_document)
         await self._document_service.add_document_chapters(doc_id, chapter_rows)
         await self._document_service.add_document_tables(doc_id, table_rows)
+        await self._document_service.add_document_meta_sections(doc_id, meta_section_rows)
 
 
 
@@ -323,12 +327,12 @@ class IngestionService:
         """Конвертирует PDF в markdown + главы + таблицы через Docling (см. DocumentConversionPipeline)."""
         return self._conversion_pipeline.convert_document(content, filename)
 
-    def _build_chunks(self, docling_result: ParsedDocument, source: str) -> tuple[List[ParentChunk], List[Dict]]:
+    def _build_chunks(self, docling_result: ParsedDocument, source: str) -> tuple[list[ParentChunk], list[dict]]:
         """Строит parent/child chunks из глав документа: фильтрация шума, дедупликация, нарезка."""
         self._deduplicator.reset()
 
-        parents: List[ParentChunk] = []
-        children: List[Dict] = []
+        parents: list[ParentChunk] = []
+        children: list[dict] = []
 
         for index, chapter in enumerate(docling_result.chapters):
             text = chapter.markdown
@@ -363,11 +367,11 @@ class IngestionService:
 
     async def _store_docling_artifacts(
             self, doc_id: uuid.UUID, docling_result: ParsedDocument
-    ) -> tuple[list[dict], list[dict]]:
+    ) -> tuple[list[dict], list[dict], list[dict]]:
         """Заливает в S3 сырые артефакты Docling про запас: полный текст, главы, таблицы, мета-разделы.
 
-        Возвращает строки для `document_chapters`/`document_tables` с теми же S3-путями,
-        по которым главы/таблицы были только что залиты.
+        Возвращает строки для `document_chapters`/`document_tables`/`document_meta_sections`
+        с теми же S3-путями, по которым главы/таблицы/мета-разделы были только что залиты.
         """
         prefix = str(doc_id)
 
@@ -414,13 +418,19 @@ class IngestionService:
                 "s3_html_path": s3_html_path,
             })
 
+        meta_section_rows: list[dict] = []
         for section in docling_result.meta_sections:
             name = section.section_type.lower()
+            s3_md_path = f"{prefix}/meta/{name}.md"
             await self.s3_storage.upload_file(
-                section.markdown.encode("utf-8"), f"{prefix}/meta/{name}.md", "text/markdown"
+                section.markdown.encode("utf-8"), s3_md_path, "text/markdown"
             )
+            meta_section_rows.append({
+                "section_type": section.section_type,
+                "s3_md_path": s3_md_path,
+            })
 
-        return chapter_rows, table_rows
+        return chapter_rows, table_rows, meta_section_rows
 
 
     def _creates_points(self,doc_id: uuid.UUID, childs: list,dense_vectors:list[list[float]],sparse_vectors) -> list[VectorPoint]:
