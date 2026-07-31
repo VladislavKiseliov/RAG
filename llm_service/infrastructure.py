@@ -19,12 +19,12 @@ class LLMContainer:
 def _build_query_router() -> QueryRouterProtocol:
     model_path = settings.ML_ROUTER_MODEL_PATH
     import joblib
-    from sentence_transformers import SentenceTransformer
 
     from llm_service.ml_router.router import MLQueryRouter
+    from llm_service.ml_router.tei_embedder import TeiSyncEmbedder
 
     clf = joblib.load(model_path)
-    embedder = SentenceTransformer("intfloat/multilingual-e5-large")
+    embedder = TeiSyncEmbedder(base_url=settings.TEI_URL)
     return MLQueryRouter(
         clf=clf,
         embedder=embedder,
