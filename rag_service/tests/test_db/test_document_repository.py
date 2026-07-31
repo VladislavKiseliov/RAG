@@ -490,6 +490,61 @@ async def test_get_tables_by_doc_id_returns_ordered_by_index(
     assert [t.table_index for t in tables] == [0, 1]
 
 
+async def test_update_table_summary_sets_summary(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """update_table_summary should persist the LLM-generated summary on the target table row."""
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="table-summary.pdf")
+
+    await repo.bulk_insert_tables(
+        doc_id,
+        [{"table_index": 0, "s3_csv_path": f"{doc_id}/tables/table_0.csv", "s3_html_path": f"{doc_id}/tables/table_0.html"}],
+    )
+    await db_session.commit()
+
+    table = (await repo.get_tables_by_doc_id(doc_id))[0]
+    await repo.update_table_summary(table.id, "Таблица допустимых давлений.")
+    await db_session.commit()
+
+    updated = (await repo.get_tables_by_doc_id(doc_id))[0]
+    assert updated.summary == "Таблица допустимых давлений."
+
+
+async def test_update_table_parent_chunk_id_links_to_qdrant_point_row(
+    repo: DocumentRepository,
+    db_session: AsyncSession,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    """update_table_parent_chunk_id should link the table row to its parent_chunks row.
+
+    Used by summarize_document_chapters_task to detect a table is already vectorized
+    (idempotent re-runs), see rag_service/workers/task.py.
+    """
+    doc_id = await _create_document(repo, db_session, created_doc_ids, filename="table-parent-link.pdf")
+
+    await repo.bulk_insert_tables(
+        doc_id,
+        [{"table_index": 0, "s3_csv_path": f"{doc_id}/tables/table_0.csv", "s3_html_path": f"{doc_id}/tables/table_0.html"}],
+    )
+    parent_chunk_id = uuid.uuid4()
+    await repo.bulk_insert_chunks(
+        doc_id,
+        [{"id": parent_chunk_id, "content": "[→ Таблица 0](table_0)", "page_num": "", "headers": {}, "chunk_index": 0}],
+    )
+    await db_session.commit()
+
+    table = (await repo.get_tables_by_doc_id(doc_id))[0]
+    assert table.parent_chunk_id is None
+
+    await repo.update_table_parent_chunk_id(table.id, parent_chunk_id)
+    await db_session.commit()
+
+    updated = (await repo.get_tables_by_doc_id(doc_id))[0]
+    assert updated.parent_chunk_id == parent_chunk_id
+
+
 async def test_get_parents_by_ids_empty_input(repo: DocumentRepository) -> None:
     """Empty parent_ids input should return an empty list."""
     result = await repo.get_parents_by_ids([])
