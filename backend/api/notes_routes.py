@@ -1,15 +1,20 @@
+import hmac
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
 from starlette import status
 
 from backend.dependencies import CurrentUserDep, NoteServiceDep
 from backend.schemas.schemas import NoteCreateRequest, NoteUpdateRequest, NoteIndexCompleteRequest, NoteGenerateRequest
+from backend.settings import settings
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
-# Колбэк от rag_service по завершении Celery-индексации — без CurrentUserDep, доверенный
-# внутренний вызов из docker-сети (тот же паттерн, что у MinIO-вебхука в rag_service).
+# Колбэк от rag_service по завершении Celery-индексации — без CurrentUserDep (это не
+# пользовательская сессия), но с проверкой INTERNAL_WEBHOOK_TOKEN (тот же паттерн, что у
+# MinIO-вебхука в rag_service) — доверять голому докер-network-происхождению запроса
+# недостаточно, если этот путь когда-нибудь случайно окажется публично проксирован.
 internal_router = APIRouter(prefix="/internal/notes", tags=["notes-internal"])
 
 
@@ -86,5 +91,10 @@ async def index_complete(
         note_guid: uuid.UUID,
         payload: NoteIndexCompleteRequest,
         service: NoteServiceDep,
+        authorization: Annotated[str | None, Header(alias="authorization")] = None,
 ):
+    token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    if token is None or not hmac.compare_digest(token, settings.INTERNAL_WEBHOOK_TOKEN):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook token")
+
     await service.mark_index_complete(note_guid=note_guid, note_status=payload.status, chunk_count=payload.chunk_count)

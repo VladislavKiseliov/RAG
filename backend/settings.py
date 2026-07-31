@@ -59,5 +59,9 @@ class BackendSettings(BaseSettings):
     RAG_SERVICE_URL: str = "http://rag-service:8001"
     FLOWER_URL: str = "http://flower:5555"
 
+    # Тот же токен, что rag_service шлёт на /internal/notes/{id}/index-complete
+    # (см. rag_service/workers/task.py::_notify_backend_index_complete)
+    INTERNAL_WEBHOOK_TOKEN: str
+
 
 settings = BackendSettings()
