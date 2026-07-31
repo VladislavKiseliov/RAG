@@ -88,3 +88,11 @@ class DocumentSummaryRequest(BaseModel):
 class DocumentSummaryResponse(BaseModel):
     summary: str
 
+
+class TableSummaryRequest(BaseModel):
+    table_text: str = Field(..., min_length=1)
+
+
+class TableSummaryResponse(BaseModel):
+    summary: str
+

@@ -18,6 +18,8 @@ from llm_service.api.schemas import (
     NoteGenerateResponse,
     SummaryRequest,
     SummaryResponse,
+    TableSummaryRequest,
+    TableSummaryResponse,
 )
 from llm_service.application.lean_rag_agent import LeanRagAgent
 from llm_service.dependencies import get_lean_rag_agent
@@ -190,3 +192,20 @@ async def generate_document_summary(
         raise HTTPException(status_code=502, detail=f"Document summary generation failed: {exc}")
 
     return DocumentSummaryResponse(summary=summary.strip())
+
+
+# Тот же вызывающий (rag_service, best-effort) — генерирует описание таблицы для
+# семантического поиска (эмбеддится и уходит в Qdrant отдельной точкой), не для показа
+# пользователю напрямую.
+@router.post("/table-summary", response_model=TableSummaryResponse)
+async def generate_table_summary(
+    request: TableSummaryRequest,
+    agent: LeanRagAgent = Depends(get_lean_rag_agent),
+) -> TableSummaryResponse:
+    try:
+        summary = await agent.llm_provider.generate_table_summary(table_text=request.table_text)
+    except Exception as exc:
+        logger.exception("Table summary generation failed")
+        raise HTTPException(status_code=502, detail=f"Table summary generation failed: {exc}")
+
+    return TableSummaryResponse(summary=summary.strip())

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 
@@ -25,6 +26,7 @@ class PromptsConfig(BaseModel):
     summary_system_prompt: str
     chapter_summary_system_prompt: str
     document_summary_system_prompt: str
+    table_summary_system_prompt: str
     note_system_prompt: str
     query_expansion_prompt: str
 
@@ -57,13 +59,20 @@ class AppConfig(BaseModel):
 
 
 _last_good_config: AppConfig | None = None
+_last_mtime: float = 0.0
 
 
 def get_live_config() -> AppConfig:
-    """Перечитывает ai_config.toml на каждый вызов, чтобы настройки менялись без рестарта."""
-    global _last_good_config
+    """Настройки меняются без рестарта, но файл перечитывается только когда его mtime
+    реально изменился — os.path.getmtime это атрибут инода из кэша ОС (микросекунды),
+    не чтение файла, так что цена проверки на каждый из ~20 вызовов за запрос пренебрежимо мала.
+    """
+    global _last_good_config, _last_mtime
     try:
-        _last_good_config = AppConfig.load()
+        mtime = os.path.getmtime(_CONFIG_PATH)
+        if _last_good_config is None or mtime > _last_mtime:
+            _last_good_config = AppConfig.load()
+            _last_mtime = mtime
     except Exception as e:
         if _last_good_config is None:
             raise
