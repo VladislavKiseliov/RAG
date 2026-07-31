@@ -359,7 +359,7 @@ async def admin_document_reindex(doc_id: str) -> Any:
 
 @router.post("/documents/{doc_id}/summarize")
 async def admin_document_summarize(doc_id: str) -> Any:
-    """Re-run chapter + document summarization only, without full reindex."""
+    """Re-run chapter + table + document summarization, without full reindex."""
     return await _proxy_rag_request("POST", f"/documents/{doc_id}/summarize")
 
 
@@ -394,7 +394,7 @@ async def admin_documents_bulk_reindex(payload: BulkDocumentActionRequest) -> An
 
 @router.post("/documents/bulk-summarize")
 async def admin_documents_bulk_summarize(payload: BulkDocumentActionRequest) -> Any:
-    """Queue chapter + document summarization for a batch of documents."""
+    """Queue chapter + table + document summarization for a batch of documents."""
     return await _bulk_dispatch_documents("/summarize", payload.ids)
 
 

@@ -131,8 +131,8 @@ function DocumentsTab({ admin }) {
                             <td className="mono">{d.points ?? '—'}</td>
                             <td className="mono">{d.size}</td>
                             <td>
-                                <span className={`status-pill ${d.state === 'indexed' ? 'online' : 'degraded'}`}>
-                                    <span className="dot" />{d.state === 'indexed' ? 'В индексе' : 'Индексация'}
+                                <span className={`status-pill ${d.state === 'indexed' ? 'online' : d.state === 'error' ? 'offline' : 'degraded'}`}>
+                                    <span className="dot" />{d.statusLabel || (d.state === 'indexed' ? 'В индексе' : 'Индексация')}
                                 </span>
                             </td>
                             <td className={d.state === 'indexed' ? 'adm-doc-flag-on' : 'adm-doc-flag-off'}>{d.state === 'indexed' ? '✓' : '–'}</td>

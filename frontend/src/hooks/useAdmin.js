@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ENDPOINTS } from '../config/api';
 import { useApi, useShowError } from '../context/ApiContext';
 import { formatBytes } from '../utils/formatBytes';
@@ -11,6 +11,22 @@ const MOCK_PERSONAL_DOCS = [
 
 const MOCK_QDRANT = { collection: 'rag_documents', vectors: 18432, segments: 4, sizeLabel: '145 МБ', optimizerOnline: true };
 
+// rag_service ведёт 8 статусов документа (rag_service/domain/document.py::DocumentStatus) -
+// раньше здесь всё не-completed схлопывалось в один "Индексация", ошибки/дубликаты были
+// неотличимы от нормального прогресса.
+const DOCUMENT_STATUS_LABELS = {
+    pending: 'Ожидает',
+    uploading: 'Загрузка',
+    processing: 'Обработка',
+    extracting: 'Извлечение текста',
+    indexing: 'Индексация',
+    completed: 'В индексе',
+    error: 'Ошибка',
+    duplicate: 'Дубликат',
+};
+
+const DOCUMENT_ERROR_STATUSES = new Set(['error', 'duplicate']);
+
 const toAdminDoc = (raw) => ({
     id: raw.doc_id,
     title: raw.filename || 'unknown',
@@ -20,7 +36,8 @@ const toAdminDoc = (raw) => ({
     chunks: raw.chunk_count ?? null,
     points: raw.chunk_count ?? null,
     size: formatBytes(raw.size),
-    state: raw.status === 'completed' ? 'indexed' : 'processing',
+    state: raw.status === 'completed' ? 'indexed' : (DOCUMENT_ERROR_STATUSES.has(raw.status) ? 'error' : 'processing'),
+    statusLabel: DOCUMENT_STATUS_LABELS[raw.status] || raw.status,
     hasSummary: !!raw.has_summary,
 });
 
@@ -96,6 +113,17 @@ export function useAdmin() {
             showError(e.message);
         }
     }, [api, showError]);
+
+    // Самоостанавливающийся поллинг: пока в списке есть документ не в терминальном статусе
+    // (не completed/error/duplicate), через 3с подгружаем список ещё раз. Как только ничего
+    // активного не осталось - цепочка сама останавливается, лишних запросов не шлём.
+    useEffect(() => {
+        const hasActiveDocuments = documents.some((d) => d.state === 'processing');
+        if (!hasActiveDocuments) return undefined;
+
+        const timer = setTimeout(loadDocuments, 3000);
+        return () => clearTimeout(timer);
+    }, [documents, loadDocuments]);
 
     const loadUsers = useCallback(async () => {
         try {
@@ -181,7 +209,7 @@ export function useAdmin() {
         const ids = Array.from(pickerSelected);
         if (!ids.length || (!pickerActionReindex && !pickerActionSummary)) return;
 
-        const label = [pickerActionReindex && 'переиндексация', pickerActionSummary && 'краткое по главам']
+        const label = [pickerActionReindex && 'переиндексация', pickerActionSummary && 'краткое по главам и таблицам']
             .filter(Boolean).join(' + ');
         setBulkPickerOpen(false);
         setBulkRunning(true);
