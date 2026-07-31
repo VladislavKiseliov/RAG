@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-import os
 from typing import Any
 
 import httpx
@@ -17,18 +16,21 @@ class HuggingFaceEmbeddingProvider(EmbeddingProvider):
     def __init__(
         self,
         *,
-        model: str | None = None,
-        token: str | None = None,
+        model: str,
+        token: str,
         timeout: float = 60.0,
     ) -> None:
-        self._model = model or os.getenv("EMBEDDING_MODEL_NAME")
-        self._token = token or os.getenv("HF_TOKEN")
-        self._timeout = timeout
-
-        if not self._model:
+        # model/token приходят от вызывающего кода (settings.*), не читаются из os.getenv
+        # напрямую в обход pydantic-settings — тот же антипаттерн чинили для вебхук-токена
+        # в A5 (rag_service/ISSUES.md).
+        if not model:
             raise RuntimeError("EMBEDDING_MODEL_NAME is not set")
-        if not self._token:
+        if not token:
             raise RuntimeError("HF_TOKEN is not set")
+
+        self._model = model
+        self._token = token
+        self._timeout = timeout
 
         # Preferred modern endpoint for HF Inference providers.
         self._router_url = f"https://router.huggingface.co/hf-inference/models/{self._model}"

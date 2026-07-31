@@ -24,7 +24,7 @@ from rag_service.application.task_dispatcher_service import (
     TaskDispatcherService,
     _is_ingestion_artifact,
 )
-from rag_service.domain.errors import DocumentByStorageKeyNotFound
+from rag_service.domain.errors import DocumentByStorageKeyNotFound, DocumentNotFound
 
 
 DOC_ID = str(uuid.uuid4())
@@ -109,3 +109,57 @@ async def test_dispatch_ingestion_sends_task_by_name_for_pending_document():
         await service.dispatch_ingestion(s3key=s3key)
 
     mock_celery_app.send_task.assert_called_once_with("ingest_document", args=[str(DOC_ID), s3key])
+
+
+@pytest.mark.asyncio
+async def test_dispatch_reindexing_sends_task_for_already_completed_document():
+    # dispatch_reindexing, в отличие от dispatch_ingestion, осознанно НЕ проверяет
+    # status == PENDING (см. докстринг метода) - реиндекс должен работать именно для
+    # уже обработанного документа, не только для только что загруженного.
+    doc = MagicMock(status=DocumentStatus.COMPLETED, id=DOC_ID, s3key=f"{DOC_ID}/report.pdf")
+    database = MagicMock()
+    database.get_document_by_id = AsyncMock(return_value=doc)
+    service = TaskDispatcherService(database=database)
+
+    with patch("rag_service.application.task_dispatcher_service.celery_app") as mock_celery_app:
+        await service.dispatch_reindexing(doc_id=DOC_ID)
+
+    mock_celery_app.send_task.assert_called_once_with("ingest_document", args=[str(DOC_ID), doc.s3key])
+
+
+@pytest.mark.asyncio
+async def test_dispatch_reindexing_raises_for_unknown_document():
+    database = MagicMock()
+    database.get_document_by_id = AsyncMock(return_value=None)
+    service = TaskDispatcherService(database=database)
+
+    with pytest.raises(DocumentNotFound):
+        await service.dispatch_reindexing(doc_id=DOC_ID)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_summarization_sends_task_even_when_auto_trigger_flag_is_off():
+    # Регрессия: ручной триггер раньше проверял тот же ENABLE_DOCUMENT_SUMMARIZATION,
+    # что и авто-запуск после ingest, - при выключенном флаге кнопка "Пересобрать саммари"
+    # в админке отвечала 202 "queued" и тихо ничего не делала. Флаг про авто-триггер,
+    # не про ручной запуск - dispatch_summarization должен слать таску всегда.
+    doc = MagicMock(id=DOC_ID)
+    database = MagicMock()
+    database.get_document_by_id = AsyncMock(return_value=doc)
+    service = TaskDispatcherService(database=database)
+
+    with patch("rag_service.application.task_dispatcher_service.celery_app") as mock_celery_app, \
+            patch("rag_service.settings.settings.enable_document_summarization", False):
+        await service.dispatch_summarization(doc_id=DOC_ID)
+
+    mock_celery_app.send_task.assert_called_once_with("summarize_document_chapters", args=[str(DOC_ID)])
+
+
+@pytest.mark.asyncio
+async def test_dispatch_summarization_raises_for_unknown_document():
+    database = MagicMock()
+    database.get_document_by_id = AsyncMock(return_value=None)
+    service = TaskDispatcherService(database=database)
+
+    with pytest.raises(DocumentNotFound):
+        await service.dispatch_summarization(doc_id=DOC_ID)

@@ -3,12 +3,10 @@ from __future__ import annotations
 from urllib.parse import unquote_plus
 import asyncio
 import csv
+import hmac
 import io
-import logging
-import os
 import re
 import uuid
-from pathlib import Path
 from typing import Any, Annotated
 
 import httpx
@@ -16,6 +14,7 @@ from fastapi import APIRouter, Depends, status, Query, Header, Response, Request
 from rag_service.api.schemas import (
     BatchDeleteDocumentsRequest,
     BatchDeleteDocumentsResponse,
+    BatchDeleteErrorItem,
     ChapterContentResponse,
     ChapterSummary,
     ChapterTable,
@@ -37,7 +36,8 @@ from rag_service.domain.errors import (
     WebhookAuthorizationError,
 )
 from rag_service.application.ingestion_service import IngestionService
-from rag_service.dependencies import DocumentOrchestratorDep, RetrieveServiceDep, TaskDispatcherServiceDep, DocServiceDep, DocQueryServiceDep
+from rag_service.dependencies import DocumentOrchestratorDep, RetrieveServiceDep, TaskDispatcherServiceDep, DocQueryServiceDep
+from rag_service.settings import settings
 from rag_service.utils.logger_config import setup_logger
 
 
@@ -88,7 +88,7 @@ async def handle_webhook(
     authorization: Annotated[str | None, Header(alias="authorization")] = None,
 ):
     token = authorization.removeprefix("Bearer ").strip() if authorization else None
-    if token != os.getenv("MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1"):
+    if token is None or not hmac.compare_digest(token, settings.minio_notify_webhook_auth_token_1):
         raise WebhookAuthorizationError()
 
     # Per-record try/except: одна упавшая запись (например DocumentByStorageKeyNotFound) не должна
@@ -145,9 +145,9 @@ async def handle_webhook(
 # # 3. MANAGEMENT API (Управление документами и метаданными)
 # # =============================================================================
 #
-@router.get("/documents")
+@router.get("/documents", response_model=list[DocumentSummaryResponse])
 async def list_documents(
-        database: DocServiceDep,
+        database: DocQueryServiceDep,
         limit: int = 100,
         offset: int = 0,
         status: str | None = None,
@@ -161,16 +161,16 @@ async def list_documents(
         filename=filename,
     )
     return [
-        {
-            "doc_id": str(d.id),
-            "filename": d.filename,
-            "status": d.status.value if hasattr(d.status, "value") else str(d.status),
-            "created_at": d.created_at.isoformat(),
-            "chunk_count": d.chunk_count,
-            "s3key": d.s3key,
-            "size": d.file_size,
-            "has_summary": bool(d.summary),
-        }
+        DocumentSummaryResponse(
+            doc_id=str(d.id),
+            filename=d.filename,
+            status=d.status,
+            created_at=d.created_at,
+            chunk_count=d.chunk_count,
+            s3key=d.s3key,
+            size=d.file_size,
+            has_summary=bool(d.summary),
+        )
         for d in docs
     ]
 
@@ -200,13 +200,13 @@ async def batch_delete_documents(
 ):
     deleted: list[str] = []
     not_found: list[str] = []
-    failed: list[dict[str, str]] = []
+    failed: list[BatchDeleteErrorItem] = []
 
     for raw_doc_id in body.doc_ids:
         try:
             parsed_doc_id = uuid.UUID(raw_doc_id)
         except ValueError:
-            failed.append({"doc_id": raw_doc_id, "reason": "invalid_doc_id"})
+            failed.append(BatchDeleteErrorItem(doc_id=raw_doc_id, reason="invalid_doc_id"))
             continue
 
         try:
@@ -215,7 +215,7 @@ async def batch_delete_documents(
         except ValueError:
             not_found.append(str(parsed_doc_id))
         except Exception as exc:
-            failed.append({"doc_id": str(parsed_doc_id), "reason": str(exc)})
+            failed.append(BatchDeleteErrorItem(doc_id=str(parsed_doc_id), reason=str(exc)))
 
     return BatchDeleteDocumentsResponse(
         deleted=deleted,
@@ -254,7 +254,7 @@ async def get_document_details(
     return DocumentDetailResponse(
         doc_id=str(doc.id),
         filename=doc.filename,
-        status=doc.status.value if hasattr(doc.status, "value") else str(doc.status),
+        status=doc.status,
         created_at=doc.created_at,
         chunk_count=doc.chunk_count,
         file_hash=doc.file_hash,

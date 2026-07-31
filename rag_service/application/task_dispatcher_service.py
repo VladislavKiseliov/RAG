@@ -1,13 +1,9 @@
-import logging
 import uuid
 
-from rag_service.api.schemas import DocumentStatus
 from rag_service.application.document_service import DataBaseDocumentService
+from rag_service.domain.document import DocumentStatus
 from rag_service.celery_app import celery_app
 from rag_service.domain.errors import DocumentByStorageKeyNotFound, DocumentNotFound
-from rag_service.settings import settings
-
-logger = logging.getLogger(__name__)
 
 # Суффиксы служебных артефактов, которые ingestion_service сам заливает обратно в тот
 # же бакет/префикс {doc_id}/... после разбора документа (см. ingestion_service.py:
@@ -77,22 +73,22 @@ class TaskDispatcherService:
         celery_app.send_task("ingest_document", args=[str(doc_id), doc.s3key])
 
     async def dispatch_summarization(self, doc_id: uuid.UUID) -> None:
-        """Пересобрать саммари глав + документа отдельно от полной переиндексации.
+        """Пересобрать саммари глав + таблиц + документа отдельно от полной переиндексации.
 
         Та же таска, что и авто-триггер после ingest — идемпотентна (перезаписывает
         summary, не накапливает), поэтому безопасно звать вручную, если саммари не
         сформировалось с первого раза (например, llm_service был недоступен).
+
+        В отличие от авто-триггера в ingest_document_task, НЕ проверяет
+        ENABLE_DOCUMENT_SUMMARIZATION — этот флаг про то, запускать ли саммаризацию
+        автоматически на каждый документ после ingest, а не про то, можно ли вообще
+        когда-либо её запустить. Ручной вызов — явное намерение админа, должен работать
+        независимо от флага (раньше не работал: тихо возвращал 202 "queued" и ничего
+        не делал, если флаг был выключен).
         """
         doc = await self.database.get_document_by_id(doc_id)
         if doc is None:
             raise DocumentNotFound(str(doc_id))
-
-        if not settings.enable_document_summarization:
-            logger.info(
-                "Chapter summarization disabled (ENABLE_DOCUMENT_SUMMARIZATION=false), "
-                "ignoring manual trigger doc_id=%s", doc_id,
-            )
-            return
 
         celery_app.send_task("summarize_document_chapters", args=[str(doc_id)])
 
