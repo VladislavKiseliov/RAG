@@ -74,6 +74,7 @@ class QdrantVectorStorage():
         self._client: AsyncQdrantClient = client
         self._collection = collection
         self._collection_lock = asyncio.Lock()
+        self._collection_ready = False
         self._fusion = models.Fusion.DBSF
         self.bm25_model = "qdrant/bm25"
         self._distance = Distance[distance.upper()]
@@ -296,15 +297,21 @@ class QdrantVectorStorage():
             raise VectorDeleteError(f"Failed to delete vectors where {field}={value}") from exc
 
     async def _ensure_collection(self, vector_size: int) -> None:
+        """Create the target collection lazily if it does not exist yet.
+
+        The collection schema is derived from the first upserted vector size
+        and the configured distance/index optimizer settings. Once confirmed
+        ready, skips the collection_exists() round-trip on every subsequent call.
+        """
+        if self._collection_ready:
+            return
         async with self._collection_lock:
-            """Create the target collection lazily if it does not exist yet.
-    
-            The collection schema is derived from the first upserted vector size
-            and the configured distance/index optimizer settings.
-            """
+            if self._collection_ready:
+                return
             try:
                 exists = await self._client.collection_exists(self._collection)
                 if exists:
+                    self._collection_ready = True
                     return
 
                 hnsw_config = None
@@ -333,11 +340,17 @@ class QdrantVectorStorage():
                 await self._client.create_collection(
                     collection_name=self._collection,
                     vectors_config={"dense_vector": VectorParams(size=vector_size, distance=self._distance)},
-                    sparse_vectors_config={"bm25_sparse_vector": models.SparseVectorParams(modifier=models.Modifier.IDF)},
+                    sparse_vectors_config={
+                        "bm25_sparse_vector": models.SparseVectorParams(
+                            modifier=models.Modifier.IDF,
+                            index=models.SparseIndexParams(on_disk=True),
+                        )
+                    },
                     hnsw_config=hnsw_config,
                     optimizers_config=optimizers_config,
                     wal_config=wal_config,
                     )
+                self._collection_ready = True
 
             except Exception as exc:
                 raise VectorCollectionError("Failed to ensure Qdrant collection") from exc

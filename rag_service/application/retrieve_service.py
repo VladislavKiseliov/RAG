@@ -165,7 +165,7 @@ class RetrieveService:
             }
 
         # 4. Извлекаем ID родительских чанков для загрузки из БД
-        requested_parent_ids = [key for key in group_hits.keys()]
+        requested_parent_ids = [uuid.UUID(key) for key in group_hits.keys()]
 
         # 5. Загружаем полные данные родителей
         parent_chunks = await self._document_service.get_parent_chunks(
@@ -188,8 +188,9 @@ class RetrieveService:
         """Execute a multi-query retrieval pipeline using a single Qdrant batch request.
 
         Embeds all queries in one models call, sends a single batch request to
-        Qdrant, then deduplicates results by (doc_id, parent_id) keeping the
-        highest-scoring child hit per parent block.
+        Qdrant, then deduplicates results by parent_id (globally unique primary
+        key of parent_chunks, not scoped per document) keeping the highest-scoring
+        child hit per parent block.
 
         Each result item contains a child chunk (focused hit) and its parent
         chunk text (context window) loaded from Postgres.
@@ -211,8 +212,8 @@ class RetrieveService:
             top_k=top_k,
         )
 
-        # Flatten + дедупликация по (doc_id, parent_id), оставляем лучший score
-        seen: dict[tuple[str, str], dict] = {}
+        # Flatten + дедупликация по parent_id (глобально уникальный PK, не составной), оставляем лучший score
+        seen: dict[str, dict] = {}
         for hits in batch_hits:
             group_hits = group_hits_by_parent(hits)
             for key, group in group_hits.items():
@@ -226,7 +227,7 @@ class RetrieveService:
         if not seen:
             return {"items": [], "total": 0}
 
-        requested_parent_ids = list(seen.keys())
+        requested_parent_ids = [uuid.UUID(key) for key in seen.keys()]
         parent_chunks = await self._document_service.get_parent_chunks(requested_parent_ids)
 
         result = build_retrieved_items(group_hits=seen, parent_chunks=parent_chunks)

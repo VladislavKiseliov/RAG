@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import  Optional
 
@@ -72,16 +73,19 @@ def _build_knowledge_base_storage() -> BucketStorageProvider:
     return KnowledgeBaseStorageService(store=_build_s3_store())
 
 v_indexing_service: Optional[VectorIndexingService] = None
+_v_indexing_service_lock = threading.Lock()
 
 def get_v_indexing_service() -> VectorIndexingService:
     global v_indexing_service
     if v_indexing_service is None:
-        emb_provider = TeiEmbeddingProvider(base_url=settings.tei_url)
-        sparse_provider = BM25EmbeddingService()
-        v_indexing_service = VectorIndexingService(
-            embedding_provider=emb_provider,
-            sparse_provider=sparse_provider,
-        )
+        with _v_indexing_service_lock:
+            if v_indexing_service is None:
+                emb_provider = TeiEmbeddingProvider(base_url=settings.tei_url)
+                sparse_provider = BM25EmbeddingService()
+                v_indexing_service = VectorIndexingService(
+                    embedding_provider=emb_provider,
+                    sparse_provider=sparse_provider,
+                )
     return v_indexing_service
 
 

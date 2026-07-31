@@ -1,26 +1,9 @@
-import enum
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-
-class DocumentStatus(str, enum.Enum):
-    # 1. Начальные этапы
-    PENDING = "pending"  # Запись создана, ждем начала загрузки
-    UPLOAD = "uploading"  # Файл загружен в Хранилище
-
-    # 2. Процессинг
-    PROCESSING = "processing"  # Общий статус (уже есть у тебя)
-    EXTRACTING = "extracting"  # Идет парсинг текста из PDF/файла
-    INDEXING = "indexing"  # Идет генерация эмбеддингов и запись в Qdrant
-    DUPLICATE  = "duplicate" # Дупликат документа
-
-    RETRY = "retry"  # Временная ошибка, задача будет перезапущена Celery
-
-    # 3. Финалы
-    COMPLETED = "completed"  # Все готово, можно искать по документу
-    ERROR = "error"  # Произошла ошибка
+from rag_service.domain.document import DocumentStatus
 
 
 class RetrieveRequest(BaseModel):
@@ -70,6 +53,9 @@ class DocumentSummaryResponse(BaseModel):
     status: str
     created_at: datetime
     chunk_count: int | None = None
+    s3key: str | None = None
+    size: int | None = None
+    has_summary: bool = False
 
 
 class ChapterSummary(BaseModel):
@@ -160,7 +146,7 @@ class BatchDeleteDocumentsResponse(BaseModel):
 class PlaceholderActionResponse(BaseModel):
     status: Literal["not_implemented"]
     action: str
-    detail: str
+    detail: str | None = None
 
 
 class UploadFileResponse(BaseModel):
