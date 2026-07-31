@@ -1,4 +1,5 @@
 
+
 # RAG Service — Issues & Fixes
 
 ## ✅ Исправлено (сессия Docling-рефакторинга)
@@ -64,16 +65,23 @@
 
 ---
 
+## ✅ Исправлено (2026-07-31)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| A1 | `_ensure_collection` вызывался при каждом upsert — лишний `collection_exists()` к Qdrant на каждый документ, даже после того как коллекция уже подтверждена | `QdrantVectorStorage` — флаг `self._collection_ready`, double-checked locking: после первого успешного создания/подтверждения коллекции все следующие вызовы возвращаются сразу, без похода в Qdrant и без lock |
+| A5 | Webhook-токен читался через `os.getenv("MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1")` вместо `pydantic-settings` — нарушение архитектурного соглашения | `RagSettings.minio_notify_webhook_auth_token_1` (`settings.py`), `rag_routes.py::handle_webhook` использует `settings.minio_notify_webhook_auth_token_1`; неиспользуемый `import os` убран |
+| A6 | Глобальный синглтон `v_indexing_service` без thread-safety — `if v_indexing_service is None` без lock, race condition при параллельном старте воркеров | `container.py::get_v_indexing_service` — `threading.Lock` + double-checked locking |
+| A7 | Докстринг/тайп-хинт `batch_search()` заявляли ключ дедупликации `(doc_id, parent_id)`, а по факту использовался голый `parent_id` — аннотация врала. Функционально не баг: `parent_id` — глобально уникальный PK `parent_chunks` (не составной с `doc_id`), коллизий между документами быть не может | `application/retrieve_service.py` | 191, 214–217 — докстринг и `seen: dict[str, dict]` приведены в соответствие с реальным поведением, ключ не менялся |
+| A8 | `DocumentStatus` был определён в `api/schemas.py` — `domain/document.py`, `models/models.py`, `application/task_dispatcher_service.py` импортировали доменное понятие из API-слоя, зависимость в обратную сторону от DDD | `DocumentStatus` перенесён в `domain/document.py` (его естественный владелец); `api/schemas.py` реэкспортирует (`from rag_service.domain.document import DocumentStatus`) — внешние импорты не сломаны; `models/models.py` и `task_dispatcher_service.py` переключены на прямой импорт из `domain.document` |
+
+---
+
 ## 🟠 Архитектурные / поведенческие проблемы
 
 | # | Описание | Файл | Строка |
 |---|---|---|---|
-| A1 | `_ensure_collection` вызывается при каждом upsert — лишний `collection_exists()` к Qdrant на каждый документ. ⚠️ Частично смягчено: вызов теперь под `asyncio.Lock` (строка 78/295) — race condition из исходного описания устранена, но сам round-trip `collection_exists()` на каждый upsert остаётся | `infrastructures/repositories/qdrant_vector_storage.py` | вызов 104, def 294 |
-| A9 | **OOM при инжекте:** `bm25_sparse_vector` строит инвертированный индекс в RAM → Qdrant крашится и обрывает соединение. Фикс: добавить `index=models.SparseIndexParams(on_disk=True)` в `SparseVectorParams` при `create_collection`. **Важно:** требует пересоздания коллекции и переиндексации всех документов. | `infrastructures/repositories/qdrant_vector_storage.py` | 332 |
-| A5 | Webhook-токен через `os.getenv` вместо `pydantic-settings` — нарушение архитектурного соглашения | `api/rag_routes.py` | 84 |
-| A6 | Глобальный синглтон `v_indexing_service` без thread-safety — `if v_indexing_service is None` без lock, race condition при параллельном старте воркеров. Файл переехал (`infrastructure.py` → `container.py` в рамках более позднего рефакторинга), баг всё ещё актуален на новом месте | `container.py` | 80–91 |
-| A7 | Ключ дедупликации в `group_hits_by_parent` — только `parent_id`, а не `(doc_id, parent_id)`. Усугубляется тем, что docstring/тайп-хинт `batch_search()` (строки 126, 150) заявляют ключ `(doc_id, parent_id)`, а по факту используется голый `parent_id` — аннотация врёт | `application/retrieve_service.py` | 217 |
-| A8 | `DocumentStatus` определён в `api/schemas.py` — импортируют напрямую `domain/document.py`, `models/models.py`, `application/task_dispatcher_service.py` | `api/schemas.py` | 8–23 |
+| A9 | **OOM при инжекте:** `bm25_sparse_vector` строит инвертированный индекс в RAM → Qdrant крашится и обрывает соединение. ⚠️ Частично исправлено 2026-07-31: `index=models.SparseIndexParams(on_disk=True)` добавлен в `SparseVectorParams` при `create_collection` — действует только на **новые** коллекции (`_ensure_collection` не трогает уже существующие). Обе прод-коллекции (`rag_documents_collection_with_sparse_vector`, `notes_collection_with_sparse_vector`) уже созданы со старой схемой — OOM-риск для них остаётся, пока кто-то не пересоздаст коллекцию и не переиндексирует все документы/заметки. Это дорогая живая операция на проде — не запускать без отдельного явного разрешения | `infrastructures/repositories/qdrant_vector_storage.py` | 340–349 |
 | A10 | Реструктуризация хранения документов — гибридная архитектура PostgreSQL + MinIO. Детали ниже ⬇️ | — | — |
 | A11 | Обработка сокращений (аббревиатур) — отдельно от таблиц, нужна нормализация/расшифровка перед индексацией и поиском | — | — |
 
@@ -130,30 +138,60 @@
 4. Отправить текст глав в LLM-воркер для асинхронной генерации кратких summary.
 
 **✅ Критерии приемки (Acceptance Criteria) — статус на 2026-07-17**
-- [~] Миграции для 4-х таблиц БД — миграций (Alembic и т.п.) вообще нет, схема живёт только в `models/models.py`. И реализовано только **3 из 4** таблиц: `documents`, `document_chapters`, `document_tables`. `document_meta_sections` не создана — мета-разделы (TOC, аббревиатуры) заливаются в S3 (`ingestion_service.py:379-386`), но без индекса в Postgres.
+- [x] Миграции для 4-х таблиц БД ✅ 2026-07-31 — все 4 таблицы теперь есть: `documents`, `document_chapters`, `document_tables`, `document_meta_sections` (модель + миграция `d8ab6726a58b`, down_revision `660bef991125`). `_store_docling_artifacts` в `ingestion_service.py` теперь собирает и возвращает `meta_section_rows` (раньше грузил только в S3, БД-строки терялись), `_store_structural_data` пишет их через новый `DataBaseDocumentService.add_document_meta_sections`; `delete_structural_data` чистит и эту таблицу при Celery retry. Миграция применена к живой БД (`alembic -n rag upgrade head`, подтверждено `alembic_version_rag` = `d8ab6726a58b`)
 - [x] Настроен клиент MinIO в приложении — `S3StorageRepository` работает; концепция `scratch1/` как локального стейджинга упразднена целиком (пайплайн работает с bytes в памяти, без временных файлов) — критерий выполнен по духу, не буквально.
 - [x] Пайплайн парсинга завершается успешным Bulk Insert в Postgres и Upload в MinIO — подтверждено (`ingestion_service.py:284-297`, `_store_docling_artifacts`).
 - [x] При удалении документа из `documents` через каскад стираются все связанные строки — подтверждено, `ondelete="CASCADE"` + `cascade="all, delete-orphan"` на всех child-таблицах (`models/models.py:47-61,76,100,122`).
 - [x] `document_chapters.summary` ✅ 2026-07-21 — теперь заполняется реальным LLM-саммари (`POST /llm/chapter-summary`, синтез документа через `POST /llm/document-summary`), плюс новая колонка `documents.summary` (миграция `447772e59ca2`). Ручной ре-триггер — `POST /documents/{doc_id}/summarize`. Подробности — `TODO.md`, раздел «Саммари документов и глав»
-- [ ] `document_tables.summary` — по-прежнему не реализовано (только главы/документ, не таблицы)
-- [ ] `document_meta_sections` — таблица по-прежнему не создана
+- [x] `document_tables.summary` ✅ 2026-07-31 — колонка добавлена (миграция `a4f7289b065b`, применена), заполняется через новый `POST /llm/table-summary` в `summarize_document_chapters_task` (`rag_service/workers/task.py`). Дополнительно: то же саммари эмбеддится и упсертится в Qdrant отдельной точкой (`_index_table_summary`) поверх маркера `[→ Таблица N]` — раньше содержимое таблиц было невидимо для семантического поиска (в parent_chunk главы лежал только нерасшифрованный маркер), теперь запрос по данным из таблицы может смэтчиться на её саммари напрямую; `retrieve_service.py` не менялся — маркер разворачивается уже существующим `_resolve_tables_in_items`. **Живой прогон выполнен** 2026-07-31 на реальном документе (СТО Газпром, 8 таблиц) через `/documents/retrieve`: запрос про содержимое таблицы, не упомянутое в окружающем тексте главы, находит именно её саммари (top score) и возвращает уже развёрнутую в Markdown таблицу. По ходу прогона найден и исправлен баг: LLM на плотной 9-строчной таблице выдавала саммари ~2000 символов, TEI отклонял его по лимиту токенов (`413 Payload Too Large`) без обработки исключения — это роняло всю Celery-таску и блокировало обработку остальных таблиц документа. Исправлено: промпт (`table_summary_system_prompt`) больше не требует построчного перечисления, `_index_table_summary` обёрнут в try/except (best-effort, как остальной пайплайн) + защитный обрез эмбеддируемого текста до `_MAX_TABLE_SUMMARY_EMBED_CHARS=1500`
 
 ---
 
-## 🟡 Типы / стиль / неточности
+## ✅ Исправлено (2026-07-31, T-серия)
 
-| # | Описание | Файл | Строка |
-|---|---|---|---|
-| T2 | Deprecated: `List`, `Dict` вместо `list`, `dict` из built-ins | `application/ingestion_service.py` | 9 |
-| T6 | Misleading переменная `existing_by_name` — проверка идёт по `doc_id`, а не по имени | `application/document_service.py` | ~125 |
-| T7 | Аннотация `status: str` вместо `status: DocumentStatus` | `application/document_service.py` | ~57 |
-| T8 | `requested_parent_ids` — передаются строки, `get_parent_chunks` ожидает `list[uuid.UUID]` | `application/retrieve_service.py` | 105, 164 |
-| T9 | `BatchDeleteDocumentsResponse.failed` — роут собирает `list[dict]`, схема ожидает `list[BatchDeleteErrorItem]` (рантайм не ломается — pydantic коэрсит dict в модель при конструировании) | `api/rag_routes.py:173,188`, `api/schemas.py:127` | — |
-| T11 | `GET /documents` использует write-сервис (`DocServiceDep`) вместо read-only `DocQueryServiceDep` | `api/rag_routes.py` | 125 |
-| T12 | `GET /documents` без `response_model` — схема `DocumentSummaryResponse` есть (`api/schemas.py:66`), но не подключена | `api/rag_routes.py` | 123 |
-| T13 | `PlaceholderActionResponse.detail` — обязательное поле без дефолта (используется только внутри закомментированных роутов D1, поэтому в рантайме не стреляет) | `api/schemas.py` | 133 |
+| # | Было | Как исправлено |
+|---|---|---|
+| T2 | Deprecated: `List`, `Dict` вместо `list`, `dict` из built-ins | `application/ingestion_service.py` — файл уже использует `from __future__ import annotations`, все `List[...]`/`Dict` заменены на `list[...]`/`dict`, `from typing import List, Dict` убран |
+| T6 | Misleading переменная `existing_by_name` — проверка идёт по `doc_id`, а не по имени | `application/document_service.py::create_doc` — переименована в `existing_by_id` |
+| T7 | Аннотация `status: str` вместо `status: DocumentStatus` | `application/document_service.py::update_document_hash_atomically` — параметр типизирован `DocumentStatus`, внутри вызывается `status.value` при передаче в repo-слой (там `status: str` остаётся верным — граница с БД). Метод не имел внешних вызывающих кроме repo-слоя напрямую в тестах — смена типа безопасна |
+
+## ✅ Исправлено (2026-07-31, T-серия продолжение)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| T8 | `requested_parent_ids` передавались строками, `get_parent_chunks`/`get_parents_by_ids` типизированы `list[uuid.UUID]` (работало только за счёт bind-процессора SQLAlchemy для UUID-колонки) | `application/retrieve_service.py::search`/`batch_search` — `requested_parent_ids = [uuid.UUID(key) for key in ...]`, тип совпадает с уже объявленной сигнатурой репозитория/сервиса |
+| T9 | `BatchDeleteDocumentsResponse.failed` — роут собирал `list[dict]`, схема ожидает `list[BatchDeleteErrorItem]` (рантайм не ломался — pydantic коэрсил dict в модель при конструировании) | `api/rag_routes.py::batch_delete_documents` — `failed: list[BatchDeleteErrorItem]`, оба `.append(...)` строят реальные модели вместо dict |
+
+## ✅ Исправлено (2026-07-31, T-серия завершение)
+
+| # | Было | Как исправлено |
+|---|---|---|
+| T11 | `GET /documents` использовал write-сервис (`DocServiceDep`) вместо read-only `DocQueryServiceDep` | `api/rag_routes.py::list_documents` переключён на `DocQueryServiceDep` (`DocumentQueryService.list_documents` — идентичная сигнатура); неиспользуемый импорт `DocServiceDep` убран |
+| T12 | `GET /documents` без `response_model` — схема `DocumentSummaryResponse` была неполной (не покрывала `s3key`/`size`/`has_summary`, которые роут реально отдавал и которые читает админ-панель фронта, `useAdmin.js:22,24`) | `DocumentSummaryResponse` дополнена полями `s3key`/`size`/`has_summary`, роут навешивает `response_model=list[DocumentSummaryResponse]` и строит модели явно вместо сырых dict — сначала расширил схему под реальный контракт, чтобы не отфильтровать поля, которые ест фронт |
+| T13 | `PlaceholderActionResponse.detail` — обязательное поле без дефолта (используется только внутри закомментированных роутов D1) — раскомментировать было бы нельзя без `ValidationError` | `detail: str \| None = None` |
 
 Всё найденное внешним код-ревью 2026-07-21 (лично перепроверено `grep`/прямым чтением файлов) закрыто 2026-07-22: rag_service-часть — T14–T16 (см. таблицу «Исправлено (2026-07-22)» выше); часть по другим сервисам, у которых нет своего ISSUES.md — `llm_service`: `retrieval_service.py` теперь держит один переиспользуемый `httpx.AsyncClient` вместо нового на каждый запрос (закрывается в `main.py::lifespan`), задвоенный `MLQueryRouter` в `query_service.py` удалён (мёртвый код), опечатка `row_query` → `raw_query`; `backend`: `auth_handler.decode_token` докстринг/тайп-хинт приведены в соответствие с реальным поведением (возвращает `dict`, кидает исключения, никогда не возвращает `None`), `ConversationService.update_summary` теперь сериализуется per-chat `asyncio.Lock`, чтобы два параллельных пересечения `SUMMARY_THRESHOLD` не гонялись за перезаписью `chat.summary`. Плюс `.idea/` untracked из git (`git rm --cached`, файлы на диске остались, изменение застейджено).
+
+---
+
+## ✅ Исправлено (2026-07-31, аудит безопасности/архитектуры)
+
+Полный аудит rag_service на несоответствия/дубли/архитектуру/безопасность. Найденное вне таблицы ниже (не исправлено, только залогировано) — см. открытые A/T-пункты дальше в файле.
+
+| # | Было | Как исправлено |
+|---|---|---|
+| A13 | 🔴 **Критично.** `location /documents/` в `nginx/nginx.conf` проксировал на `rag_service:8001` без единой проверки авторизации — все роуты кроме вебхука (`retrieve`, `batch-delete`, `DELETE /documents/{id}`, `reindex`, `summarize`, `ingest/upload-link`, листинг) были доступны из интернета без токена/сессии. Реальный (защищённый) путь — через `backend/admin_routes.py` (`Depends(require_admin_user)`) по внутренней докер-сети; фронтенд никогда не звал `/documents/` напрямую; вебхук MinIO бьёт в rag_service напрямую по внутренней сети, не через nginx | `location /documents/` убран из `nginx/nginx.conf` целиком — проверено, ничего легитимного не сломалось (`/admin/documents` по-прежнему 401 без токена, `/documents/retrieve` теперь 404 — падает на catch-all фронтенда, не долетает до rag_service) |
+| B11 | Ручной триггер `POST /documents/{doc_id}/summarize` (кнопка «✎ Пересобрать саммари» в админке) проверял тот же `ENABLE_DOCUMENT_SUMMARIZATION`, что и авто-запуск после ingest — при выключенном флаге отвечал `202 "queued"`, но тихо ничего не делал. Флаг задуман для авто-триггера (не тратить LLM на каждый документ), а не как killswitch для осознанного ручного вызова | `task_dispatcher_service.py::dispatch_summarization` — проверка флага убрана, ручной вызов всегда диспатчит таску; заодно убран осиротевший импорт `settings`/`logging` |
+| — | `POST /internal/notes/{id}/index-complete` (колбэк rag_service → backend по завершении индексации заметки) не проверял вообще ничего — доверял голому происхождению из докер-сети | Добавлен `INTERNAL_WEBHOOK_TOKEN` (тот же паттерн, что у `MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1`) — `backend/api/notes_routes.py::index_complete` проверяет `Authorization: Bearer`, `rag_service/workers/task.py::_notify_backend_index_complete` его шлёт. Заодно закрыт `httpx.Client(...).post(...)` без `with`/`.close()` в той же функции — тёк сокет на каждый note-index |
+| A14 | `get_docling_conversion_provider` — тот же незащищённый lazy-singleton (`global x; if x is None: x = ...`), что A6 чинил в `container.py::get_v_indexing_service`. Безопасно под Celery prefork (отдельные процессы), но всплыло бы при переходе на `--pool=threads/eventlet/gevent` | `worker_container.py::get_docling_conversion_provider` — тот же `threading.Lock` + double-checked locking, что и A6 |
+| A15 | Qdrant payload точки саммари таблицы (`_index_table_summary`) содержал только `headers={"title": "Таблица N"}` — в отличие от точек глав (`headers={"chapter_number", "title"}`) не было структурного `table_index`, нельзя было фильтровать по номеру таблицы напрямую в Qdrant | `workers/task.py::_index_table_summary` — `headers={"title": ..., "table_index": table_index}` |
+| T17 | Сравнение вебхук-токена не constant-time (`token != settings.minio_notify_webhook_auth_token_1`) — таймингового side-channel на единственный реальный секрет, который сервис проверяет | `api/rag_routes.py::handle_webhook` — `hmac.compare_digest`; заодно тот же фикс в новом `backend/api/notes_routes.py::index_complete` (появился в этой же сессии, тот же антипаттерн) |
+| T18 | `s3key = f"{doc_id}/{filename}"` строился из сырого имени файла клиента — `_sanitize_filename` применялся только к значению для колонки `documents.filename`, но не к тому, что уже попало в `s3key`. Плоское S3-пространство ключей — не traversal, но display-имя и реальный MinIO-ключ могли разойтись для имён с `/`/`..` | `_sanitize_filename` перенесена из `application/document_service.py` в `domain/document.py` (правильный DDD-слой — её там и не хватало), `IngestionDocument.create_new` санитизирует ДО построения `s3key`, теперь бросает `UploadValidationError` (400) вместо голого `ValueError` (раньше падало бы в общий 500) |
+| T19 | `hf_embedding_provider.py` читал `EMBEDDING_MODEL_NAME`/`HF_TOKEN` через голый `os.getenv()` — тот же антипаттерн, что A5 чинил для вебхук-токена через pydantic-settings. Подтверждено неиспользуемым (мёртвый код), но мина на будущее, если модуль снова подключат | `os.getenv`-фолбэк убран, `model`/`token` — обязательные параметры конструктора; единственный (мёртвый) caller уже передавал их явно |
+| T20 | `_summarize_chapter`/`_summarize_document`/`_summarize_table` — три идентичных копии `async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=5.0))` + `except httpx.HTTPError: log+return None`, различались только URL/payload/ключом ответа | Сведены в общий `_post_summary_request(path, payload, *, log_label)`, три функции — тонкие обёртки |
+| T21 | Мёртвая defensive-ветка `status=d.status.value if hasattr(d.status, "value") else str(d.status)`, задвоена в двух местах — `DocumentListItemDTO.status` это `Mapped[str]`/`String(32)`, не SQLAlchemy `Enum`, ORM всегда отдаёт `str`, `.value`-ветка никогда не срабатывала | `api/rag_routes.py:167,257` — упрощено до `status=d.status`/`status=doc.status` |
+| T22 | `IngestionService.process_document` — ветка `ValueError/InvalidIngestionStateError` и финальная `except Exception` вручную повторяли одни и те же три строки (`doc.fail()`, `update_document(status=...)`, `_schedule_delayed_cleanup(doc_id)`) | Вынесены в общий `_fail_document(doc, doc_id)`, обе ветки его вызывают |
+| T23 | `dispatch_reindexing` (единственный из трёх методов `TaskDispatcherService`, осознанно пропускающий проверку `status == PENDING` — см. докстринг) не был покрыт тестами вообще | Два новых теста в `test_task_dispatcher_service.py`: диспатч для уже `COMPLETED` документа (доказывает, что PENDING-гейт правда не применяется), `DocumentNotFound` для неизвестного `doc_id` |
 
 ---
 
@@ -167,3 +205,4 @@
 | D8 | `RequestLoggingMiddleware` — оба ветки `dispatch()` просто вызывают `call_next` и возвращают результат, ничего не логируют и не замеряют. Название вводит в заблуждение — выглядит как логирование запросов, по факту no-op прогонка через лишний слой `BaseHTTPMiddleware` на каждый запрос | `main.py` | 23–29 |
 | D9 | Dev-скретчи не на своём месте в тестовой директории — `server_docling.py`, `rag_core_test/ChunkingEngine.py`, `rag_core_test/chunking.py` не являются тестами (сам файл переименован при исправлении T16, но местоположение/статус мёртвого кода не менялись) | `tests/` | — |
 | D10 | Корневой (не `rag_service/tests/`) `tests/test_chinking_engine.py` — импортирует `ChinkingEngine` из `rag_service.workers.ingestion_service`, которого не существует (модуль удалён в рамках Docling-рефакторинга, остался только stale `.pyc` в `__pycache__`). Файл вдобавок содержит синтаксическую ошибку (`engine.process_document(,` — незакрытый вызов) — упадёт на импорте/парсинге, не только на логике. Найдено случайно при проверке T16 (похожее имя, другой модуль), не исправлялось — не было в скоупе сессии | `tests/test_chinking_engine.py` | 3, 18 |
+| D11 | Ещё 4 stale тест-файла, найденные при прогоне полного `pytest rag_service/tests` 2026-07-31 (раньше гонялись только точечные подсеты, не весь сьют разом): `test_ingestion_service.py` импортирует несуществующий `rag_service.workers.ingestion_service` (тот же модуль, что D10, другой файл); `test_vector_indexing_service.py`/`test_s3/test_s3_storage.py` собирают `VectorIndexingService`/`S3StorageRepository` со старыми сигнатурами конструктора (`vector_provider`/`embedding_batch_size`, `endpoint_url` — ни один параметр не совпадает с текущими); `test_integration_document_orchestrator.py`/`test_integration_upload_webhook_flow.py` падают на setup по той же причине, что и test_integration_database_document_service.py (см. B/T-заметки про тестовую БД — `Base.metadata.create_all` не добавляет колонки в уже существующие таблицы устаревшей тестовой схемы). Не чинилось — не в скоупе сессии, только зафиксировано | `tests/test_ingestion_service.py`, `tests/test_vector_indexing_service.py`, `tests/test_s3/test_s3_storage.py`, `tests/test_integration_document_orchestrator.py`, `tests/test_integration_upload_webhook_flow.py` | — |
