@@ -1,13 +1,11 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-# Docling грузит torch/CUDA - этот модуль импортируется только rag_service.workers.task
-# (Celery-воркер, тяжёлый образ, Dockerfile stage `worker`). rag_service.container -
-# лёгкий и используется API (stage `base`), сюда его импорты добавлять нельзя.
 from docling.datamodel.accelerator_options import AcceleratorDevice
 
 from rag_service.application.docling_pipeline import DocumentConversionPipeline
@@ -42,21 +40,29 @@ class WorkerContainer:
 
 
 docling_conversion_provider: Optional[PdfConversionProvider] = None
+_docling_conversion_provider_lock = threading.Lock()
 
 
 def get_docling_conversion_provider() -> PdfConversionProvider:
-    """Синглтон: Docling грузит OCR-модели при инициализации, пересоздавать на каждую задачу дорого."""
+    """Синглтон: Docling грузит OCR-модели при инициализации, пересоздавать на каждую задачу дорого.
+
+    Безопасно под текущим Celery prefork pool (отдельные процессы, не делят этот global),
+    но double-checked locking на случай перехода на threads/eventlet/gevent — тот же паттерн,
+    что get_v_indexing_service в container.py (см. A6 в ISSUES.md).
+    """
     global docling_conversion_provider
     if docling_conversion_provider is None:
-        docling_conversion_provider = DoclingConversionRepository(
-            num_threads=settings.docling_num_threads,
-            device=AcceleratorDevice(settings.docling_device),
-            ocr_batch_size=settings.docling_ocr_batch_size,
-            layout_batch_size=settings.docling_layout_batch_size,
-            table_batch_size=settings.docling_table_batch_size,
-            queue_max_size=settings.docling_queue_max_size,
-            artifacts_path=settings.docling_artifacts_path,
-        )
+        with _docling_conversion_provider_lock:
+            if docling_conversion_provider is None:
+                docling_conversion_provider = DoclingConversionRepository(
+                    num_threads=settings.docling_num_threads,
+                    device=AcceleratorDevice(settings.docling_device),
+                    ocr_batch_size=settings.docling_ocr_batch_size,
+                    layout_batch_size=settings.docling_layout_batch_size,
+                    table_batch_size=settings.docling_table_batch_size,
+                    queue_max_size=settings.docling_queue_max_size,
+                    artifacts_path=settings.docling_artifacts_path,
+                )
     return docling_conversion_provider
 
 

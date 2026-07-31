@@ -73,10 +73,12 @@ class RagSettings(BaseSettings):
     qdrant_path: str = "./qdrant_storage"    # QDRANT_PATH
     redis_url: str = "redis://localhost:6379/0"  # REDIS_URL
     backend_internal_url: str = "http://backend:8000"  # BACKEND_INTERNAL_URL — колбэк по завершении индексации заметки
+    internal_webhook_token: str  # INTERNAL_WEBHOOK_TOKEN — тот же токен, что backend ждёт на /internal/notes/{id}/index-complete
     llm_service_url: str = "http://llm-service:8002"  # LLM_SERVICE_URL — саммари глав отдельной Celery-таской после индексации
     enable_document_summarization: bool = True  # ENABLE_DOCUMENT_SUMMARIZATION — временный выключатель:
     # на время массовой переиндексации (смена эмбеддера) не тратить LLM-вызовы на саммари каждого документа.
-    # Гасит и авто-триггер после ingest (workers/task.py), и ручной POST /documents/{id}/summarize.
+    # Гасит только авто-триггер после ingest (workers/task.py) — ручной POST /documents/{id}/summarize
+    # всегда работает, флаг про него не спрашивают (см. task_dispatcher_service.py::dispatch_summarization).
     max_context_chars: int = 12000
     vector_timeout_seconds: float = 600.0
 
@@ -104,6 +106,7 @@ class RagSettings(BaseSettings):
     minio_access_key: str
     minio_secret_key: str
     minio_secure: bool
+    minio_notify_webhook_auth_token_1: str  # MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1
 
     # MinIO buckets (по доменам)
     minio_bucket_knowledge_base: str
