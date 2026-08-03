@@ -39,7 +39,6 @@ class UserTypingSchema(BaseModel):
 
 class AddUserToChatSchema(BaseModel):
     chat_guid: str  # used for websocket communication
-    chat_id: int
 
 
 class NotifyChatRemovedSchema(BaseModel):

@@ -81,6 +81,23 @@ class ChatRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_chat_by_guid_for_participant(self, chat_guid: uuid.UUID, user_id: int) -> Chats | None:
+        """Как get_chat_by_guid, но только если user_id — участник чата.
+
+        Использовать вместо get_chat_by_guid везде, где chat_guid приходит от клиента
+        и нужно вернуть чат конкретному пользователю (не просто проверить, что чат
+        существует) — иначе любой аутентифицированный пользователь, узнавший чужой
+        chat_guid, читает/пишет в чужой чат (см. ConversationService).
+        """
+        stmt = (
+            select(Chats)
+            .join(chat_participant, Chats.id == chat_participant.c.chat_id)
+            .where(Chats.guid == chat_guid)
+            .where(chat_participant.c.user_id == user_id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_chat_id_by_guid(self, chat_guid: uuid.UUID) -> int | None:
         query = select(Chats.id).where(Chats.guid == chat_guid)
         result = await self._session.execute(query)

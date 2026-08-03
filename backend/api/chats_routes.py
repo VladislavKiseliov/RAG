@@ -58,12 +58,16 @@ async def chat_endpoint(
     )
 
 
-async def _validate_stream_chat_exists(chat_guid: uuid.UUID, service: ConversationServiceDep) -> None:
+async def _validate_stream_chat_exists(
+        chat_guid: uuid.UUID,
+        current_user: CurrentUserDep,
+        service: ConversationServiceDep,
+) -> None:
     """`Depends`, не параметр эндпоинта - резолвится ДО тела chat_endpoint_stream. Тот сам
     стал async-генератором (см. комментарий там), поэтому ChatNotFoundError нужно ловить
     здесь, а не внутри его тела, иначе исключение всплывёт только на первой итерации,
     когда EventSourceResponse уже отдал 200 и заголовки не переписать."""
-    await service.ensure_chat_exists(chat_guid)
+    await service.ensure_chat_exists(chat_guid, current_user.id)
 
 
 @router.post(

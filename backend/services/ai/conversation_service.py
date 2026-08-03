@@ -61,10 +61,10 @@ class ConversationService:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
-    async def get_context_chat(self, chat_guid: UUID) -> Dict[str, Any]:
+    async def get_context_chat(self, chat_guid: UUID, user_id: int) -> Dict[str, Any]:
         async with self._sf() as session:
             async with session.begin():
-                chat = await ChatRepository(session).get_chat_by_guid(chat_guid)
+                chat = await ChatRepository(session).get_chat_by_guid_for_participant(chat_guid, user_id)
                 if chat is None:
                     raise ChatNotFoundError()
                 messages = await MessageRepository(session).get_recent(chat.id, limit=HISTORY_WINDOW)
@@ -111,7 +111,7 @@ class ConversationService:
 
     async def process_message(self, user_id: int, chat_guid: UUID, content: str) -> Dict:
         async with self._sf() as session:
-            chat = await ChatRepository(session).get_chat_by_guid(chat_guid)
+            chat = await ChatRepository(session).get_chat_by_guid_for_participant(chat_guid, user_id)
             if chat is None:
                 raise ChatNotFoundError()
             short_messages = await MessageRepository(session).get_recent(chat.id, limit=HISTORY_WINDOW)
@@ -143,7 +143,7 @@ class ConversationService:
         self._trigger_summary_in_background(chat_id, summary_link)
         return {"response": assistant_response, "sources": sources}
 
-    async def ensure_chat_exists(self, chat_guid: UUID) -> None:
+    async def ensure_chat_exists(self, chat_guid: UUID, user_id: int) -> None:
         """Отдельная от process_message_stream проверка - нужна как FastAPI-зависимость
         (Depends в chats_routes.py) для стримингового эндпоинта. Тот эндпоинт сам стал
         async-генератором (ради нативного EventSourceResponse - см. agent_routers.py в
@@ -151,7 +151,7 @@ class ConversationService:
         тела всплыл бы только на первой итерации, когда 200 и заголовки уже ушли. Depends
         резолвится ДО вызова тела эндпоинта - здесь исключение ещё становится чистым 404."""
         async with self._sf() as session:
-            chat = await ChatRepository(session).get_chat_by_guid(chat_guid)
+            chat = await ChatRepository(session).get_chat_by_guid_for_participant(chat_guid, user_id)
             if chat is None:
                 raise ChatNotFoundError()
 
@@ -175,7 +175,7 @@ class ConversationService:
         задачи, а не внутри неё - иначе ChatNotFoundError всплывёт только в фоне, когда
         StreamingResponse уже отдал 200 и заголовки не переписать."""
         async with self._sf() as session:
-            chat = await ChatRepository(session).get_chat_by_guid(chat_guid)
+            chat = await ChatRepository(session).get_chat_by_guid_for_participant(chat_guid, user_id)
             if chat is None:
                 raise ChatNotFoundError()
             short_messages = await MessageRepository(session).get_recent(chat.id, limit=HISTORY_WINDOW)

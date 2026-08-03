@@ -31,7 +31,7 @@ async def new_message_handler(
     chat_guid = str(message_schema.chat_guid)
 
     try:
-        chat_id, is_new_chat = await message_service.resolve_chat(chat_guid, chats)
+        chat_id, is_new_chat = await message_service.resolve_chat(chat_guid, chats, current_user.id)
     except ChatNotFoundError:
         await socket_manager.send_error("Chat has not been added", websocket)
         return
@@ -116,7 +116,7 @@ async def user_typing_handler(
     chat_guid = str(user_typing_schema.chat_guid)
 
     try:
-        chat_id, _ = await message_service.resolve_chat(chat_guid, chats)
+        chat_id, _ = await message_service.resolve_chat(chat_guid, chats, current_user.id)
     except ChatNotFoundError:
         await socket_manager.send_error(f"Chat {chat_guid} does not exist", websocket)
         return
@@ -129,10 +129,17 @@ async def add_user_to_chat_handler(
     socket_manager: WebSocketManager,
     incoming_message: dict,
     chats: dict,
+    current_user: CurrentUser,
+    message_service: MessageService,
     **kwargs,
 ):
     add_user_to_chat_schema = AddUserToChatSchema(**incoming_message)
-    chats[add_user_to_chat_schema.chat_guid] = add_user_to_chat_schema.chat_id
+    chat_guid = add_user_to_chat_schema.chat_guid
+
+    try:
+        await message_service.resolve_chat(chat_guid, chats, current_user.id)
+    except ChatNotFoundError:
+        await socket_manager.send_error(f"Chat {chat_guid} does not exist", websocket)
 
 
 async def chat_deleted_handler(

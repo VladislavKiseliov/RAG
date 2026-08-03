@@ -17,12 +17,15 @@ class MessageService:
     def __init__(self, session_factory: async_sessionmaker):
         self._sf = session_factory
 
-    async def resolve_chat(self, chat_guid: str, chats: dict) -> tuple[int, bool]:
+    async def resolve_chat(self, chat_guid: str, chats: dict, user_id: int) -> tuple[int, bool]:
         if chat_guid in chats:
             return chats[chat_guid], False
 
         async with UnitOfWork(self._sf) as uow:
-            chat_id = await uow.chats.get_chat_id_by_guid(chat_guid)
+            # get_chat_id_for_participant (не get_chat_id_by_guid) — иначе любой
+            # аутентифицированный пользователь, знающий/угадавший chat_guid чужого
+            # чата, резолвил бы его chat_id и писал/читал в этом чате.
+            chat_id = await uow.chats.get_chat_id_for_participant(chat_guid, user_id)
 
         if not chat_id:
             raise ChatNotFoundError(chat_guid)
@@ -46,7 +49,7 @@ class MessageService:
     async def mark_message_read(
         self, message_guid: str, chat_guid: str, chats: dict, user_id: int
     ) -> Messages | None:
-        chat_id, _ = await self.resolve_chat(chat_guid, chats)
+        chat_id, _ = await self.resolve_chat(chat_guid, chats, user_id)
 
         async with UnitOfWork(self._sf) as uow:
             message = await uow.messenger.get_message_by_guid(uuid.UUID(message_guid))
