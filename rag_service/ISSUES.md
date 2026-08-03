@@ -42,7 +42,13 @@
 
 ## 🔴 Баги
 
-Пусто на данный момент — см. «✅ Исправлено» ниже по датам.
+Найдено аудитом безопасности 2026-08-03 (агент-исследование всего проекта), не исправлено:
+
+| # | Было | Файл | Строка |
+|---|---|---|---|
+| B12 | `build_worker_infrastructure()` создаёт новый `AsyncEngine` и новый `AsyncQdrantClient` при каждом вызове; вызывается заново в начале каждой Celery-таски (`ingest_document_task`/`summarize_document_chapters_task`/`index_note_task`) и ни разу не диспозится — в отличие от `main.py`, который закрывает движок API-процесса в `lifespan`. Долгоживущий воркер, обработавший много документов/заметок, копит непровере́дённые до конца соединения/сокеты (SQLAlchemy engine + httpx-клиент внутри `AsyncQdrantClient`) до исчерпания лимита файловых дескрипторов | `worker_container.py::build_worker_infrastructure` (вызовы — `workers/task.py:21,162,233`) | 69 |
+| B13 | Проверка дубликата файла в `_download_and_validate_hashes` — чистый `SELECT` (`get_document_by_hash`), не защищённый от гонки. Атомарный аналог `update_document_hash_atomically` (полагается на `uq_documents_file_hash`) определён, но нигде не вызывается — мёртвый код. Два одновременных инжеста одинакового файла оба проходят `SELECT`, оба гоняют полный Docling-парсинг; проигравший падает на `IntegrityError`, которая не ловится ни одним конкретным except (не `OperationalError`, не `ValueError`) — уходит в общий `except Exception` и помечается `ERROR` вместо чистого `DUPLICATE` с уборкой файла | `application/ingestion_service.py::_download_and_validate_hashes` | 229–236 |
+| B14 | `index_note_task` уведомляет backend о `note_status="error"` уже на первой транзиентной ошибке, до `self.retry()` — притом что до 3 ретраев ещё в запасе и задача обычно проходит со следующей попытки. UI статуса заметки может мелькнуть "error", который через секунды перезаписывается на "indexed" | `workers/task.py` | 238–243 |
 
 ---
 
@@ -81,9 +87,11 @@
 
 | # | Описание | Файл | Строка |
 |---|---|---|---|
-| A9 | **OOM при инжекте:** `bm25_sparse_vector` строит инвертированный индекс в RAM → Qdrant крашится и обрывает соединение. ⚠️ Частично исправлено 2026-07-31: `index=models.SparseIndexParams(on_disk=True)` добавлен в `SparseVectorParams` при `create_collection` — действует только на **новые** коллекции (`_ensure_collection` не трогает уже существующие). Обе прод-коллекции (`rag_documents_collection_with_sparse_vector`, `notes_collection_with_sparse_vector`) уже созданы со старой схемой — OOM-риск для них остаётся, пока кто-то не пересоздаст коллекцию и не переиндексирует все документы/заметки. Это дорогая живая операция на проде — не запускать без отдельного явного разрешения | `infrastructures/repositories/qdrant_vector_storage.py` | 340–349 |
+| A9 | **OOM при инжекте:** `bm25_sparse_vector` строит инвертированный индекс в RAM → Qdrant крашится и обрывает соединение. ⚠️ Частично исправлено 2026-07-31: `index=models.SparseIndexParams(on_disk=True)` добавлен в `SparseVectorParams` при `create_collection` — действует только на **новые** коллекции. ✅ Полностью закрыто 2026-08-03: одноразовый скрипт (`scripts/migrate_sparse_index_on_disk.py`, уже удалён из репозитория за ненадобностью — своё дело сделал) пересоздал обе прод-коллекции (`rag_documents_collection_with_sparse_vector`, `notes_collection_with_sparse_vector`) с `on_disk=True` и переиндексировал все 8 `COMPLETED`-документов через `dispatch_reindexing`. Заметки (1 шт. в статусе `indexed`) скрипт не переиндексировал (rag_service не владеет текстом заметок) — требуется ручной `POST /api/notes/{guid}/index`, ещё не выполнено | `infrastructures/repositories/qdrant_vector_storage.py` | 340–349 |
 | A10 | Реструктуризация хранения документов — гибридная архитектура PostgreSQL + MinIO. Детали ниже ⬇️ | — | — |
-| A11 | Обработка сокращений (аббревиатур) — отдельно от таблиц, нужна нормализация/расшифровка перед индексацией и поиском | — | — |
+| A11 | Обработка сокращений (аббревиатур) — отдельно от таблиц, нужна нормализация/расшифровка перед индексацией и поиском. Живьём подтверждено: "ПНР" в теле документа не матчится на запрос "пусконаладочные работы". Целевая архитектура и урезанный MVP-план — ниже ⬇️ | — | — |
+| A16 | `GET /documents` не ограничивает верхнюю границу `limit`, а `ilike`-фильтр по `filename` передаёт сырую строку в шаблон `%...%` без экранирования `%`/`_` (не SQL-инъекция — параметризовано, просто неограниченный wildcard-запрос). Низкий риск — роут уже за admin-авторизацией backend'а, но при большом корпусе документов может быть дорогим | `api/rag_routes.py`, `infrastructures/repositories/document_repository.py` | 148–152, 138 |
+| A17 | `DocumentOrchestrator.get_file_s3_by_s3key(key)` принимает произвольный ключ без проверки принадлежности вызывающему документу. Сейчас вызывается только с ключами из БД (безопасно), но закомментированный `/admin/storage/files/content?key=...` в том же файле скормил бы туда произвольный ключ, если его когда-нибудь раскомментируют | `application/document_orchestrator.py` | 100–101 |
 
 ---
 
@@ -110,17 +118,18 @@
 
 **📂 1. Структура объектов в MinIO (S3) — бакет `knowledge-base`**
 
-```
-[UUID-документа]/
-├── 125.pdf                  # Исходный оригинал
-├── 125.json / .doctags      # Сырые бэкапы Docling (для репарсинга)
-├── 125.md / 125.txt         # Полные очищенные текстовые форматы
-├── 125_toc.md / _abbrev.md  # Оглавление и словарь сокращений
-├── chapters/
-│   └── chapter_N.md         # Нарезанные файлы глав (основа для RAG)
-└── tables/
-    ├── table_N.csv          # Для скачивания инженерами
-    └── table_N.html         # Для быстрого рендера на фронте
+```mermaid
+flowchart TD
+    ROOT["[UUID-документа]/"]
+    ROOT --> PDF["125.pdf — исходный оригинал"]
+    ROOT --> RAW["125.json / .doctags — сырые бэкапы Docling (для репарсинга)"]
+    ROOT --> TXT["125.md / 125.txt — полные очищенные текстовые форматы"]
+    ROOT --> TOC["125_toc.md / _abbrev.md — оглавление и словарь сокращений"]
+    ROOT --> CHDIR["chapters/"]
+    CHDIR --> CH["chapter_N.md — нарезанные файлы глав (основа для RAG)"]
+    ROOT --> TDIR["tables/"]
+    TDIR --> TCSV["table_N.csv — для скачивания инженерами"]
+    TDIR --> THTML["table_N.html — для быстрого рендера на фронте"]
 ```
 
 **🏛️ 2. Схема таблиц в PostgreSQL (DDL)**
@@ -144,6 +153,112 @@
 - [x] При удалении документа из `documents` через каскад стираются все связанные строки — подтверждено, `ondelete="CASCADE"` + `cascade="all, delete-orphan"` на всех child-таблицах (`models/models.py:47-61,76,100,122`).
 - [x] `document_chapters.summary` ✅ 2026-07-21 — теперь заполняется реальным LLM-саммари (`POST /llm/chapter-summary`, синтез документа через `POST /llm/document-summary`), плюс новая колонка `documents.summary` (миграция `447772e59ca2`). Ручной ре-триггер — `POST /documents/{doc_id}/summarize`. Подробности — `TODO.md`, раздел «Саммари документов и глав»
 - [x] `document_tables.summary` ✅ 2026-07-31 — колонка добавлена (миграция `a4f7289b065b`, применена), заполняется через новый `POST /llm/table-summary` в `summarize_document_chapters_task` (`rag_service/workers/task.py`). Дополнительно: то же саммари эмбеддится и упсертится в Qdrant отдельной точкой (`_index_table_summary`) поверх маркера `[→ Таблица N]` — раньше содержимое таблиц было невидимо для семантического поиска (в parent_chunk главы лежал только нерасшифрованный маркер), теперь запрос по данным из таблицы может смэтчиться на её саммари напрямую; `retrieve_service.py` не менялся — маркер разворачивается уже существующим `_resolve_tables_in_items`. **Живой прогон выполнен** 2026-07-31 на реальном документе (СТО Газпром, 8 таблиц) через `/documents/retrieve`: запрос про содержимое таблицы, не упомянутое в окружающем тексте главы, находит именно её саммари (top score) и возвращает уже развёрнутую в Markdown таблицу. По ходу прогона найден и исправлен баг: LLM на плотной 9-строчной таблице выдавала саммари ~2000 символов, TEI отклонял его по лимиту токенов (`413 Payload Too Large`) без обработки исключения — это роняло всю Celery-таску и блокировало обработку остальных таблиц документа. Исправлено: промпт (`table_summary_system_prompt`) больше не требует построчного перечисления, `_index_table_summary` обёрнут в try/except (best-effort, как остальной пайплайн) + защитный обрез эмбеддируемого текста до `_MAX_TABLE_SUMMARY_EMBED_CHARS=1500`
+
+---
+
+### 📦 A11 — Обработка сокращений/аббревиатур
+
+**Проблема (подтверждена живьём 2026-07-31):** документ в теле использует аббревиатуру
+("ПНР"), пользователь спрашивает полной формой ("пусконаладочные работы") или наоборот —
+эмбеддинг не матчит одно на другое, релевантный чанк не находится. Решение не выбрано,
+ждало отдельного разговора — см. память `table_summary_feature_and_abbreviation_gap`.
+
+Пользователь прислал 2026-08-03 развёрнутую спеку (`SafeQueryExpander` + multi-query
+expansion + канонический запрос для реранкера) как долгосрочный ориентир архитектуры —
+адаптирована ниже под то, что уже есть в коде (не копирую как есть — см. отличия).
+
+**🎯 Целевая архитектура (к чему стремиться, не текущий план)**
+
+```mermaid
+flowchart TD
+    G["Glossary: Postgres<br/>ACRO ↔ list[EXP]"] -->|Redis pub/sub invalidation| IDX["In-memory индекс"]
+    IDX --> DI["Direct Index<br/>CAPS-токены, case-sensitive"]
+    IDX --> II["Inverse Index<br/>Aho-Corasick по леммам"]
+    DI --> MQ["Multi-Query Pack<br/>до 4 вариантов:<br/>оригинал / expanded / inverse / LLM-перефраз"]
+    II --> MQ
+    MQ --> HR["Параллельный hybrid retrieval<br/>по каждому варианту (top-30)"]
+    HR --> FUSE["Кросс-запросное слияние<br/>z-score нормализация по вариантам"]
+    FUSE --> CE["Cross-Encoder reranker<br/>canonical query (аббревиатуры полностью развёрнуты)"]
+```
+
+Ключевые компоненты из спеки: `SafeQueryExpander` (pymorphy3-лемматизация с пропуском
+CAPS-токенов, `ahocorasick` автомат на леммах для обратного поиска "длинная форма →
+аббревиатура", множественные расшифровки на одну аббревиатуру), Celery-таск с
+regex+LLM-валидацией для авто-наполнения словаря при инжесте, Redis pub/sub для
+инвалидации in-memory индекса между процессами.
+
+**Чем целевая архитектура отличается от того, что реально в коде (проверено 2026-08-03):**
+- **DBSF fusion уже есть — но не тот.** `qdrant_vector_storage.py` уже использует нативный
+  `FusionQuery(fusion=Fusion.DBSF)` для слияния dense+sparse **внутри одного запроса**.
+  Функция `dbsf_fusion()` из спеки — про другое: слияние результатов **нескольких разных
+  запросов** (вариантов expansion) через ручную z-score нормализацию в Python. Совпадение
+  названия при разном назначении — источник путаницы, при реализации развести термины.
+- **Сырьё для словаря уже частично собирается.** `MetaSectionExtractor`
+  (`domain/chunking/docling_segmenter.py`) уже вырезает раздел "Сокращения" при инжесте
+  каждого документа и кладёт в `document_meta_sections` (S3 `meta/abbreviations.md`).
+  Проверено на живых данных 2026-08-03: у 2 из 8 документов такой раздел реально есть,
+  формат — `ЕСТД -единая система технической документации ;` построчно. Предложенный в
+  спеке отдельный Celery-таск "с регуляркой + LLM-валидацией по всему корпусу" во многом
+  дублирует то, что уже извлечено — не хватает только парсера этого конкретного формата
+  в пары `(acro, exp)`, не нового пайплайна экстракции.
+- **pymorphy3/ahocorasick — новые зависимости**, ни в одном requirements.txt их нет.
+- **Не решено, где живёт LLM-перефраз варианта запроса** — по конвенции проекта retrieval
+  в rag_service, LLM-вызовы в llm_service; та же нерешённая развилка, что в спеке Фичи 1
+  (AI-аудит опросников, `TODO.md`).
+
+**🟢 Урезанный MVP — Фаза 1 (согласовано 2026-08-03)**
+
+Ключевое решение: **Conditional Multi-Query**, не always-on fan-out. Обычный запрос без
+аббревиатур идёт как сегодня (1 запрос, 0 доп. нагрузки). Только если в запросе найден
+известный CAPS-токен из словаря — генерируются ровно 2 варианта (оригинал + канонический
+развёрнутый), без LLM-перефраза на этой фазе. В реранкер уходит канонический (Q2)
+вариант. Причины отказа от безусловных 4 вариантов: (1) латентность — SSE/nginx уже
+борются за секунды отклика, always-on 4x fan-out + LLM-rewrite — гарантированное узкое
+место; (2) в подавляющем большинстве запросов аббревиатур вообще нет — гонять расширение
+для них чистый оверхед без пользы для recall; (3) найденный баг узкий (ПНР ↔
+пусконаладочные работы) — точечный детерминированный расширитель закрывает его полностью,
+не трогая производительность остальных запросов.
+
+Цель — закрыть ровно найденный баг (ПНР ↔ пусконаладочные работы) минимумом кода, без
+новых тяжёлых зависимостей и без always-on 4x нагрузки на каждый запрос:
+
+1. **Таблица `abbreviations`** (Postgres, rag_kernel): `id`, `acronym`, `expansion`,
+   `doc_id` (источник), уникальность на `(acronym, expansion)` — повторно используем
+   уже дедуплицированный список расшифровок на одну аббревиатуру.
+2. **Парсер уже существующего `abbreviations.md`** — простой regex на формат
+   `АББРЕВИАТУРА -расшифровка ;` (см. живой пример выше), без LLM-валидации и без
+   отдельного скана корпуса. Запускается как шаг после `add_document_meta_sections`
+   для секций `section_type='ABBREVIATIONS'`, либо разовым backfill-скриптом по уже
+   проиндексированным документам.
+3. **Query-time expansion без лемматизации и без Aho-Corasick:** прямой индекс
+   `dict[acronym, list[expansion]]`, case-sensitive поиск CAPS-токенов (`\b[А-ЯA-Z0-9-]{2,}\b`)
+   в запросе. Обратный поиск (длинная форма → аббревиатура) на MVP — простое
+   регистронезависимое совпадение подстроки на точную формулировку расшифровки из
+   словаря (без учёта словоформ) — компромисс осознанный, ловит меньше случаев словоформ,
+   зато без новой зависимости; лемма-based обратный индекс — в целевой архитектуре, не MVP.
+4. **Не всегда 4 варианта — расширение только при найденном совпадении.** Если в запросе
+   нет CAPS-токена/известной аббревиатуры — идёт как сегодня, один запрос, без доп.
+   нагрузки. При совпадении — максимум 2 варианта (оригинал + развёрнутый), без
+   LLM-перефраза (снимает нерешённый вопрос владения на MVP).
+5. **Слияние результатов вариантов — без z-score/новой "DBSF".** Один и тот же
+   эмбеддер/метрика для обоих вариантов — шкалы скоров уже сравнимы, достаточно взять
+   максимум скора на `parent_id` при слиянии (переиспользовать логику дедупликации,
+   уже существующую в `RetrieveService.batch_search`), не городить отдельную
+   z-score-нормализацию ради 2 вариантов.
+6. **Без Redis pub/sub.** Словарь — не более пары сотен строк, держать в памяти процесса
+   с ручной перезагрузкой (или по TTL) вместо pub/sub-инвалидации между процессами —
+   усложнение того не стоит на этом масштабе.
+7. **Оценка — переиспользовать `llm_service/eval`** (E0-харнесс уже есть, признак
+   успеха — рост `hit@5` на вопросах с аббревиатурами), не строить отдельный скрипт замера.
+
+**Открытые вопросы перед стартом реализации:**
+- [ ] Где физически живёт `AbbreviationExpander` — новый application-сервис в
+  `rag_service` рядом с `RetrieveService`, или встраивается прямо в него?
+- [ ] Нужен ли backfill по уже проиндексированным 8 документам сразу, или парсинг
+  запускать только для новых документов вперёд?
+- [ ] Список открытых A11-вопросов пересекается с A10 (`document_meta_sections` уже
+  есть, `MetaSectionExtractor` уже пишет ABBREVIATIONS) — держать A11 отдельно от A10
+  или объединить, раз общая инфраструктура?
 
 ---
 
@@ -205,4 +320,22 @@
 | D8 | `RequestLoggingMiddleware` — оба ветки `dispatch()` просто вызывают `call_next` и возвращают результат, ничего не логируют и не замеряют. Название вводит в заблуждение — выглядит как логирование запросов, по факту no-op прогонка через лишний слой `BaseHTTPMiddleware` на каждый запрос | `main.py` | 23–29 |
 | D9 | Dev-скретчи не на своём месте в тестовой директории — `server_docling.py`, `rag_core_test/ChunkingEngine.py`, `rag_core_test/chunking.py` не являются тестами (сам файл переименован при исправлении T16, но местоположение/статус мёртвого кода не менялись) | `tests/` | — |
 | D10 | Корневой (не `rag_service/tests/`) `tests/test_chinking_engine.py` — импортирует `ChinkingEngine` из `rag_service.workers.ingestion_service`, которого не существует (модуль удалён в рамках Docling-рефакторинга, остался только stale `.pyc` в `__pycache__`). Файл вдобавок содержит синтаксическую ошибку (`engine.process_document(,` — незакрытый вызов) — упадёт на импорте/парсинге, не только на логике. Найдено случайно при проверке T16 (похожее имя, другой модуль), не исправлялось — не было в скоупе сессии | `tests/test_chinking_engine.py` | 3, 18 |
-| D11 | Ещё 4 stale тест-файла, найденные при прогоне полного `pytest rag_service/tests` 2026-07-31 (раньше гонялись только точечные подсеты, не весь сьют разом): `test_ingestion_service.py` импортирует несуществующий `rag_service.workers.ingestion_service` (тот же модуль, что D10, другой файл); `test_vector_indexing_service.py`/`test_s3/test_s3_storage.py` собирают `VectorIndexingService`/`S3StorageRepository` со старыми сигнатурами конструктора (`vector_provider`/`embedding_batch_size`, `endpoint_url` — ни один параметр не совпадает с текущими); `test_integration_document_orchestrator.py`/`test_integration_upload_webhook_flow.py` падают на setup по той же причине, что и test_integration_database_document_service.py (см. B/T-заметки про тестовую БД — `Base.metadata.create_all` не добавляет колонки в уже существующие таблицы устаревшей тестовой схемы). Не чинилось — не в скоупе сессии, только зафиксировано | `tests/test_ingestion_service.py`, `tests/test_vector_indexing_service.py`, `tests/test_s3/test_s3_storage.py`, `tests/test_integration_document_orchestrator.py`, `tests/test_integration_upload_webhook_flow.py` | — |
+
+---
+
+## ✅ Исправлено (2026-08-03)
+
+D11 (было в 🗑️ Мёртвый код) — 5 stale тест-файлов переписаны под текущий контракт, плюс попутно найден и исправлен 6-й с той же болезнью (`test_document_repository.py` — не коллектился вообще из-за отсутствующего `tests/test_db/__init__.py`, поэтому не попадал в прошлый прогон и не был в списке D11):
+
+| Файл | Было | Стало |
+|---|---|---|
+| `tests/test_db/__init__.py` | Отсутствовал — `tests/test_db/` не был Python-пакетом, из-за чего оба файла внутри падали с `ModuleNotFoundError: No module named 'rag_service'` при коллекции (pytest не мог подняться до корня репозитория по цепочке `__init__.py`) | Создан пустой файл-маркер пакета |
+| `test_vector_indexing_service.py` | Тестировал `upsert_points()`/`vector_provider`/`embedding_batch_size` — API, которого в `VectorIndexingService` больше нет | Переписан на `get_sparse_vectors()`/`get_hybrid_vectors()` — единственное, что не покрыто соседним `test_vector_indexing_prefixes.py` (dense-префиксы уже там) |
+| `test_ingestion_service.py` | Импортировал `rag_service.workers.ingestion_service` (модуль удалён, класс переехал в `application/`), конструктор/чанкер не совпадали с текущими | Переписан под `IngestionService(document_service, vector_storage, vector_indexing_service, s3_storage, conversion_pipeline)` и `process_document()`: happy path, отсутствующая строка документа, дубликат по хешу, транзиентная ошибка (перебрасывается, статус остаётся PROCESSING для ретрая Celery), детерминированная ошибка (ERROR) |
+| `test_s3/test_s3_storage.py` | `S3StorageRepository(endpoint_url=..., bucket=...)` — репозиторий давно мульти-бакетный, бакет передаётся в каждый метод | Переписан на `private_endpoint_url`/`public_endpoint_url` + `bucket` per-call против реального MinIO (`test-bucket`); добавлены тесты на `generate_presigned_download_url` (inline-просмотр) и `ensure_bucket()` — новые методы без покрытия |
+| `test_db/test_integration_database_document_service.py` | Фикстура чинила схему точечными `ALTER TABLE`; `update_document()` звали именованными kwargs, которых больше нет (`update_data: dict`) | Фикстура делает `DROP SCHEMA rag_kernel CASCADE` + `create_all` (гарантированно текущая схема вместо патчей); `update_document()` вызывается через `update_data=` |
+| `test_db/test_document_repository.py` | Тот же баг с `update_document()` kwargs, что и в предыдущем файле — не всплывал раньше, потому что файл не коллектился (см. `__init__.py` выше) | Один вызов переведён на `update_data=` |
+| `test_integration_document_orchestrator.py` | `DocumentOrchestrator(s3_storage=S3StorageRepository(...))` — оркестратор теперь ждёт bucket-scoped `BucketStorageProvider`, не сырой мульти-бакетный репозиторий; ключи вида `documents/YYYY/MM/...__hash.ext` (regex), `chunks_total` в `get_document_info` | Локальный `_TestBucketStorage`-адаптер (аналог прод `KnowledgeBaseStorageService`, но на `test-bucket`, не на реальный `knowledge-base`); ключи `{doc_uuid}/{filename}` (T18); убран несуществующий `chunks_total`; `get_list_document` теперь проверяется как берущий `size` из Postgres `file_size`, а не живого `stat()` в S3; добавлен тест на `get_file_url()` (presigned inline-ссылка — новый метод) |
+| `test_integration_upload_webhook_flow.py` | Вебхук проверялся заголовком `X-Minio-Extract-Token` + monkeypatch env — текущий роут проверяет `Authorization: Bearer <token>` через `hmac.compare_digest` против `settings.minio_notify_webhook_auth_token_1` (monkeypatch не подействовал бы — settings синглтон читается один раз при импорте) | Заголовок `Authorization: Bearer {settings.minio_notify_webhook_auth_token_1}`; собран `FastAPI` тест-апп с `register_exception_handlers` (иначе `DuplicateFilenameError`/`WebhookAuthorizationError` улетали бы как голый 500, а не 401/409); добавлены тесты на отсутствующий/неверный токен и на дубликат имени файла |
+
+`rag_service/.env` создан локально для прогона (`MODE=TEST`, отдельная `test_myapp_db`, MinIO `test-bucket`, все хосты — `localhost`, публикуемые порты контейнеров) — не коммитится (`.gitignore`). Полный `pytest rag_service/tests` — 120/120 зелёных.
