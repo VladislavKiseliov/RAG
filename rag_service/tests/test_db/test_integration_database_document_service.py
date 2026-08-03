@@ -7,16 +7,15 @@ service methods work against real models state (not mocks).
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from rag_service.api.schemas import DocumentStatus
 from rag_service.application.document_service import DataBaseDocumentService
-from rag_service.models import Base, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables
+from rag_service.models import Base, DocumentChapters, DocumentListItemDTO, DocumentStatus, DocumentTables, ParentChunks
 from rag_service.settings import settings
 
 
@@ -55,30 +54,19 @@ SEEDED_DOCUMENTS = [
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def engine():
-    """Create engine and normalize schema constraints for service integration tests."""
+    """Create engine against a disposable test schema, rebuilt fresh from current ORM metadata.
+
+    The test DB accumulates schema drift across app versions (`Base.metadata.create_all`
+    only adds missing tables, never missing columns on tables that already exist) - see
+    D11 in rag_service/ISSUES.md. Dropping and recreating `rag_kernel` guarantees the
+    schema always matches the current models, instead of patching individual columns.
+    """
     assert settings.MODE == "TEST", "Integration tests must run with MODE=TEST"
     engine = create_async_engine(settings.DATABASE_URL, future=True)
     async with engine.begin() as conn:
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS rag_kernel"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS rag_kernel CASCADE"))
+        await conn.execute(text("CREATE SCHEMA rag_kernel"))
         await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(
-            text("ALTER TABLE rag_kernel.documents ALTER COLUMN file_hash DROP NOT NULL")
-        )
-        await conn.execute(text("ALTER TABLE rag_kernel.documents DROP CONSTRAINT IF EXISTS ck_documents_status"))
-        await conn.execute(
-            text(
-                "ALTER TABLE rag_kernel.documents "
-                "ALTER COLUMN status TYPE TEXT USING status::text"
-            )
-        )
-        await conn.execute(text("DROP TYPE IF EXISTS rag_kernel.document_status_enum"))
-        await conn.execute(
-            text(
-                "ALTER TABLE rag_kernel.documents "
-                "ADD CONSTRAINT ck_documents_status "
-                "CHECK (status IN ('pending', 'uploading', 'processing', 'extracting', 'indexing', 'completed', 'error'))"
-            )
-        )
     yield engine
     await engine.dispose()
 
@@ -167,9 +155,9 @@ async def test_list_documents_filters_by_status(service: DataBaseDocumentService
     assert all(item.status == "completed" for item in items)
 
 
-async def test_get_document_full_info_returns_chunk_counters(service: DataBaseDocumentService) -> None:
-    """Return full info payload and compute chunks_total fallback from parent_chunks."""
-    target = SEEDED_DOCUMENTS[1]  # processing doc with chunk_count=None and two parent chunks
+async def test_get_document_full_info_returns_chunk_count(service: DataBaseDocumentService) -> None:
+    """Return full info payload with Postgres-stored fields."""
+    target = SEEDED_DOCUMENTS[1]  # processing doc with chunk_count=None
     info = await service.get_document_full_info(target["id"])
     assert info is not None
     assert info["doc_id"] == str(target["id"])
@@ -228,7 +216,7 @@ async def test_update_document_updates_selected_fields(
     service: DataBaseDocumentService,
     session_factory,
 ) -> None:
-    """Update multiple fields and verify persisted values."""
+    """Update multiple fields via the update_data dict and verify persisted values."""
     target = SEEDED_DOCUMENTS[0]["id"]
     new_meta = {"source": "updated", "tag": "after-update"}
     new_key = "documents/2026/04/updated__ffff6666.pdf"
@@ -236,11 +224,13 @@ async def test_update_document_updates_selected_fields(
 
     await service.update_document(
         target,
-        status=DocumentStatus.UPLOAD,
-        metadata=new_meta,
-        chunk_count=9,
-        s3key=new_key,
-        file_hash=new_hash,
+        update_data={
+            "status": DocumentStatus.UPLOAD,
+            "metadata": new_meta,
+            "chunk_count": 9,
+            "s3key": new_key,
+            "file_hash": new_hash,
+        },
     )
 
     async with session_factory() as session:

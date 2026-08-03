@@ -210,11 +210,13 @@ async def test_update_document_updates_multiple_fields(
     doc_id = await _create_document(repo, db_session, created_doc_ids, filename="update.pdf")
     await repo.update_document(
         doc_id,
-        status=DocumentStatus.UPLOAD,
-        metadata={"source": "repo-update"},
-        chunk_count=5,
-        s3key="documents/2026/04/update__11112222.pdf",
-        file_hash="b" * 64,
+        update_data={
+            "status": DocumentStatus.UPLOAD,
+            "metadata": {"source": "repo-update"},
+            "chunk_count": 5,
+            "s3key": "documents/2026/04/update__11112222.pdf",
+            "file_hash": "b" * 64,
+        },
     )
     await db_session.commit()
 

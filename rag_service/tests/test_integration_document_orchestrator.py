@@ -4,18 +4,20 @@ from __future__ import annotations
 
 These tests are intentionally end-to-end at the service boundary and use:
 - a real PostgreSQL test database for document models;
-- a real MinIO bucket for object storage operations;
+- a real MinIO test bucket for object storage operations;
 - a mocked vector storage dependency only where vector deletion is asserted.
 
 Covered scenarios:
 1. Registering a document and generating a presigned upload URL.
 2. Reading file bytes from MinIO via orchestrator.
-3. Listing documents enriched with object size from storage metadata.
+3. Listing documents enriched with the Postgres-stored file size.
 4. Deleting a document across storage, vector layer call, and database row.
+5. Generating a presigned inline-view URL for the original file.
 """
 
 import re
 import uuid
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -32,20 +34,52 @@ from rag_service.settings import settings
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
+TEST_BUCKET = "test-bucket"
+
+
+class _TestBucketStorage:
+    """Bucket-scoped BucketStorageProvider adapter bound to the disposable test
+    bucket, mirroring KnowledgeBaseStorageService without touching the real
+    `knowledge-base` production bucket (see rag_service/ISSUES.md D11)."""
+
+    def __init__(self, store: S3StorageRepository) -> None:
+        self._store = store
+        self._bucket = TEST_BUCKET
+
+    async def upload_file(self, content: bytes, key: str, content_type: str) -> None:
+        await self._store.upload_file(content, key, content_type, bucket=self._bucket)
+
+    async def get_file(self, key: str) -> bytes:
+        return await self._store.get_file(key, bucket=self._bucket)
+
+    async def delete_file(self, key: str) -> None:
+        await self._store.delete_file(key, bucket=self._bucket)
+
+    async def generate_presigned_url(self, key: str, expiration: int = 300) -> str:
+        return await self._store.generate_presigned_url(key, bucket=self._bucket, expiration=expiration)
+
+    async def generate_presigned_download_url(
+        self, key: str, *, expiration: int = 300, filename: str | None = None
+    ) -> str:
+        return await self._store.generate_presigned_download_url(
+            key, bucket=self._bucket, expiration=expiration, filename=filename
+        )
+
+    async def stat(self, key: str) -> dict[str, Any]:
+        return await self._store.stat(key, bucket=self._bucket)
+
+    async def list(self, prefix: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
+        return await self._store.list(bucket=self._bucket, prefix=prefix, limit=limit)
+
+
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def engine():
-    """Create and prepare the async SQLAlchemy engine for integration tests.
-
-    Responsibilities:
-    - enforce ``MODE=TEST`` safety guard;
-    - ensure ``rag_kernel`` schema exists;
-    - create tables from ORM metadata;
-    - align selected columns/constraints used by current orchestrator flow.
-    """
+    """Create engine against a disposable test schema, rebuilt fresh from current ORM metadata."""
     assert settings.MODE == "TEST", "Integration tests must run with MODE=TEST"
     engine = create_async_engine(settings.DATABASE_URL, future=True)
     async with engine.begin() as conn:
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS rag_kernel"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS rag_kernel CASCADE"))
+        await conn.execute(text("CREATE SCHEMA rag_kernel"))
         await conn.run_sync(Base.metadata.create_all)
     yield engine
     await engine.dispose()
@@ -59,23 +93,18 @@ async def session_factory(engine):
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def s3_repository() -> S3StorageRepository:
-    """Build a real MinIO-backed repository and ensure ``test-bucket`` exists.
-
-    The fixture creates the bucket lazily when absent so tests are repeatable
-    across clean local environments.
-    """
+    """Build a real MinIO-backed repository and ensure the disposable test bucket exists."""
     repo = S3StorageRepository(
-        endpoint_url="http://localhost:9000",
+        private_endpoint_url=settings.minio_private_url,
+        public_endpoint_url=settings.minio_public_url,
         access_key=settings.minio_access_key,
         secret_key=settings.minio_secret_key,
-        bucket="test-bucket",
-        secure=False,
     )
     async with repo._get_client() as client:
         buckets = await client.list_buckets()
         names = {b["Name"] for b in buckets.get("Buckets", [])}
-        if repo.bucket not in names:
-            await client.create_bucket(Bucket=repo.bucket)
+        if TEST_BUCKET not in names:
+            await client.create_bucket(Bucket=TEST_BUCKET)
     return repo
 
 
@@ -95,14 +124,12 @@ async def orchestrator(
 ) -> DocumentOrchestrator:
     """Construct ``DocumentOrchestrator`` with real DB/MinIO dependencies.
 
-    Vector storage is mocked to keep tests deterministic and focused on:
-    - orchestration behavior;
-    - models consistency;
-    - storage integration.
+    Vector storage is mocked to keep tests deterministic and focused on
+    orchestration behavior, models consistency, and storage integration.
     """
     db_service = DataBaseDocumentService(session_factory=session_factory)
     return DocumentOrchestrator(
-        s3_storage=s3_repository,
+        s3_storage=_TestBucketStorage(s3_repository),
         vector_storage=vector_storage_mock,
         database=db_service,
     )
@@ -110,11 +137,7 @@ async def orchestrator(
 
 @pytest_asyncio.fixture(scope="function", loop_scope="module")
 async def created_doc_ids():
-    """Track created document IDs and remove them from DB in fixture teardown.
-
-    This keeps integration tests idempotent and avoids long-term data buildup
-    in the test database between runs.
-    """
+    """Track created document IDs and remove them from DB in fixture teardown."""
     ids: list[uuid.UUID] = []
     yield ids
     if not ids:
@@ -130,17 +153,17 @@ async def created_doc_ids():
         await session.commit()
     await engine.dispose()
 
+
 async def test_get_upload_link_persists_document_and_returns_presigned_url(
     orchestrator: DocumentOrchestrator,
     session_factory,
     created_doc_ids: list[uuid.UUID],
 ) -> None:
-    """Ensure ``get_upload_link`` persists DB record and returns valid URL.
+    """Ensure ``get_upload_link`` persists DB record and returns a valid presigned URL.
 
-    Validates:
-    - HTTP-like presigned URL shape;
-    - generated object-key naming convention;
-    - DB models of filename and minio key (column + metadata mirror).
+    The S3 key convention is `{doc_uuid}/{sanitized_filename}` (see
+    IngestionDocument.create_new / T18 in ISSUES.md) - not the older
+    date-bucketed `documents/YYYY/MM/...` layout.
     """
     filename = f"3-{uuid.uuid4()}.pdf"
     file_size = 512
@@ -151,7 +174,7 @@ async def test_get_upload_link_persists_document_and_returns_presigned_url(
     created_doc_ids.append(doc_id)
 
     assert response.presigned_url.startswith("http")
-    assert "documents/" in response.presigned_url
+    assert f"{doc_id}/{filename}" in response.presigned_url
 
     async with session_factory() as session:
         result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
@@ -159,13 +182,9 @@ async def test_get_upload_link_persists_document_and_returns_presigned_url(
 
     assert document is not None
     assert document.filename == filename
-    assert document.s3key is not None
-    assert re.match(
-        r"^documents/\d{4}/\d{2}/[a-z0-9._-]+__[a-f0-9]{8}\.[a-z0-9]+$",
-        document.s3key,
-    )
-    assert isinstance(document.meta, dict)
-    assert document.meta.get("s3key") == document.s3key
+    assert document.s3key == f"{doc_id}/{filename}"
+    assert re.match(r"^[0-9a-f-]+/[a-z0-9._-]+\.pdf$", document.s3key)
+
 
 async def test_get_file_reads_real_object_from_minio(
     orchestrator: DocumentOrchestrator,
@@ -175,48 +194,34 @@ async def test_get_file_reads_real_object_from_minio(
     file_key = f"test_folder/{uuid.uuid4()}.txt"
     content = b"integration-minio-content"
 
-    await s3_repository.upload_file(content=content, key=file_key, content_type="text/plain")
+    await s3_repository.upload_file(content=content, key=file_key, content_type="text/plain", bucket=TEST_BUCKET)
     loaded = await orchestrator.get_file_s3_by_s3key(file_key)
 
     assert loaded == content
 
-    await s3_repository.delete_file(file_key)
+    await s3_repository.delete_file(file_key, TEST_BUCKET)
 
 
-async def test_get_list_document_returns_size_and_status(
+async def test_get_list_document_returns_postgres_stored_size_and_status(
     orchestrator: DocumentOrchestrator,
-    session_factory,
-    s3_repository: S3StorageRepository,
     created_doc_ids: list[uuid.UUID],
 ) -> None:
-    """Ensure ``get_list_document`` returns DB fields and storage-derived size.
-
-    Flow:
-    - create document via orchestrator;
-    - upload real bytes into MinIO under stored key;
-    - verify list output contains status, key, and correct object size.
-    """
+    """get_list_document reports `file_size` as stored in Postgres at creation time
+    (not a live S3 stat() - see DocumentOrchestrator.get_list_document)."""
     filename = f"list-{uuid.uuid4()}.pdf"
-    content = b"list-document-content"
+    file_size = 2048
 
-    response = await orchestrator.get_upload_link(filename=filename, file_size=len(content))
+    response = await orchestrator.get_upload_link(filename=filename, file_size=file_size)
     doc_id = uuid.UUID(response.doc_id)
     created_doc_ids.append(doc_id)
-
-    async with session_factory() as session:
-        result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
-        document = result.scalar_one()
-    assert document.s3key is not None
-
-    await s3_repository.upload_file(content=content, key=document.s3key, content_type="application/pdf")
 
     items = await orchestrator.get_list_document()
     row = next((x for x in items if x["doc_id"] == str(doc_id)), None)
     assert row is not None
     assert row["filename"] == filename
-    assert row["status"] in {"pending", "processing"}
-    assert row["size"] == len(content)
-    assert row["s3key"] == document.s3key
+    assert row["status"] == "pending"
+    assert row["size"] == file_size
+    assert row["s3key"] == f"{doc_id}/{filename}"
 
 
 async def test_delete_document_removes_file_vectors_and_db_record(
@@ -225,13 +230,7 @@ async def test_delete_document_removes_file_vectors_and_db_record(
     s3_repository: S3StorageRepository,
     vector_storage_mock: AsyncMock,
 ) -> None:
-    """Ensure ``delete_document`` performs full cleanup across all layers.
-
-    Asserts:
-    - object is removed from MinIO;
-    - document row is removed from PostgreSQL;
-    - vector deletion method is invoked with the target document id.
-    """
+    """Ensure ``delete_document`` performs full cleanup across all layers."""
     filename = f"delete-{uuid.uuid4()}.pdf"
     content = b"delete-document-content"
 
@@ -243,11 +242,11 @@ async def test_delete_document_removes_file_vectors_and_db_record(
         document = result.scalar_one()
     assert document.s3key is not None
 
-    await s3_repository.upload_file(content=content, key=document.s3key, content_type="application/pdf")
-    await orchestrator.delete_document(str(doc_id))
+    await s3_repository.upload_file(content=content, key=document.s3key, content_type="application/pdf", bucket=TEST_BUCKET)
+    await orchestrator.delete_document(doc_id)
 
     with pytest.raises(Exception):
-        await s3_repository.stat(document.s3key)
+        await s3_repository.stat(document.s3key, TEST_BUCKET)
 
     async with session_factory() as session:
         result = await session.execute(select(DocumentListItemDTO).where(DocumentListItemDTO.id == doc_id))
@@ -269,14 +268,12 @@ async def test_get_document_info_returns_full_postgres_payload(
 
     assert info["doc_id"] == str(doc_id)
     assert info["filename"] == filename
-    assert info["status"] in {"pending", "processing"}
+    assert info["status"] == "pending"
     assert info["s3key"] is not None
     assert isinstance(info["meta"], dict)
-    assert info["meta"].get("s3key") == info["s3key"]
     assert "created_at" in info
     assert "updated_at" in info
     assert "chunk_count" in info
-    assert "chunks_total" in info
 
 
 async def test_get_document_info_raises_for_missing_doc(
@@ -285,3 +282,30 @@ async def test_get_document_info_raises_for_missing_doc(
     missing_doc_id = str(uuid.uuid4())
     with pytest.raises(ValueError, match="not found"):
         await orchestrator.get_document_info(missing_doc_id)
+
+
+async def test_get_file_url_returns_presigned_inline_url(
+    orchestrator: DocumentOrchestrator,
+    s3_repository: S3StorageRepository,
+    created_doc_ids: list[uuid.UUID],
+) -> None:
+    filename = f"view-{uuid.uuid4()}.pdf"
+    content = b"inline-view-content"
+    response = await orchestrator.get_upload_link(filename=filename, file_size=len(content))
+    doc_id = uuid.UUID(response.doc_id)
+    created_doc_ids.append(doc_id)
+
+    await s3_repository.upload_file(content=content, key=f"{doc_id}/{filename}", content_type="application/pdf", bucket=TEST_BUCKET)
+
+    url = await orchestrator.get_file_url(doc_id)
+
+    assert url is not None
+    assert "response-content-disposition=inline" in url
+
+    await s3_repository.delete_file(f"{doc_id}/{filename}", TEST_BUCKET)
+
+
+async def test_get_file_url_returns_none_for_missing_doc(
+    orchestrator: DocumentOrchestrator,
+) -> None:
+    assert await orchestrator.get_file_url(uuid.uuid4()) is None

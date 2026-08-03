@@ -1,241 +1,173 @@
-import hashlib
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rag_service.workers.ingestion_service import IngestionResult, IngestionService
+from rag_service.application.ingestion_service import IngestionResult, IngestionService
+from rag_service.domain.chunking.docling_models import Chapter, ParsedDocument
+from rag_service.domain.errors.storage import StorageReadError
+from rag_service.domain.models.vector_point import SparseVectorValue
 from rag_service.models import DocumentStatus
+
+CHAPTER_TEXT = (
+    "Общие положения. Настоящий раздел устанавливает порядок допуска персонала "
+    "к эксплуатации оборудования и правила обращения с инструментом на объекте."
+)
+
+
+def _db_doc(doc_id: uuid.UUID) -> SimpleNamespace:
+    return SimpleNamespace(id=doc_id, filename="manual.pdf", s3key="key.pdf", file_size=9)
 
 
 @pytest.fixture
 def document_service_mock() -> AsyncMock:
     mock = AsyncMock()
-    mock.create_doc = AsyncMock()
-    mock.add_parent_chunks = AsyncMock()
-    mock.set_status = AsyncMock()
+    mock.get_document_by_hash.return_value = None
     return mock
 
 
 @pytest.fixture
-def vector_provider_mock() -> AsyncMock:
-    mock = AsyncMock()
-    mock.delete = AsyncMock()
-    return mock
+def vector_storage_mock() -> AsyncMock:
+    return AsyncMock()
 
 
 @pytest.fixture
 def vector_indexing_service_mock() -> AsyncMock:
     mock = AsyncMock()
-    mock.upsert_points = AsyncMock()
+    mock.get_hybrid_vectors.return_value = ([[0.1, 0.2]], [SparseVectorValue(indices=[1], values=[0.5])])
+    return mock
+
+
+@pytest.fixture
+def s3_storage_mock() -> AsyncMock:
+    mock = AsyncMock()
+    mock.get_file.return_value = b"pdf-bytes"
+    return mock
+
+
+@pytest.fixture
+def conversion_pipeline_mock() -> MagicMock:
+    mock = MagicMock()
+    mock.convert_document.return_value = ParsedDocument(
+        full_markdown="full text",
+        chapters=[Chapter(number="1", title="Общие положения", markdown=CHAPTER_TEXT)],
+        page_count=3,
+    )
     return mock
 
 
 @pytest.fixture
 def ingestion_service(
     document_service_mock: AsyncMock,
-    vector_provider_mock: AsyncMock,
+    vector_storage_mock: AsyncMock,
     vector_indexing_service_mock: AsyncMock,
+    s3_storage_mock: AsyncMock,
+    conversion_pipeline_mock: MagicMock,
 ) -> IngestionService:
     return IngestionService(
         document_service=document_service_mock,
-        vector_provider=vector_provider_mock,
+        vector_storage=vector_storage_mock,
         vector_indexing_service=vector_indexing_service_mock,
-        s3_storage=SimpleNamespace(),
-        vector_timeout_seconds=1.0,
+        s3_storage=s3_storage_mock,
+        conversion_pipeline=conversion_pipeline_mock,
     )
 
 
-def test_calculate_file_hash_returns_sha256_hex() -> None:
-    content = b"hello world"
-    result = IngestionService.calculate_file_hash(content)
-    assert result == hashlib.sha256(content).hexdigest()
-
-
 @pytest.mark.asyncio
-async def test_ingest_path_raises_for_missing_file(ingestion_service: IngestionService) -> None:
-    with pytest.raises(FileNotFoundError):
-        await ingestion_service.ingest_path("D:/missing-file.pdf")
-
-
-@pytest.mark.asyncio
-async def test_ingest_path_raises_for_empty_file(tmp_path, ingestion_service: IngestionService) -> None:
-    file_path = tmp_path / "empty.pdf"
-    file_path.write_bytes(b"")
-
-    with pytest.raises(ValueError, match="Empty file"):
-        await ingestion_service.ingest_path(str(file_path))
-
-
-@pytest.mark.asyncio
-async def test_ingest_path_runs_happy_path(
-    tmp_path,
+async def test_process_document_returns_error_when_document_row_missing(
     ingestion_service: IngestionService,
     document_service_mock: AsyncMock,
+    s3_storage_mock: AsyncMock,
+) -> None:
+    doc_id = uuid.uuid4()
+    document_service_mock.get_document_by_id.return_value = None
+
+    result = await ingestion_service.process_document(doc_id, "key.pdf")
+
+    assert result == IngestionResult(doc_id, DocumentStatus.ERROR)
+    s3_storage_mock.get_file.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_process_document_happy_path_completes_and_indexes(
+    ingestion_service: IngestionService,
+    document_service_mock: AsyncMock,
+    vector_storage_mock: AsyncMock,
     vector_indexing_service_mock: AsyncMock,
+    s3_storage_mock: AsyncMock,
 ) -> None:
-    file_path = tmp_path / "manual.pdf"
-    file_path.write_bytes(b"pdf-bytes")
-    created_id = uuid.uuid4()
-    parent_id = uuid.uuid4()
-    child_id = uuid.uuid4()
+    doc_id = uuid.uuid4()
+    document_service_mock.get_document_by_id.return_value = _db_doc(doc_id)
 
-    document_service_mock.create_doc.return_value = created_id
-    ingestion_service._chunker = MagicMock()
-    ingestion_service._chunker.process.return_value = (
-        [{"id": parent_id, "text": "Parent text", "headers": {"h1": "A"}, "page_num": 1}],
-        [{"id": child_id, "text": "Child text", "parent_id": parent_id, "headers": {"h1": "A"}, "source": str(file_path)}],
-    )
+    result = await ingestion_service.process_document(doc_id, "key.pdf")
 
-    result = await ingestion_service.ingest_path(str(file_path), meta={"source": "test"})
+    assert result == IngestionResult(doc_id, DocumentStatus.COMPLETED)
+    s3_storage_mock.get_file.assert_awaited_once_with("key.pdf")
 
-    assert result == IngestionResult(created_id, DocumentStatus.completed)
-    document_service_mock.create_doc.assert_awaited_once_with(
-        filename="manual.pdf",
-        file_hash=hashlib.sha256(b"pdf-bytes").hexdigest(),
-        meta={"source": "test"},
-        doc_id=None,
-    )
-    document_service_mock.add_parent_chunks.assert_awaited_once_with(created_id, [{"id": parent_id, "text": "Parent text", "headers": {"h1": "A"}, "page_num": 1}])
-    vector_indexing_service_mock.upsert_points.assert_awaited_once()
-    (points_arg,) = vector_indexing_service_mock.upsert_points.await_args.args
-    assert points_arg == [
-        {
-            "id": child_id,
-            "text": "Child text",
-            "payload": {
-                "parent_id": parent_id,
-                "headers": {"h1": "A"},
-                "source": str(file_path),
-                "doc_id": str(created_id),
-            },
-        }
-    ]
-    document_service_mock.set_status.assert_awaited_once_with(created_id, DocumentStatus.completed, chunk_count=1)
+    document_service_mock.add_parent_chunks.assert_awaited_once()
+    parent_chunks = document_service_mock.add_parent_chunks.await_args.args[1]
+    assert len(parent_chunks) == 1
+
+    vector_storage_mock.delete_by_field.assert_awaited_once_with("doc_id", str(doc_id))
+    vector_storage_mock.upsert_vectors.assert_awaited_once()
+    points = vector_storage_mock.upsert_vectors.await_args.args[0]
+    assert len(points) == 1
+    assert points[0].payload["doc_id"] == str(doc_id)
+
+    final_update = document_service_mock.update_document.await_args_list[-1]
+    assert final_update.kwargs["update_data"]["status"] == DocumentStatus.COMPLETED
+    assert final_update.kwargs["update_data"]["chunk_count"] == 1
 
 
 @pytest.mark.asyncio
-async def test_ingest_path_uses_explicit_doc_id(
-    tmp_path,
+async def test_process_document_handles_duplicate_file(
     ingestion_service: IngestionService,
     document_service_mock: AsyncMock,
+    s3_storage_mock: AsyncMock,
 ) -> None:
-    file_path = tmp_path / "manual.pdf"
-    file_path.write_bytes(b"pdf-bytes")
-    explicit_id = uuid.uuid4()
-    document_service_mock.create_doc.return_value = explicit_id
-    ingestion_service._chunker = MagicMock()
-    ingestion_service._chunker.process.return_value = (
-        [{"id": uuid.uuid4(), "text": "Parent text"}],
-        [{"text": "Child text", "parent_id": uuid.uuid4()}],
-    )
+    doc_id = uuid.uuid4()
+    document_service_mock.get_document_by_id.return_value = _db_doc(doc_id)
+    document_service_mock.get_document_by_hash.return_value = SimpleNamespace(id=uuid.uuid4())
 
-    await ingestion_service.ingest_path(str(file_path), doc_id=explicit_id)
+    result = await ingestion_service.process_document(doc_id, "key.pdf")
 
-    document_service_mock.create_doc.assert_awaited_once_with(
-        filename="manual.pdf",
-        file_hash=hashlib.sha256(b"pdf-bytes").hexdigest(),
-        meta=None,
-        doc_id=explicit_id,
-    )
+    assert result == IngestionResult(doc_id, DocumentStatus.DUPLICATE)
+    document_service_mock.delete_document.assert_awaited_once_with(doc_id)
+    s3_storage_mock.delete_file.assert_awaited_once_with("key.pdf")
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_marks_error_when_no_parent_chunks(
+async def test_process_document_reraises_transient_storage_error_for_celery_retry(
     ingestion_service: IngestionService,
     document_service_mock: AsyncMock,
-    vector_indexing_service_mock: AsyncMock,
+    s3_storage_mock: AsyncMock,
 ) -> None:
-    created_id = uuid.uuid4()
-    document_service_mock.create_doc.return_value = created_id
-    ingestion_service._chunker = MagicMock()
-    ingestion_service._chunker.process.return_value = ([], [{"text": "child", "parent_id": uuid.uuid4()}])
+    doc_id = uuid.uuid4()
+    document_service_mock.get_document_by_id.return_value = _db_doc(doc_id)
+    s3_storage_mock.get_file.side_effect = StorageReadError("boom")
 
-    with pytest.raises(ValueError, match="No parent chunks produced"):
-        await ingestion_service._run_pipeline(
-            file_path="file.pdf",
-            filename="file.pdf",
-            file_hash="hash",
-            doc_id=None,
-            meta=None,
-        )
+    with pytest.raises(StorageReadError):
+        await ingestion_service.process_document(doc_id, "key.pdf")
 
-    document_service_mock.add_parent_chunks.assert_not_called()
-    vector_indexing_service_mock.upsert_points.assert_not_called()
-    document_service_mock.set_status.assert_awaited_once_with(created_id, DocumentStatus.error)
+    # Транзиентная инфраструктурная ошибка не помечает документ ERROR/DUPLICATE —
+    # статус остаётся PROCESSING, чтобы Celery мог ретраить с того же места.
+    last_update = document_service_mock.update_document.await_args_list[-1]
+    assert last_update.kwargs["update_data"]["status"] == DocumentStatus.PROCESSING
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_marks_error_when_no_child_chunks(
+async def test_process_document_marks_error_when_extraction_yields_no_chapters(
     ingestion_service: IngestionService,
     document_service_mock: AsyncMock,
-    vector_indexing_service_mock: AsyncMock,
+    conversion_pipeline_mock: MagicMock,
 ) -> None:
-    created_id = uuid.uuid4()
-    document_service_mock.create_doc.return_value = created_id
-    ingestion_service._chunker = MagicMock()
-    ingestion_service._chunker.process.return_value = ([{"id": uuid.uuid4(), "text": "parent"}], [])
+    doc_id = uuid.uuid4()
+    document_service_mock.get_document_by_id.return_value = _db_doc(doc_id)
+    conversion_pipeline_mock.convert_document.return_value = ParsedDocument(full_markdown="", chapters=[])
 
-    with pytest.raises(ValueError, match="No child chunks produced"):
-        await ingestion_service._run_pipeline(
-            file_path="file.pdf",
-            filename="file.pdf",
-            file_hash="hash",
-            doc_id=None,
-            meta=None,
-        )
+    result = await ingestion_service.process_document(doc_id, "key.pdf")
 
-    document_service_mock.add_parent_chunks.assert_not_called()
-    vector_indexing_service_mock.upsert_points.assert_not_called()
-    document_service_mock.set_status.assert_awaited_once_with(created_id, DocumentStatus.error)
-
-
-@pytest.mark.asyncio
-async def test_run_pipeline_marks_error_when_vector_upsert_fails(
-    ingestion_service: IngestionService,
-    document_service_mock: AsyncMock,
-    vector_indexing_service_mock: AsyncMock,
-) -> None:
-    created_id = uuid.uuid4()
-    parent_id = uuid.uuid4()
-    document_service_mock.create_doc.return_value = created_id
-    vector_indexing_service_mock.upsert_points.side_effect = RuntimeError("vector failed")
-    ingestion_service._chunker = MagicMock()
-    ingestion_service._chunker.process.return_value = (
-        [{"id": parent_id, "text": "parent"}],
-        [{"text": "child", "parent_id": parent_id}],
-    )
-
-    with pytest.raises(RuntimeError, match="vector failed"):
-        await ingestion_service._run_pipeline(
-            file_path="file.pdf",
-            filename="file.pdf",
-            file_hash="hash",
-            doc_id=None,
-            meta=None,
-        )
-
-    document_service_mock.add_parent_chunks.assert_awaited_once_with(created_id, [{"id": parent_id, "text": "parent"}])
-    document_service_mock.set_status.assert_awaited_once_with(created_id, DocumentStatus.error)
-
-
-@pytest.mark.asyncio
-async def test_run_pipeline_does_not_mark_error_if_create_doc_fails(
-    ingestion_service: IngestionService,
-    document_service_mock: AsyncMock,
-    vector_indexing_service_mock: AsyncMock,
-) -> None:
-    document_service_mock.create_doc.side_effect = RuntimeError("create failed")
-
-    with pytest.raises(RuntimeError, match="create failed"):
-        await ingestion_service._run_pipeline(
-            file_path="file.pdf",
-            filename="file.pdf",
-            file_hash="hash",
-            doc_id=None,
-            meta=None,
-        )
-
-    vector_indexing_service_mock.upsert_points.assert_not_called()
-    document_service_mock.set_status.assert_not_called()
+    assert result == IngestionResult(doc_id, DocumentStatus.ERROR)
+    last_update = document_service_mock.update_document.await_args_list[-1]
+    assert last_update.kwargs["update_data"]["status"] == DocumentStatus.ERROR

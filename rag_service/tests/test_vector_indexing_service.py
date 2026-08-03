@@ -1,8 +1,17 @@
+"""Тесты sparse- и гибридного пути VectorIndexingService.
+
+Dense/passage-префиксы (embed_queries/embed_passages/get_dense_vectors) уже
+покрыты в test_vector_indexing_prefixes.py — здесь только то, что не
+пересекается: raw sparse-путь (без e5-префиксов) и параллельная сборка
+гибридных векторов через get_hybrid_vectors().
+"""
+
 from unittest.mock import AsyncMock
 
 import pytest
 
 from rag_service.application.vector_indexing_service import VectorIndexingService
+from rag_service.domain.models.vector_point import SparseVectorValue
 
 
 @pytest.fixture
@@ -13,75 +22,69 @@ def embedding_provider_mock() -> AsyncMock:
 
 
 @pytest.fixture
-def vector_provider_mock() -> AsyncMock:
+def sparse_provider_mock() -> AsyncMock:
     mock = AsyncMock()
-    mock.upsert_vectors = AsyncMock()
+    mock.get_sparse_embeddings = AsyncMock()
     return mock
 
 
 @pytest.fixture
-def indexing_service(embedding_provider_mock: AsyncMock, vector_provider_mock: AsyncMock) -> VectorIndexingService:
+def indexing_service(embedding_provider_mock: AsyncMock, sparse_provider_mock: AsyncMock) -> VectorIndexingService:
     return VectorIndexingService(
         embedding_provider=embedding_provider_mock,
-        vector_provider=vector_provider_mock,
-        embedding_batch_size=2,
+        sparse_provider=sparse_provider_mock,
     )
 
 
 @pytest.mark.asyncio
-async def test_upsert_points_returns_for_empty_input(indexing_service: VectorIndexingService, embedding_provider_mock: AsyncMock, vector_provider_mock: AsyncMock) -> None:
-    await indexing_service.upsert_points([])
+async def test_get_sparse_vectors_returns_empty_for_empty_input(
+    indexing_service: VectorIndexingService, sparse_provider_mock: AsyncMock
+) -> None:
+    result = await indexing_service.get_sparse_vectors([])
 
+    assert result == []
+    sparse_provider_mock.get_sparse_embeddings.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_sparse_vectors_delegates_to_sparse_provider_without_prefix(
+    indexing_service: VectorIndexingService, sparse_provider_mock: AsyncMock
+) -> None:
+    expected = [SparseVectorValue(indices=[1, 2], values=[0.1, 0.2])]
+    sparse_provider_mock.get_sparse_embeddings.return_value = expected
+
+    result = await indexing_service.get_sparse_vectors(["давление в системе"])
+
+    sparse_provider_mock.get_sparse_embeddings.assert_awaited_once_with(["давление в системе"])
+    assert result == expected
+
+
+@pytest.mark.asyncio
+async def test_get_hybrid_vectors_returns_passage_prefixed_dense_and_raw_sparse(
+    indexing_service: VectorIndexingService,
+    embedding_provider_mock: AsyncMock,
+    sparse_provider_mock: AsyncMock,
+) -> None:
+    embedding_provider_mock.embed.return_value = [[0.1, 0.2]]
+    sparse_provider_mock.get_sparse_embeddings.return_value = [SparseVectorValue(indices=[1], values=[0.9])]
+
+    dense_vectors, sparse_vectors = await indexing_service.get_hybrid_vectors(["Глава 1. Общие положения"])
+
+    embedding_provider_mock.embed.assert_awaited_once_with(["passage: Глава 1. Общие положения"])
+    sparse_provider_mock.get_sparse_embeddings.assert_awaited_once_with(["Глава 1. Общие положения"])
+    assert dense_vectors == [[0.1, 0.2]]
+    assert sparse_vectors == [SparseVectorValue(indices=[1], values=[0.9])]
+
+
+@pytest.mark.asyncio
+async def test_get_hybrid_vectors_returns_empty_for_empty_input(
+    indexing_service: VectorIndexingService,
+    embedding_provider_mock: AsyncMock,
+    sparse_provider_mock: AsyncMock,
+) -> None:
+    dense_vectors, sparse_vectors = await indexing_service.get_hybrid_vectors([])
+
+    assert dense_vectors == []
+    assert sparse_vectors == []
     embedding_provider_mock.embed.assert_not_called()
-    vector_provider_mock.upsert_vectors.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_upsert_points_raises_for_empty_text(indexing_service: VectorIndexingService) -> None:
-    with pytest.raises(RuntimeError, match="Point text is empty"):
-        await indexing_service.upsert_points([{"text": "   ", "payload": {}}])
-
-
-@pytest.mark.asyncio
-async def test_upsert_points_batches_embeddings_and_upserts_ready_vectors(
-    indexing_service: VectorIndexingService,
-    embedding_provider_mock: AsyncMock,
-    vector_provider_mock: AsyncMock,
-) -> None:
-    embedding_provider_mock.embed.side_effect = [
-        [[0.1, 0.2], [0.3, 0.4]],
-        [[0.5, 0.6]],
-    ]
-
-    await indexing_service.upsert_points(
-        [
-            {"id": "a", "text": "alpha", "payload": {"x": 1}},
-            {"id": "b", "text": "beta", "payload": {"x": 2}},
-            {"id": "c", "text": "gamma", "payload": {}},
-        ]
-    )
-
-    assert embedding_provider_mock.embed.await_count == 2
-    embedding_provider_mock.embed.assert_any_await(["alpha", "beta"])
-    embedding_provider_mock.embed.assert_any_await(["gamma"])
-    vector_provider_mock.upsert_vectors.assert_awaited_once_with(
-        [
-            {"id": "a", "vector": [0.1, 0.2], "payload": {"x": 1, "text": "alpha"}},
-            {"id": "b", "vector": [0.3, 0.4], "payload": {"x": 2, "text": "beta"}},
-            {"id": "c", "vector": [0.5, 0.6], "payload": {"text": "gamma"}},
-        ]
-    )
-
-
-@pytest.mark.asyncio
-async def test_upsert_points_raises_when_embeddings_are_empty(
-    indexing_service: VectorIndexingService,
-    embedding_provider_mock: AsyncMock,
-    vector_provider_mock: AsyncMock,
-) -> None:
-    embedding_provider_mock.embed.return_value = []
-
-    with pytest.raises(RuntimeError, match="Embeddings are empty"):
-        await indexing_service.upsert_points([{"id": "a", "text": "alpha", "payload": {}}])
-
-    vector_provider_mock.upsert_vectors.assert_not_called()
+    sparse_provider_mock.get_sparse_embeddings.assert_not_called()
