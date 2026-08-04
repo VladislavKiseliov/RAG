@@ -585,6 +585,32 @@ class TestRerankNode:
         call_kwargs = agent.reranker_service.rerank.call_args.kwargs
         assert call_kwargs["texts"] == ["только родительский текст"]
 
+    @pytest.mark.asyncio
+    async def test_reranks_against_plan_query_not_raw_state_query(self):
+        # Живой баг: один и тот же кусок получал 0.004 против сырого state.query
+        # ("какие меры применимы при нарушении" - нарушении чего, неясно вне контекста)
+        # и 0.85 против запроса, который plan_node уже расшифровал для retrieval
+        # ("меры при нарушении генподрядчиком пусконаладочных работ"). Реранк должен
+        # сравнивать с тем же текстом, каким реально искали, а не с сырым вопросом.
+        item = make_retrieve_item()
+        plan = PlanOutput(subtasks=[
+            PlanSubtask(tool="search_docs", args={"query": "расшифрованный запрос"}),
+        ])
+        agent = make_agent()
+        await agent.nodes.rerank_node(
+            make_state(query="сырой вопрос", retrieval_data=[item], plan=plan)
+        )
+        call_kwargs = agent.reranker_service.rerank.call_args.kwargs
+        assert call_kwargs["query"] == "расшифрованный запрос"
+
+    @pytest.mark.asyncio
+    async def test_reranks_against_raw_query_when_no_plan(self):
+        item = make_retrieve_item()
+        agent = make_agent()
+        await agent.nodes.rerank_node(make_state(query="сырой вопрос", retrieval_data=[item], plan=None))
+        call_kwargs = agent.reranker_service.rerank.call_args.kwargs
+        assert call_kwargs["query"] == "сырой вопрос"
+
 
 class TestDecideAfterRerank:
     @pytest.mark.asyncio

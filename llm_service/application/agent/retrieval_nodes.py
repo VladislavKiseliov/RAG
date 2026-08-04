@@ -32,11 +32,22 @@ class RetrievalNodesMixin:
         if not state.retrieval_data:
             return {"retrieval_data": []}
 
+        # Реранкер - кросс-энкодер без доступа к истории диалога, судит по буквальному
+        # тексту query. Голый state.query может быть неполным вне контекста ("какие меры
+        # применимы при нарушении" - нарушении чего?), а plan_node уже расшифровал вопрос
+        # в конкретный поисковый запрос для retrieval - используем тот же текст и для
+        # реранка, а не сырой исходный вопрос. Живой пример бага: один и тот же кусок
+        # (акт приостановки ПНР) получал 0.004 против сырого запроса и 0.85 против
+        # переписанного - реранкер и retrieval сравнивали с разными формулировками.
+        rerank_query = state.query
+        if state.plan and state.plan.subtasks:
+            rerank_query = state.plan.subtasks[0].args.get("query", state.query)
+
         texts = [
             max(item.child_chunks, key=lambda c: c.score).text if item.child_chunks else item.parent_chunk
             for item in state.retrieval_data
         ]
-        scored = await self.reranker_service.rerank(query=state.query, texts=texts)
+        scored = await self.reranker_service.rerank(query=rerank_query, texts=texts)
 
         reordered: list[RetrieveItem] = []
         for entry in scored:
