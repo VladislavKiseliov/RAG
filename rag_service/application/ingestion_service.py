@@ -25,6 +25,7 @@ from rag_service.domain.chunking.chunk_builder import ChildChunkBuilder
 from rag_service.domain.chunking.chunk_builder import ChunkDeduplicator
 from rag_service.domain.chunking.chunk_builder import ContentFilter
 from rag_service.domain.chunking.chunk_builder import ParentChunk
+from rag_service.domain.chunking.docling_segmenter import parse_abbreviation_section
 from rag_service.domain.document import IngestionDocument
 
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
@@ -316,10 +317,11 @@ class IngestionService:
         await self._document_service.reset_structural_data(doc_id)
 
         await self._document_service.add_parent_chunks(doc_id,parent_chunks)
-        chapter_rows, table_rows, meta_section_rows = await self._store_docling_artifacts(doc_id, parsed_document)
+        chapter_rows, table_rows, meta_section_rows, abbreviation_rows = await self._store_docling_artifacts(doc_id, parsed_document)
         await self._document_service.add_document_chapters(doc_id, chapter_rows)
         await self._document_service.add_document_tables(doc_id, table_rows)
         await self._document_service.add_document_meta_sections(doc_id, meta_section_rows)
+        await self._document_service.add_abbreviations(doc_id, abbreviation_rows)
 
 
 
@@ -367,11 +369,12 @@ class IngestionService:
 
     async def _store_docling_artifacts(
             self, doc_id: uuid.UUID, docling_result: ParsedDocument
-    ) -> tuple[list[dict], list[dict], list[dict]]:
+    ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
         """Заливает в S3 сырые артефакты Docling про запас: полный текст, главы, таблицы, мета-разделы.
 
-        Возвращает строки для `document_chapters`/`document_tables`/`document_meta_sections`
-        с теми же S3-путями, по которым главы/таблицы/мета-разделы были только что залиты.
+        Возвращает строки для `document_chapters`/`document_tables`/`document_meta_sections`/
+        `abbreviations` с теми же S3-путями, по которым главы/таблицы/мета-разделы были
+        только что залиты.
         """
         prefix = str(doc_id)
 
@@ -419,6 +422,7 @@ class IngestionService:
             })
 
         meta_section_rows: list[dict] = []
+        abbreviation_rows: list[dict] = []
         for section in docling_result.meta_sections:
             name = section.section_type.lower()
             s3_md_path = f"{prefix}/meta/{name}.md"
@@ -429,8 +433,13 @@ class IngestionService:
                 "section_type": section.section_type,
                 "s3_md_path": s3_md_path,
             })
+            if section.section_type == "ABBREVIATIONS":
+                abbreviation_rows = [
+                    {"acronym": acronym, "expansion": expansion}
+                    for acronym, expansion in parse_abbreviation_section(section.markdown)
+                ]
 
-        return chapter_rows, table_rows, meta_section_rows
+        return chapter_rows, table_rows, meta_section_rows, abbreviation_rows
 
 
     def _creates_points(self,doc_id: uuid.UUID, childs: list,dense_vectors:list[list[float]],sparse_vectors) -> list[VectorPoint]:

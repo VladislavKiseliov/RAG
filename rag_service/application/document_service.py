@@ -211,6 +211,14 @@ class DataBaseDocumentService:
         async with self.session_scope() as (_, repo):
             return await repo.get_meta_sections_by_doc_id(doc_id)
 
+    async def add_abbreviations(self, doc_id: uuid.UUID, pairs: list[dict]) -> None:
+        if not pairs:
+            return
+
+        async with self.session_scope() as (session, repo):
+            await repo.bulk_insert_abbreviations(doc_id, pairs)
+            await session.commit()
+
     async def set_status(
             self,
             doc_id: uuid.UUID,
@@ -320,3 +328,7 @@ class DocumentQueryService:
     async def get_meta_sections_by_doc_id(self, doc_id: uuid.UUID) -> list:
         async with self.session_scope() as (_, repo):
             return await repo.get_meta_sections_by_doc_id(doc_id)
+
+    async def get_all_abbreviations(self) -> list:
+        async with self.session_scope() as (_, repo):
+            return await repo.get_all_abbreviations()

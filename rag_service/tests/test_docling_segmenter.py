@@ -1,4 +1,4 @@
-from rag_service.domain.chunking.docling_segmenter import ChapterSplitter
+from rag_service.domain.chunking.docling_segmenter import ChapterSplitter, MetaSectionExtractor, parse_abbreviation_section
 
 
 _BODY_1 = "Текст главы один содержит достаточно слов, чтобы не считаться пустой главой при склейке."
@@ -145,3 +145,94 @@ def test_bodyless_chapter_without_children_is_merged() -> None:
     numbers = [c.number for c in chapters]
     assert numbers == ["3", "4"], "3.25 без тела и без подглав должна слиться с 3"
     assert "3.25 Короткий термин" in chapters[0].markdown
+
+
+def test_parse_abbreviation_section_spaced_dash_format() -> None:
+    """Реальный формат СТО (проверено живьём в MinIO): "ACRO - expansion;",
+    заголовок и вводное предложение без "acronym - expansion" пропускаются."""
+    markdown = (
+        "## 4 Сокращения\n\n"
+        "В настоящем стандарте применены следующие сокращения:\n\n"
+        "генподрядчик - генеральный подрядчик;\n\n"
+        "ГСМ - горюче-смазочные масла;\n\n"
+        "ПНР - пусконаладочные работы;\n\n"
+        "ЭХЗ - электрохимзащита.\n\n"
+    )
+
+    pairs = parse_abbreviation_section(markdown)
+
+    assert pairs == [
+        ("генподрядчик", "генеральный подрядчик"),
+        ("ГСМ", "горюче-смазочные масла"),
+        ("ПНР", "пусконаладочные работы"),
+        ("ЭХЗ", "электрохимзащита"),
+    ]
+
+
+def test_parse_abbreviation_section_no_space_before_dash_format() -> None:
+    """Другой реальный формат (второй проверенный документ): "ACRO -expansion ;",
+    без пробела перед дефисом, включая многословный acronym с OCR-разрядкой
+    ("ИУС ДУ") и стороннюю "пробел+дефис" внутри самой расшифровки, которая не
+    должна разрезать пару повторно (нежадный acronym стопорится на первом "\\s-")."""
+    markdown = (
+        "#### 4 Сокращения\n\n"
+        "ЕСТД -единая система технической документации ;\n\n"
+        "ИУС ДУ -информационно -управляющая система диспетчерского управления ;\n\n"
+        "ТТЗ -тактико -техническое задание .\n\n"
+    )
+
+    pairs = parse_abbreviation_section(markdown)
+
+    assert pairs == [
+        ("ЕСТД", "единая система технической документации"),
+        ("ИУС ДУ", "информационно -управляющая система диспетчерского управления"),
+        ("ТТЗ", "тактико -техническое задание"),
+    ]
+
+
+def test_parse_abbreviation_section_empty_input() -> None:
+    assert parse_abbreviation_section("") == []
+
+
+def _abbreviations_section(markdown: str) -> str | None:
+    sections = MetaSectionExtractor().extract(markdown)
+    match = next((s for s in sections if s.section_type == "ABBREVIATIONS"), None)
+    return match.markdown if match else None
+
+
+def test_meta_section_extractor_finds_simple_numbered_heading() -> None:
+    markdown = "## 4 Сокращения\n\nПНР - пусконаладочные работы;\n"
+    result = _abbreviations_section(markdown)
+    assert result is not None
+    assert "ПНР" in result
+
+
+def test_meta_section_extractor_finds_subchapter_with_compound_number() -> None:
+    """Регрессия на живой баг: "4.2 Сокращения" (составной номер подглавы) не
+    матчился вообще - ловился только "4 Сокращения" (простой номер главы)."""
+    markdown = "#### 4.2 Сокращения\n\nПНР - пусконаладочные работы;\n"
+    result = _abbreviations_section(markdown)
+    assert result is not None
+    assert "ПНР" in result
+
+
+def test_meta_section_extractor_finds_heading_where_word_is_not_first() -> None:
+    """Регрессия на реальный живой документ (проверено в БД): заголовок "3 Термины
+    и определения, сокращения" - слово "сокращения" не сразу после номера, а в
+    конце составного заголовка. ABBREVIATIONS-секция для такого документа раньше
+    не извлекалась вообще (section_type пуст в document_meta_sections)."""
+    markdown = "## 3 Термины и определения, сокращения\n\nПНР - пусконаладочные работы;\n"
+    result = _abbreviations_section(markdown)
+    assert result is not None
+    assert "ПНР" in result
+
+
+def test_meta_section_extractor_another_real_combined_heading() -> None:
+    markdown = "## 3 Термины, определения, обозначения и сокращения\n\nПНР - пусконаладочные работы;\n"
+    result = _abbreviations_section(markdown)
+    assert result is not None
+
+
+def test_meta_section_extractor_does_not_false_positive_on_terms_without_abbreviations() -> None:
+    markdown = "## 3 Термины и определения\n\nОбычный текст главы про термины.\n"
+    assert _abbreviations_section(markdown) is None

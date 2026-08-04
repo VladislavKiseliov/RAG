@@ -31,6 +31,12 @@ langchain-text-splitters
 
 uuid6
 
+# Морфология (A11: обратный поиск "полная форма -> аббревиатура" по леммам,
+# без учёта падежа/числа) - чистый Python + словарь, без torch/GPU, годится
+# для лёгкого API-образа
+pymorphy3
+pymorphy3-dicts-ru
+
 # HTTP client
 httpx
 

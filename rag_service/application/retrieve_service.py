@@ -8,6 +8,7 @@ import uuid
 from typing import Any
 
 from rag_service.api.schemas import RetrieveResponse, RetrieveItem
+from rag_service.application.abbreviation_expander import AbbreviationExpander
 from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
@@ -49,6 +50,7 @@ class RetrieveService:
             database: DocumentQueryService,
             v_indexing_service: VectorIndexingService,
             s3_storage: BucketStorageProvider,
+            abbreviation_expander: AbbreviationExpander,
     ) -> None:
         """
         Initialize the retrieval service.
@@ -58,11 +60,14 @@ class RetrieveService:
             database: Service for querying relational data (Postgres).
             v_indexing_service: Service for text-to-vector transformation.
             s3_storage: Provider for reading table CSVs referenced by [→ Таблица N] markers.
+            abbreviation_expander: Conditionally expands queries containing known
+                document abbreviations (A11 MVP, see ISSUES.md).
         """
         self.vector_storage = vector_storage
         self._document_service = database
         self.v_indexing_service = v_indexing_service
         self._s3_storage = s3_storage
+        self._abbreviation_expander = abbreviation_expander
 
     async def _resolve_tables_in_items(self, items: list[dict]) -> list[dict]:
         """Заменяет маркеры [→ Таблица N] в parent_chunk на настоящую Markdown-таблицу.
@@ -252,6 +257,8 @@ class RetrieveService:
         Returns:
             Dict with 'items' and 'total'.
         """
+        queries = self._abbreviation_expander.expand(queries)
+
         if len(queries) == 1:
             return await self.search(query=queries[0], top_k=top_k)
 

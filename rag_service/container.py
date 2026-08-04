@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 # (DocumentConversionPipeline, IngestionService, DoclingConversionRepository) - в
 # rag_service/worker_container.py, который импортирует только rag_service.workers.task
 # (тяжёлый образ, stage `worker`). Не добавляйте сюда Docling-импорты обратно.
+from rag_service.application.abbreviation_expander import AbbreviationExpander
+from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.s3_service.knowledge_base_storage import KnowledgeBaseStorageService
 from rag_service.infrastructures.repositories.qdrant_vector_storage import QdrantVectorStorage
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
@@ -37,6 +39,7 @@ class RagContainer:
     vector_storage: VectorStorageProvider
     notes_vector_storage: VectorStorageProvider
     v_indexing_service:VectorIndexingService
+    abbreviation_expander: AbbreviationExpander
 
 
 # WorkerContainer/build_worker_infrastructure - см. rag_service/worker_container.py
@@ -89,6 +92,19 @@ def get_v_indexing_service() -> VectorIndexingService:
     return v_indexing_service
 
 
+async def _build_abbreviation_expander(session_factory: async_sessionmaker[AsyncSession]) -> AbbreviationExpander:
+    """Загружает весь словарь аббревиатур один раз при старте процесса.
+
+    Таблица маленькая (максимум пара сотен строк на реальный корпус) - вместо
+    Redis pub/sub-инвалидации между процессами (см. целевую архитектуру в
+    ISSUES.md A11) держим её в памяти без реализации перезагрузки; новые
+    аббревиатуры из документов, проиндексированных после старта, подхватятся
+    только после рестарта API-процесса.
+    """
+    rows = await DocumentQueryService(session_factory).get_all_abbreviations()
+    return AbbreviationExpander.from_pairs((row.acronym, row.expansion) for row in rows)
+
+
 def _build_qdrant_client() -> AsyncQdrantClient:
     if not settings.qdrant_url:
         raise RuntimeError("QDRANT_URL is not set")
@@ -122,6 +138,7 @@ async def build_rag_infrastructure(db_pool_size: int = 10) -> RagContainer:
     notes_v_storage = _build_vector_storage(qdrant_client, settings.notes_collection_name)
     s3_store = _build_knowledge_base_storage()
     await s3_store.ensure_bucket()
+    abbreviation_expander = await _build_abbreviation_expander(session_factory)
 
     return RagContainer(
         engine=engine,
@@ -130,4 +147,5 @@ async def build_rag_infrastructure(db_pool_size: int = 10) -> RagContainer:
         vector_storage=v_storage,
         notes_vector_storage=notes_v_storage,
         v_indexing_service = v_indexing_service,
+        abbreviation_expander=abbreviation_expander,
     )

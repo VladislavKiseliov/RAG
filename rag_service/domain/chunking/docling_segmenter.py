@@ -33,8 +33,13 @@ class _HeadingPatterns:
         self.toc = re.compile(
             rf"^#{{1,6}}\s+({self._spaced('Содержание')}|{self._spaced('Оглавление')})\s*$", re.IGNORECASE
         )
+        # Не привязываемся к формату номера главы вообще (был баг: "4.2 Сокращения" -
+        # составной номер подглавы - не матчился, ловился только простой "4 Сокращения").
+        # Вместо разбора номера просто ищем слово "Сокращения" где-то в начале строки
+        # заголовка - так же ловит и составные подглавы, и заголовки вида "5 Термины,
+        # определения и сокращения" (слово не первое).
         self.abbrev = re.compile(
-            rf"^#{{1,6}}\s+(\d+\s+)?{self._spaced('Сокращени')}", re.IGNORECASE
+            rf"^#{{1,6}}\s+.{{0,60}}?{self._spaced('Сокращени')}", re.IGNORECASE
         )
         self.appendix = re.compile(
             rf"^#{{1,6}}\s+{self._spaced('Приложение')}\s+\S", re.IGNORECASE
@@ -93,6 +98,37 @@ class MetaSectionExtractor:
                 break
             result.append(line)
         return result
+
+
+# Разделитель — первое вхождение "пробел+дефис" в строке, не фиксированный формат:
+# живые документы вперемешку дают "ГСМ - горюче-смазочные масла;" и "ЕСТД -единая
+# система...;" (без пробела перед словом), а также многословные "аббревиатуры" с
+# OCR-артефактом (лишний пробел внутри слова, напр. "ИУС ДУ -информационно
+# -управляющая..."). Нежадный acronym останавливается на первом же "\s-", что для
+# "ИУС ДУ" корректно берёт всё до дефиса, а не только "ИУС".
+_ABBREV_LINE_RE = re.compile(r"^(?P<acronym>.+?)\s-\s*(?P<expansion>.+?)\s*[;.]?\s*$")
+
+
+def parse_abbreviation_section(markdown: str) -> list[tuple[str, str]]:
+    """Parses (acronym, expansion) pairs out of an extracted ABBREVIATIONS section.
+
+    Lines without the "acronym - expansion" pattern (the section heading, an intro
+    sentence like "В настоящем стандарте применены следующие сокращения:", blank
+    lines) don't match `_ABBREV_LINE_RE` and are silently skipped.
+    """
+    pairs: list[tuple[str, str]] = []
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = _ABBREV_LINE_RE.match(stripped)
+        if not match:
+            continue
+        acronym = match.group("acronym").strip()
+        expansion = match.group("expansion").strip()
+        if acronym and expansion:
+            pairs.append((acronym, expansion))
+    return pairs
 
 
 class ChapterSplitter:

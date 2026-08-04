@@ -8,11 +8,12 @@ from datetime import datetime
 from typing import Iterable, Any
 
 from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables, DocumentMetaSections
+from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables, DocumentMetaSections, Abbreviations
 
 
 class DocumentRepository:
@@ -529,3 +530,40 @@ class DocumentRepository:
             return
 
         await self._session.execute(insert(DocumentMetaSections), rows)
+
+    async def bulk_insert_abbreviations(self, doc_id: uuid.UUID, pairs: Iterable[dict]) -> None:
+        """Bulk insert (acronym, expansion) pairs parsed from a document's ABBREVIATIONS section.
+
+        Uses ON CONFLICT DO NOTHING on (acronym, expansion) - the same pair
+        commonly repeats across multiple normative documents in the corpus, and
+        only the first document to introduce a given pair is kept as its
+        `doc_id` source.
+
+        Args:
+            doc_id: Target document UUID used for all inserted rows.
+            pairs: Iterable of dicts with `acronym`, `expansion`.
+        """
+        rows = [
+            {
+                "doc_id": doc_id,
+                "acronym": pair["acronym"],
+                "expansion": pair["expansion"],
+            }
+            for pair in pairs
+        ]
+        if not rows:
+            return
+
+        stmt = pg_insert(Abbreviations).values(rows).on_conflict_do_nothing(
+            index_elements=["acronym", "expansion"]
+        )
+        await self._session.execute(stmt)
+
+    async def get_all_abbreviations(self) -> list[Abbreviations]:
+        """Return every stored (acronym, expansion) pair.
+
+        Used once at API-process startup to build the in-memory lookup dict
+        AbbreviationExpander uses (see container.py) - not called per-request.
+        """
+        result = await self._session.execute(select(Abbreviations))
+        return list(result.scalars().all())

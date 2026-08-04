@@ -66,6 +66,11 @@ class DocumentListItemDTO(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    abbreviations: Mapped[list["Abbreviations"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class ParentChunks(Base):
@@ -165,3 +170,23 @@ class DocumentMetaSections(Base):
     s3_md_path: Mapped[str] = mapped_column(String(1024), nullable=False)
 
     document: Mapped[DocumentListItemDTO] = relationship(back_populates="document_meta_sections")
+
+
+class Abbreviations(Base):
+    __tablename__ = "abbreviations"
+    __table_args__ = (
+        UniqueConstraint("acronym", "expansion", name="uq_abbreviations_acronym_expansion"),
+        Index("ix_abbreviations_doc_id", "doc_id"),
+        {"schema": "rag_kernel"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7)
+    doc_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("rag_kernel.documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    acronym: Mapped[str] = mapped_column(Text, nullable=False)
+    expansion: Mapped[str] = mapped_column(Text, nullable=False)
+
+    document: Mapped[DocumentListItemDTO] = relationship(back_populates="abbreviations")

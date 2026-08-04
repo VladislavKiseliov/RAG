@@ -3,6 +3,7 @@ from fastapi import Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from rag_service.container import RagContainer
+from rag_service.application.abbreviation_expander import AbbreviationExpander
 from rag_service.application.document_service import DataBaseDocumentService, DocumentQueryService
 from rag_service.application.document_orchestrator import DocumentOrchestrator
 from rag_service.application.retrieve_service import RetrieveService
@@ -32,6 +33,9 @@ def get_notes_vector_storage(container: RagContainer = Depends(get_container)):
 def get_v_indexing_service(container: RagContainer = Depends(get_container)):
     return container.v_indexing_service
 
+def get_abbreviation_expander(container: RagContainer = Depends(get_container)):
+    return container.abbreviation_expander
+
 # --- 2. Annotated Типы для чистого кода в роутах ---
 
 ContainerDep = Annotated[RagContainer, Depends(get_container)]
@@ -40,6 +44,7 @@ S3StorageDep = Annotated[BucketStorageProvider, Depends(get_s3_storage)]
 VectorStorageDep = Annotated[VectorStorageProvider, Depends(get_vector_storage)]
 NotesVectorStorageDep = Annotated[VectorStorageProvider, Depends(get_notes_vector_storage)]
 VectorIndexingDep = Annotated[VectorIndexingService, Depends(get_v_indexing_service)]
+AbbreviationExpanderDep = Annotated[AbbreviationExpander, Depends(get_abbreviation_expander)]
 
 # --- 3. Функции-фабрики для доменных сервисов ---
 
@@ -56,6 +61,7 @@ async def get_retrieval_service(
     database: Annotated[DocumentQueryService, Depends(get_db_query_service)],
     v_indexing: VectorIndexingDep,
     s3_storage: S3StorageDep,
+    abbreviation_expander: AbbreviationExpanderDep,
 ) -> RetrieveService:
     """Сервис поиска (Retrieval Pipeline)."""
     return RetrieveService(
@@ -63,6 +69,7 @@ async def get_retrieval_service(
         database=database,
         v_indexing_service=v_indexing,
         s3_storage=s3_storage,
+        abbreviation_expander=abbreviation_expander,
     )
 
 async def get_task_dispatcher_service(db_doc_service: Annotated[DataBaseDocumentService, Depends(get_db_doc_service)]) -> TaskDispatcherService:

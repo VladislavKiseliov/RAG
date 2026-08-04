@@ -1,4 +1,4 @@
-from .models import Base, DocumentStatus, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables, DocumentMetaSections
+from .models import Base, DocumentStatus, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables, DocumentMetaSections, Abbreviations
 
 __all__ = [
     "Base",
@@ -8,4 +8,5 @@ __all__ = [
     "DocumentChapters",
     "DocumentTables",
     "DocumentMetaSections",
+    "Abbreviations",
 ]
