@@ -210,6 +210,14 @@ services:
     container_name: rag_worker
     env_file:
       - .env
+    environment:
+      # Образ nvidia/cuda:...-runtime (не -devel) не содержит C-компилятор - у
+      # свежих версий docling (docling[easyocr] в requirements-worker.txt без пина
+      # версии) модель разметки страниц (layout, RT-DETR-v2) пытается прогнаться
+      # через torch.compile/Triton, которому для JIT-компиляции CUDA-ядра нужен cc -
+      # падает с "Failed to find C compiler". Отключаем torch.compile целиком -
+      # инференс идёт eager (чуть медленнее), без C-компилятора в образе.
+      - TORCH_COMPILE_DISABLE=1
     volumes:
       - ./rag_service:/app/rag_service
       # Сохраняем кэш ONNX-моделей (FastEmbed)
