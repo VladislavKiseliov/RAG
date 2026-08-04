@@ -18,13 +18,10 @@ class GenerationNodesMixin:
         started = time.perf_counter()
 
         context_str = "\n\n".join(format_retrieval_item_for_prompt(item) for item in state.retrieval_data)
-        history_str = "\n".join(
-            f"{m.get('role', 'user')}: {m.get('content', '')}" for m in state.messages
-        )
 
         final_context = FinalPromptData(context=context_str,
                                         route=state.route,
-                                        chat_history=history_str,
+                                        chat_history=state.messages,
                                         summary=state.summary,
                                         current_query=state.query
                                         )

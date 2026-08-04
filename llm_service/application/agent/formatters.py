@@ -7,6 +7,31 @@ from typing import Any
 from llm_service.application.lean_rag_models import RetrieveItem
 
 
+_ROLE_LABELS = {"user": "Пользователь", "assistant": "Ассистент"}
+
+
+def format_chat_history(messages: list[dict[str, str]]) -> str:
+    """Нумерованные реплики с явной границей (двойной перенос) и меткой у последней.
+
+    Живой баг: старое форматирование ("role: content", одинарный \\n между репликами,
+    без нумерации) визуально сливало соседние реплики, если ответ ассистента сам
+    многострочный (списки/таблицы - обычное дело для RAG-ответов) - модель иногда
+    путала, к какой реплике относится текущий вопрос (пример: "ты откуда это взял?"
+    после многострочного ответа получило ответ про сообщение двумя ходами раньше).
+    Явная метка "последняя реплика" - тот же "attention anchor", что и нумерация
+    сообщений/таймстампы в промпт-инжиниринге для длинного контекста.
+    """
+    if not messages:
+        return ""
+    last_index = len(messages) - 1
+    lines = []
+    for i, m in enumerate(messages):
+        role = _ROLE_LABELS.get(m.get("role", "user"), m.get("role", "user"))
+        marker = " (последняя реплика перед текущим вопросом)" if i == last_index else ""
+        lines.append(f"[{i + 1}]{marker} {role}: {m.get('content', '')}")
+    return "\n\n".join(lines)
+
+
 def format_retrieval_item_for_prompt(item: RetrieveItem) -> str:
     """[Документ: <filename> | Раздел <title>]\n<текст родительского чанка>.
 

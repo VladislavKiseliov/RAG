@@ -79,11 +79,14 @@ async def _stream_completion_with_retry(
             if stream is not None:
                 await stream.close()
 
-USER_TEMPLATE = """РЕЗЮМЕ ДИАЛОГА:
+# История диалога больше не вклеивается сюда текстом - отдельные role-сообщения
+# (см. _history_to_messages/_build_answer_messages ниже), как того требует нативный
+# chat-формат LLM API (границы реплик - по структуре запроса, не по нашей текстовой
+# разметке; побочный эффект - старые реплики становятся стабильным префиксом messages,
+# что вскрывает возможность кэширования промпта на стороне провайдера, если тот его
+# поддерживает). Этот шаблон - только "текущий ход": то, что меняется каждый вызов.
+CURRENT_TURN_TEMPLATE = """РЕЗЮМЕ ПРЕДЫДУЩЕЙ БЕСЕДЫ (то, что не вошло в историю выше):
 {summary}
-
-ИСТОРИЯ ДИАЛОГА:
-{chat_history}
 
 КОНТЕКСТ ИЗ ДОКУМЕНТОВ:
 ---
@@ -104,6 +107,38 @@ NOTE_USER_TEMPLATE = """Сегодняшняя дата: {today}
 
 ИСХОДНЫЙ ТЕКСТ:
 {raw_text}"""
+
+
+def _history_to_messages(chat_history: list[dict[str, str]]) -> list[dict[str, str]]:
+    """[{"role": ..., "content": ...}, ...] из state.messages как есть -> role-сообщения
+    для LLM API. role по умолчанию "user" (тот же дефолт, что и в agent/formatters.py
+    ::format_chat_history, для консистентности при отсутствующем/пустом role)."""
+    return [{"role": m.get("role") or "user", "content": m.get("content", "")} for m in chat_history]
+
+
+def _build_answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:
+    """Общая сборка messages для чат-ответа (RAG/chat route) - переиспользуется
+    OpenAICompatLLMProvider и GroqLLMProvider, раньше это был дословный дубль кода
+    в обоих классах. system + история диалога отдельными role-сообщениями (не текстом,
+    см. CURRENT_TURN_TEMPLATE) + последнее user-сообщение с summary/контекстом/вопросом."""
+    config = get_live_config()
+
+    if data_prompt.route == "domain_rag":
+        system = config.prompts.system_prompt_rag
+        context = data_prompt.context
+    else:
+        system = config.prompts.system_prompt_chat
+        context = "Поиск в базе знаний не производился за ненадобностью."
+
+    return [
+        {"role": "system", "content": system},
+        *_history_to_messages(data_prompt.chat_history),
+        {"role": "user", "content": CURRENT_TURN_TEMPLATE.format(
+            summary=data_prompt.summary,
+            context=context,
+            current_query=current_query,
+        )},
+    ]
 
 
 class LLMProvider(Protocol):
@@ -132,24 +167,7 @@ class OpenAICompatLLMProvider:
 
     @staticmethod
     def _answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:
-        config = get_live_config()
-
-        if data_prompt.route == "domain_rag":
-            system = config.prompts.system_prompt_rag
-            context = data_prompt.context
-        else:
-            system = config.prompts.system_prompt_chat
-            context = "Поиск в базе знаний не производился за ненадобностью."
-
-        return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": USER_TEMPLATE.format(
-                summary=data_prompt.summary,
-                chat_history=data_prompt.chat_history,
-                context=context,
-                current_query=current_query,
-            )},
-        ]
+        return _build_answer_messages(current_query, data_prompt)
 
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
         config = get_live_config()
@@ -273,24 +291,7 @@ class GroqLLMProvider:
 
     @staticmethod
     def _answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:
-        config = get_live_config()
-
-        if data_prompt.route == "domain_rag":
-            system = config.prompts.system_prompt_rag
-            context = data_prompt.context
-        else:
-            system = config.prompts.system_prompt_chat
-            context = "Поиск в базе знаний не производился за ненадобностью."
-
-        return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": USER_TEMPLATE.format(
-                summary=data_prompt.summary,
-                chat_history=data_prompt.chat_history,
-                context=context,
-                current_query=current_query,
-            )},
-        ]
+        return _build_answer_messages(current_query, data_prompt)
 
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str:
         config = get_live_config()

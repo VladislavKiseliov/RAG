@@ -41,10 +41,15 @@ class RetrievalResult(BaseModel):
 
 
 class FinalPromptData(BaseModel):
-    """All data required to build the LLM prompt: context, chat history, summary, and current query."""
+    """All data required to build the LLM prompt: context, chat history, summary, and current query.
+
+    chat_history - список сырых сообщений [{"role": "user"/"assistant", "content": ...}, ...]
+    в хронологическом порядке (не отформатированная строка) - LLM_provider.py строит из
+    них отдельные role-сообщения в запросе к LLM API, а не склеивает текстом в один блок
+    (см. ISSUES.md/сессию про хронологию истории)."""
     route : str
     context: str
-    chat_history: str
+    chat_history: list[dict[str, str]]
     summary: str
     current_query: str
 

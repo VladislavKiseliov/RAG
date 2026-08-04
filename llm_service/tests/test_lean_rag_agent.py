@@ -326,16 +326,18 @@ class TestBuildPromptNode:
         assert "важный раздел документа" in result["final_context"].context
 
     @pytest.mark.asyncio
-    async def test_messages_serialized_to_history_str(self):
+    async def test_messages_passed_through_as_list_not_flattened_text(self):
+        # Регрессия: chat_history теперь список сырых сообщений (для ролевого
+        # массива в LLM_provider.py), не отформатированная строка - LLM_provider
+        # сам строит из них отдельные role-сообщения (см. _history_to_messages).
         agent = make_agent()
-        state = make_state(messages=[
+        messages = [
             {"role": "user", "content": "привет"},
             {"role": "assistant", "content": "здравствуй"},
-        ])
+        ]
+        state = make_state(messages=messages)
         result = await agent.nodes.build_prompt_node(state)
-        history = result["final_context"].chat_history
-        assert "user: привет" in history
-        assert "assistant: здравствуй" in history
+        assert result["final_context"].chat_history == messages
 
     @pytest.mark.asyncio
     async def test_empty_retrieval_gives_empty_context(self):
@@ -353,7 +355,7 @@ class TestGenerateNode:
     async def test_returns_response_model(self):
         agent = make_agent(llm_answer="готовый ответ")
         final_ctx = FinalPromptData(
-            route="domain_rag", context="контекст", chat_history="история",
+            route="domain_rag", context="контекст", chat_history=[],
             summary="резюме", current_query="вопрос",
         )
         result = await agent.nodes.generate_node(make_state(query="вопрос", final_context=final_ctx))
@@ -363,7 +365,7 @@ class TestGenerateNode:
     async def test_calls_llm_generate_with_correct_args(self):
         agent = make_agent()
         final_ctx = FinalPromptData(
-            route="domain_rag", context="ctx", chat_history="hist",
+            route="domain_rag", context="ctx", chat_history=[],
             summary="sum", current_query="q",
         )
         state = make_state(query="q", final_context=final_ctx)
@@ -377,7 +379,7 @@ class TestGenerateNode:
     async def test_passes_final_context_not_raw_state(self):
         agent = make_agent()
         final_ctx = FinalPromptData(
-            route="domain_rag", context="специфический контекст", chat_history="",
+            route="domain_rag", context="специфический контекст", chat_history=[],
             summary="", current_query="запрос",
         )
         state = make_state(final_context=final_ctx)
@@ -698,8 +700,8 @@ class TestPlanNode:
         ])
         await agent.nodes.plan_node(state)
         prompt_arg = agent.llm_provider.generate_general.call_args.kwargs["query"]
-        assert "user: привет" in prompt_arg
-        assert "assistant: здравствуй" in prompt_arg
+        assert "Пользователь: привет" in prompt_arg
+        assert "Ассистент: здравствуй" in prompt_arg
         assert "{'role'" not in prompt_arg
 
     @pytest.mark.asyncio

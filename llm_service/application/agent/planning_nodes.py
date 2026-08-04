@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from llm_service.ai_config import get_live_config
-from llm_service.application.agent.formatters import merge_search_docs_results
+from llm_service.application.agent.formatters import format_chat_history, merge_search_docs_results
 from llm_service.application.lean_rag_models import LeanAgentState, PlanOutput
 from llm_service.utils.logger_config import setup_logger
 
@@ -26,9 +26,7 @@ class PlanningNodesMixin:
         except в agent_routers.py, без тихого фолбэка (см. docstring StreamRunner)."""
         started = time.perf_counter()
         plan_prompt = get_live_config().prompts.plan_prompt
-        recent_history_str = "\n".join(
-            f"{m.get('role', 'user')}: {m.get('content', '')}" for m in state.messages
-        )
+        recent_history_str = format_chat_history(state.messages)
         prompt = plan_prompt.format(summary=state.summary, recent_history=recent_history_str, query=state.query)
 
         plan = await self.llm_gateway.generate_json(schema=PlanOutput, prompt=prompt)
