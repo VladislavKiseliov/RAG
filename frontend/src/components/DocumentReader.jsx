@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import AssistantChatPanel from './AssistantChatPanel.jsx';
 
 const fmt = (v) => (v === null || v === undefined ? '—' : v);
@@ -138,12 +139,12 @@ function DocumentReader({
 
                         {!chapter && (
                             <div className="kb-reader-summary-card message-markdown">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.summary}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{doc.summary}</ReactMarkdown>
                             </div>
                         )}
                         {chapter && contentMode === 'summary' && (
                             <div className="kb-reader-summary-card message-markdown">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{chapter.summary}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{chapter.summary}</ReactMarkdown>
                             </div>
                         )}
 
@@ -157,7 +158,7 @@ function DocumentReader({
                                     if (seg.type === 'text') {
                                         return (
                                             <div key={i} className="kb-reader-full-text message-markdown">
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{seg.content}</ReactMarkdown>
+                                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{seg.content}</ReactMarkdown>
                                             </div>
                                         );
                                     }

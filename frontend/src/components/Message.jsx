@@ -2,6 +2,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { useApi } from '../context/ApiContext';
 import { ENDPOINTS } from '../config/api';
 
@@ -198,7 +199,7 @@ function Message({ content, role, sources, isTyping, senderName }) {
                         <span className="message-text">{content}</span>
                     ) : (
                         <div className="message-markdown">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{content}</ReactMarkdown>
                         </div>
                     )}
                 </div>

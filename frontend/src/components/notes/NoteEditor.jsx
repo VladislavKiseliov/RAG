@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { tagMeta, TAG_PALETTE } from '../../hooks/useNotes';
 
 function NoteEditor({ notes, activeNote, theme }) {
@@ -94,7 +95,7 @@ function NoteEditor({ notes, activeNote, theme }) {
                 {notes.mode === 'preview' && (
                     <div className="nt-preview message-markdown">
                         {activeNote.content.trim() ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeNote.content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{activeNote.content}</ReactMarkdown>
                         ) : (
                             <p className="nt-muted">Пусто. Начните писать в редакторе.</p>
                         )}
