@@ -29,6 +29,8 @@ class PromptsConfig(BaseModel):
     table_summary_system_prompt: str
     note_system_prompt: str
     query_expansion_prompt: str
+    plan_prompt: str
+    reflect_prompt: str
 
 
 class GatewayConfig(BaseModel):
@@ -38,9 +40,10 @@ class GatewayConfig(BaseModel):
     router_knn_threshold: float = 0.15
     router_confidence_threshold: float = 0.7
     # Стартовые оценки (не откалиброваны eval'ом - см. ARCHITECTURE.md §1 п.3, второе
-    # сознательное исключение). Ниже no_data_threshold - retrieval_empty=True, LLM не
-    # зовём; между порогами - "серая зона" (сегодня уходит в build_prompt как sufficient,
-    # т.к. reflect ещё заглушка); выше grey_zone_threshold - обычный sufficient.
+    # сознательное исключение). Ниже no_data_threshold и между порогами ("серая зона") -
+    # обе ветки теперь уходят в reflect_node (реальный, см. retrieval_nodes.py) - LLM
+    # смотрит на найденное и решает sufficient/need_more/not_in_corpus; выше
+    # grey_zone_threshold - обычный sufficient, reflect не вызывается.
     rerank_no_data_threshold: float = 0.35
     rerank_grey_zone_threshold: float = 0.60
 
