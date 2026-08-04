@@ -831,6 +831,12 @@
     padding: 12px 4px !important;
     background: transparent !important;
 }
+.typing-label {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-right: 2px;
+}
 .typing-dot {
     width: 7px;
     height: 7px;

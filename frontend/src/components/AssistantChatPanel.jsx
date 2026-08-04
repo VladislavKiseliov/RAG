@@ -78,7 +78,7 @@ function AssistantChatPanel({ title, onClose }) {
                 {aiChat.messages.map((msg) => (
                     <Message key={msg.id} content={msg.content} role={msg.role} sources={msg.sources} />
                 ))}
-                {aiChat.isTyping && <Message isTyping />}
+                {aiChat.isTyping && <Message isTyping typingLabel={aiChat.typingLabel} />}
                 <div ref={messagesEndRef} />
             </div>
 

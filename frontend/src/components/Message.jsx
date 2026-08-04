@@ -6,10 +6,11 @@ import remarkBreaks from 'remark-breaks';
 import { useApi } from '../context/ApiContext';
 import { ENDPOINTS } from '../config/api';
 
-function TypingIndicator() {
+function TypingIndicator({ label }) {
     return (
         <div className="message assistant-message">
             <div className="message-bubble typing-bubble">
+                {label && <span className="typing-label">{label}</span>}
                 <span className="typing-dot" />
                 <span className="typing-dot" />
                 <span className="typing-dot" />
@@ -170,8 +171,8 @@ function SourcesBlock({ sources }) {
     );
 }
 
-function Message({ content, role, sources, isTyping, senderName }) {
-    if (isTyping) return <TypingIndicator />;
+function Message({ content, role, sources, isTyping, typingLabel, senderName }) {
+    if (isTyping) return <TypingIndicator label={typingLabel} />;
 
     const isUser = role === 'user';
 

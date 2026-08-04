@@ -220,7 +220,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                                             />
                                         ))
                                     )}
-                                    {aiChat.isTyping && !isMessengerMode && <Message isTyping />}
+                                    {aiChat.isTyping && !isMessengerMode && <Message isTyping typingLabel={aiChat.typingLabel} />}
                                     {othersTyping && <Message isTyping />}
                                     <div ref={messagesEndRef} />
                                 </div>

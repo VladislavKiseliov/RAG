@@ -18,9 +18,19 @@ function parseSseEvent(rawEvent) {
     return { eventName, data: dataLine ? JSON.parse(dataLine) : {} };
 }
 
+// Текст рядом с индикатором "печатает" по стадии из SSE-события status (см.
+// llm_service/application/agent/agent_stream.py) - "retrieve" приходит дважды,
+// если reflect_node запросил уточняющий поиск, поэтому различаем по счётчику.
+function stageLabel(stage, retrieveEventCount) {
+    if (stage === 'plan') return 'Думаю над вопросом…';
+    if (stage === 'retrieve') return retrieveEventCount > 1 ? 'Уточняю поиск…' : 'Ищу в базе знаний…';
+    return null;
+}
+
 export function useAiChat(api, showError) {
     const [messages, setMessages] = useState([GREETING]);
     const [isTyping, setIsTyping] = useState(false);
+    const [typingLabel, setTypingLabel] = useState(null);
     // isTyping — только для «печатает…» (пока не пришёл первый токен), isStreaming
     // держит инпут задизейбленным на весь ответ, включая уже начавшийся стриминг текста.
     const [isStreaming, setIsStreaming] = useState(false);
@@ -83,9 +93,11 @@ export function useAiChat(api, showError) {
         setMessages((prev) => [...prev, { id: genId(), content: text, role: 'user' }]);
         setIsTyping(true);
         setIsStreaming(true);
+        setTypingLabel(null);
 
         const assistantId = genId();
         let appended = false;
+        let retrieveEventCount = 0;
 
         try {
             const stream = await api.postStream(ENDPOINTS.MESSAGES_STREAM(convId), { user_message: text });
@@ -110,6 +122,7 @@ export function useAiChat(api, showError) {
                         if (!appended) {
                             appended = true;
                             setIsTyping(false);
+                            setTypingLabel(null);
                             setMessages((prev) => [...prev, { id: assistantId, content: data.text, role: 'assistant' }]);
                         } else {
                             setMessages((prev) => prev.map((m) =>
@@ -120,6 +133,9 @@ export function useAiChat(api, showError) {
                         setMessages((prev) => prev.map((m) =>
                             m.id === assistantId ? { ...m, sources: data.sources || null } : m
                         ));
+                    } else if (eventName === 'status') {
+                        if (data.stage === 'retrieve') retrieveEventCount += 1;
+                        setTypingLabel(stageLabel(data.stage, retrieveEventCount));
                     } else if (eventName === 'error') {
                         showError(data.message || 'Произошла ошибка при получении ответа.');
                         if (!appended) {
@@ -131,7 +147,7 @@ export function useAiChat(api, showError) {
                             }]);
                         }
                     }
-                    // 'status'/'ping' — намеренно без действия: ping только держит соединение живым.
+                    // 'ping' — намеренно без действия, только держит соединение живым.
                 }
             }
         } catch (e) {
@@ -146,6 +162,7 @@ export function useAiChat(api, showError) {
         } finally {
             setIsTyping(false);
             setIsStreaming(false);
+            setTypingLabel(null);
         }
     }, [api, loadUserConversations, showError]);
 
@@ -162,6 +179,7 @@ export function useAiChat(api, showError) {
     return {
         messages,
         isTyping,
+        typingLabel,
         isStreaming,
         currentConversationId,
         setCurrentConversationId,
