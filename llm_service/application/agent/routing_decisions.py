@@ -54,13 +54,15 @@ async def decide_after_reflect(state: LeanAgentState) -> str:
 
 
 async def decide_after_generate(state: LeanAgentState) -> str:
-    """РЕАЛЬНЫЙ код-гейт перед post_actions (ARCHITECTURE.md §3): smalltalk_ood -
-    пропуск всегда; иначе LLM-вызов post_actions только при совпадении
-    эвристики-маркера в исходном вопросе пользователя (не в сгенерированном
-    ответе) - экономит LLM-вызов на подавляющем большинстве сообщений без
-    намерения действия."""
-    if state.route in {"smalltalk", "out_of_domain"}:
-        return "end"
+    """РЕАЛЬНЫЙ код-гейт перед post_actions (ARCHITECTURE.md §3): LLM-вызов post_actions
+    только при совпадении эвристики-маркера в исходном вопросе пользователя (не в
+    сгенерированном ответе) - экономит LLM-вызов на подавляющем большинстве сообщений
+    без намерения действия. Раньше здесь был ранний выход по state.route in
+    {"smalltalk", ...}, но с тех пор как route стал отражать решение plan_node
+    ("нужен ли поиск", см. planning_nodes.py), а не реальную ML-классификацию намерения,
+    "smalltalk" стал означать буквально "поиск не нужен" - запрос-действие без похода в
+    базу ("сохрани это в заметку" без доп. вопроса) тоже получил бы route="smalltalk" и
+    молча пропустил бы post_actions. Проверка маркера теперь безусловна."""
     if _ACTION_MARKERS_RE.search(state.query):
         return "post_actions"
     return "end"

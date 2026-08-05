@@ -88,6 +88,7 @@ class ReflectOutput(BaseModel):
     """`reflect` node's structured verdict. See ARCHITECTURE.md §3 reflect."""
     verdict: Literal["sufficient", "need_more", "not_in_corpus"]
     new_queries: list[str] = Field(default_factory=list)
+    needs_appendix: bool = False
 
 
 class ProposedAction(BaseModel):
@@ -130,5 +131,12 @@ class LeanAgentState(BaseModel):
 
     sources: list[dict[str, Any]] = Field(default_factory=list)
     proposed_action: ProposedAction | None = None
+
+    # A21 (rag_service/ISSUES.md): приложения не проходят через ChapterSplitter, значит
+    # retrieval_data их никогда не содержит - reflect_node подтягивает текст напрямую
+    # из rag_service (RetrievalService.get_appendix), в отдельное поле, а не в
+    # retrieval_data, чтобы не потерять его при повторном execute_subtasks (need_more
+    # затирает retrieval_data свежими результатами поиска, см. merge_search_docs_results).
+    appendix_context: str = ""
 
     response_model:str = ""

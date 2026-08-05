@@ -9,12 +9,17 @@ from llm_service.ai_config import get_live_config
 from llm_service.application.agent.formatters import format_retrieval_item_for_prompt
 from llm_service.application.lean_rag_models import LeanAgentState, PlanOutput, PlanSubtask, ReflectOutput, RetrieveItem
 from llm_service.utils.logger_config import setup_logger
+from llm_service.utils.stream_writer import get_safe_stream_writer
 
 logger = setup_logger("llm_service.lean_rag_agent")
 
 # Дефолтный текст no_data - честный отказ вместо LLM-галлюцинации на пустом/слабом
 # контексте (Принцип №4 "Честность важнее умности", ARCHITECTURE.md §3).
 _NO_DATA_ANSWER = "В базе знаний нет информации по вашему запросу."
+
+# Приложение может занимать несколько страниц - это сырой текст, не чанк с рассчитанным
+# скором (см. A21 в rag_service/ISSUES.md), в промпт целиком не льём.
+_MAX_APPENDIX_CONTEXT_CHARS = 6000
 
 
 class RetrievalNodesMixin:
@@ -39,9 +44,16 @@ class RetrievalNodesMixin:
         # реранка, а не сырой исходный вопрос. Живой пример бага: один и тот же кусок
         # (акт приостановки ПНР) получал 0.004 против сырого запроса и 0.85 против
         # переписанного - реранкер и retrieval сравнивали с разными формулировками.
+        # Ищем первую search_docs-подзадачу по наличию ключа "query" в args, а не берём
+        # subtasks[0] вслепую - с тех пор как get_appendix стал вторым тулом (args:
+        # {"document_code"}, без "query"), план вида [get_appendix, search_docs] тихо
+        # откатывал бы rerank_query на сырой state.query, воспроизводя тот же баг заново.
         rerank_query = state.query
-        if state.plan and state.plan.subtasks:
-            rerank_query = state.plan.subtasks[0].args.get("query", state.query)
+        if state.plan:
+            for subtask in state.plan.subtasks:
+                if "query" in subtask.args:
+                    rerank_query = subtask.args["query"]
+                    break
 
         texts = [
             max(item.child_chunks, key=lambda c: c.score).text if item.child_chunks else item.parent_chunk
@@ -100,11 +112,23 @@ class RetrievalNodesMixin:
 
         update["reflect_verdict"] = verdict
 
+        # needs_appendix - независимый от verdict сигнал (см. reflect_prompt): LLM видит
+        # запрос+найденное, но не UUID документов (format_retrieval_item_for_prompt
+        # показывает только filename) - поэтому LLM решает ТОЛЬКО "нужен ли текст
+        # приложения", а какой doc_id запрашивать, код резолвит сам из уже найденного
+        # топ-результата, не полагаясь на то, что LLM мог бы придумать/перепутать UUID.
+        if result.needs_appendix and state.retrieval_data:
+            doc_id = state.retrieval_data[0].metadata.doc_id
+            appendix_text = await self.retrieval_service.get_appendix(doc_id)
+            if appendix_text:
+                update["appendix_context"] = appendix_text[:_MAX_APPENDIX_CONTEXT_CHARS]
+
         logger.info(
             "Reflect finished",
             extra={
                 "query": state.query,
                 "verdict": verdict,
+                "needs_appendix": result.needs_appendix,
                 "duration_ms": int((time.perf_counter() - started) * 1000),
             },
         )
@@ -112,5 +136,17 @@ class RetrievalNodesMixin:
 
     async def no_data_node(self, state: LeanAgentState) -> dict[str, Any]:
         """РЕАЛЬНАЯ терминальная нода, достижима с сегодняшнего дня (см. decide_after_rerank) -
-        честный отказ вместо LLM-галлюцинации на пустом/слабом контексте (Принцип №4)."""
-        return {"retrieval_empty": True, "response_model": _NO_DATA_ANSWER}
+        честный отказ вместо LLM-галлюцинации на пустом/слабом контексте (Принцип №4).
+
+        Очищает retrieval_data: `not_in_corpus` от reflect_node достижим и при непустом
+        (просто слабом/нерелевантном) retrieval_data - без очистки extract_sources_node
+        строил бы список источников рядом с текстом "в базе знаний нет информации",
+        что читается как противоречие (раз есть источники, почему нет информации).
+
+        Граф идёт отсюда прямо в END, минуя generate_node (см. graph_builder.py) -
+        значит для SSE (lean_rag_agent.py::run_stream) это единственное место, которое
+        может доставить текст ответа как "token"-событие на этом пути; фронт
+        (useAiChat.js) рендерит сообщение только по token-событиям, "done".answer не
+        читает вообще."""
+        get_safe_stream_writer()({"event": "token", "data": {"text": _NO_DATA_ANSWER}})
+        return {"retrieval_empty": True, "response_model": _NO_DATA_ANSWER, "retrieval_data": []}

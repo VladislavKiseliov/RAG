@@ -90,3 +90,18 @@ def merge_search_docs_results(subtask_results: list[dict[str, Any]]) -> list[Ret
             if existing is None or item.metadata.score > existing.metadata.score:
                 merged[key] = item
     return sorted(merged.values(), key=lambda item: item.metadata.score, reverse=True)
+
+
+def merge_appendix_result(subtask_results: list[dict[str, Any]]) -> str | None:
+    """Достаёт текст приложения из get_appendix-подзадачи, если она была и что-то нашла.
+
+    В отличие от merge_search_docs_results - не список (нет score, нечего ранжировать),
+    первый непустой результат и есть ответ. Несколько get_appendix-подзадач в одном
+    plan - маловероятный, но не запрещённый случай; берём первую удачную."""
+    for entry in subtask_results:
+        if entry["tool"] != "get_appendix":
+            continue
+        text = entry["result"].get("text")
+        if text:
+            return text
+    return None

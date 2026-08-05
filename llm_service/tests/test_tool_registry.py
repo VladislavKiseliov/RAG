@@ -13,11 +13,14 @@ def make_registry(retrieve_return=None):
     retrieval_service.retrieve = AsyncMock(
         return_value=retrieve_return or RetrievalResult(items=[], total=0)
     )
+    retrieval_service.find_document_id_by_code = AsyncMock(return_value=None)
+    retrieval_service.get_appendix = AsyncMock(return_value=None)
+    retrieval_service.list_documents = AsyncMock(return_value=[])
     return build_tool_registry(retrieval_service=retrieval_service), retrieval_service
 
 
 ALL_EXPECTED_TOOL_NAMES = {
-    "search_docs", "get_chapter", "get_document_passport", "list_documents",
+    "search_docs", "get_appendix", "get_chapter", "get_document_passport", "list_documents",
     "search_notes", "search_tasks", "create_task", "create_note", "update_note",
     "calc_gas", "run_audit",
 }
@@ -44,7 +47,42 @@ async def test_search_docs_is_real_and_wraps_retrieval_service():
     assert result["items"][0]["metadata"]["doc_id"] == "d1"
 
 
-@pytest.mark.parametrize("tool_name", sorted(ALL_EXPECTED_TOOL_NAMES - {"search_docs"}))
+@pytest.mark.asyncio
+async def test_get_appendix_resolves_doc_id_then_fetches_text():
+    registry, retrieval_service = make_registry()
+    retrieval_service.find_document_id_by_code = AsyncMock(return_value="doc-42")
+    retrieval_service.get_appendix = AsyncMock(return_value="текст приложения А")
+
+    result = await registry["get_appendix"].fn(document_code="СП 1.13130.2020")
+
+    retrieval_service.find_document_id_by_code.assert_awaited_once_with("СП 1.13130.2020")
+    retrieval_service.get_appendix.assert_awaited_once_with("doc-42")
+    assert result == {"text": "текст приложения А", "doc_id": "doc-42"}
+
+
+@pytest.mark.asyncio
+async def test_get_appendix_document_not_found_skips_fetch():
+    registry, retrieval_service = make_registry()
+    retrieval_service.find_document_id_by_code = AsyncMock(return_value=None)
+
+    result = await registry["get_appendix"].fn(document_code="неизвестный документ")
+
+    retrieval_service.get_appendix.assert_not_called()
+    assert result == {"text": None, "doc_id": None}
+
+
+@pytest.mark.asyncio
+async def test_list_documents_returns_registry_contents():
+    registry, retrieval_service = make_registry()
+    docs = [{"doc_id": "d1", "filename": "СП 1.13130.pdf"}, {"doc_id": "d2", "filename": "ГОСТ 12.pdf"}]
+    retrieval_service.list_documents = AsyncMock(return_value=docs)
+
+    result = await registry["list_documents"].fn()
+
+    assert result == {"documents": docs, "total": 2}
+
+
+@pytest.mark.parametrize("tool_name", sorted(ALL_EXPECTED_TOOL_NAMES - {"search_docs", "get_appendix", "list_documents"}))
 @pytest.mark.asyncio
 async def test_unimplemented_tools_raise_not_implemented(tool_name):
     # Регрессия: заглушка должна громко падать, а не молча возвращать "успех" -

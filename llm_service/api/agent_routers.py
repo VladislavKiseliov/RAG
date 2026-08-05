@@ -6,6 +6,7 @@ from collections.abc import AsyncIterable
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
+from llm_service.exceptions import LLMServiceError
 from llm_service.utils.cancellation import with_cancellation
 from llm_service.api.schemas import (
     AskRequest,
@@ -48,6 +49,13 @@ async def answer_question(
             summary=request.summary,
 
         )
+    except LLMServiceError:
+        # RagUnavailableError/RagResponseError/RerankerUnavailableError/RerankerResponseError
+        # (retrieval_service.py/reranker_service.py) несут собственный status_code (502/503) -
+        # раньше терялись в except Exception ниже, все сбои становились одинаковым 502
+        # "LLM pipeline failed", хотя main.py::llm_error_handler для этого и существует.
+        # Пробрасываем дальше нетронутыми - FastAPI найдёт зарегистрированный хендлер.
+        raise
     except Exception as exc:
         # CancelledError (BaseException, не Exception) сюда не попадёт - при дисконнекте
         # клиента (см. with_cancellation) отвечать всё равно уже некому.

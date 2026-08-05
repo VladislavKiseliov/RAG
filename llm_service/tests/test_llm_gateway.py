@@ -12,12 +12,12 @@ class _Schema(BaseModel):
     x: int
 
 
-def make_gateway(generate_general_side_effect=None, generate_general_return=None):
+def make_gateway(generate_json_raw_side_effect=None, generate_json_raw_return=None):
     provider = MagicMock()
-    if generate_general_side_effect is not None:
-        provider.generate_general = AsyncMock(side_effect=generate_general_side_effect)
+    if generate_json_raw_side_effect is not None:
+        provider.generate_json_raw = AsyncMock(side_effect=generate_json_raw_side_effect)
     else:
-        provider.generate_general = AsyncMock(return_value=generate_general_return)
+        provider.generate_json_raw = AsyncMock(return_value=generate_json_raw_return)
     provider.generate = AsyncMock(return_value="answer")
     provider.generate_stream = MagicMock()
     return LLMGateway(llm_provider=provider), provider
@@ -39,30 +39,30 @@ def test_generate_stream_delegates_to_provider():
 
 @pytest.mark.asyncio
 async def test_generate_json_succeeds_first_try():
-    gateway, provider = make_gateway(generate_general_return='{"x": 5}')
+    gateway, provider = make_gateway(generate_json_raw_return='{"x": 5}')
     result = await gateway.generate_json(schema=_Schema, prompt="give json")
     assert result == _Schema(x=5)
-    assert provider.generate_general.await_count == 1
+    assert provider.generate_json_raw.await_count == 1
 
 
 @pytest.mark.asyncio
 async def test_generate_json_strips_markdown_fence():
-    gateway, _ = make_gateway(generate_general_return='```json\n{"x": 7}\n```')
+    gateway, _ = make_gateway(generate_json_raw_return='```json\n{"x": 7}\n```')
     result = await gateway.generate_json(schema=_Schema, prompt="give json")
     assert result == _Schema(x=7)
 
 
 @pytest.mark.asyncio
 async def test_generate_json_retries_exactly_once_on_invalid_json():
-    gateway, provider = make_gateway(generate_general_side_effect=["not json", '{"x": 9}'])
+    gateway, provider = make_gateway(generate_json_raw_side_effect=["not json", '{"x": 9}'])
     result = await gateway.generate_json(schema=_Schema, prompt="give json")
     assert result == _Schema(x=9)
-    assert provider.generate_general.await_count == 2
+    assert provider.generate_json_raw.await_count == 2
 
 
 @pytest.mark.asyncio
 async def test_generate_json_raises_after_second_failure_no_infinite_retry():
-    gateway, provider = make_gateway(generate_general_side_effect=["not json", "still not json"])
+    gateway, provider = make_gateway(generate_json_raw_side_effect=["not json", "still not json"])
     with pytest.raises(ValidationError):
         await gateway.generate_json(schema=_Schema, prompt="give json")
-    assert provider.generate_general.await_count == 2
+    assert provider.generate_json_raw.await_count == 2

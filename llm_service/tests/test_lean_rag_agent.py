@@ -34,8 +34,8 @@ _EMPTY_PLAN_RESPONSE = '{"subtasks": [], "synthesis": "smalltalk, поиск н�
 # тот же результат (no_data), что был бы без reflect вообще.
 _DEFAULT_REFLECT_RESPONSE = '{"verdict": "not_in_corpus", "new_queries": []}'
 # Уникальная фраза из reflect_prompt (ai_config.toml) - по ней различаем, что за
-# generate_general-вызов пришёл: от plan_node или от reflect_node. Оба читают один и
-# тот же llm_provider.generate_general (через llm_gateway.generate_json).
+# generate_json_raw-вызов пришёл: от plan_node или от reflect_node. Оба читают один и
+# тот же llm_provider.generate_json_raw (через llm_gateway.generate_json).
 _REFLECT_PROMPT_MARKER = "оцениваешь, достаточно ли найденных фрагментов"
 
 
@@ -47,8 +47,8 @@ def make_agent(
     retrieval_items: list[RetrieveItem] | None = None,
     reranker_side_effect=None,
 ) -> LeanRagAgent:
-    """plan_response/reflect_response - сырые ответы generate_general для plan_node и
-    reflect_node соответственно (оба вызывают один и тот же llm_provider.generate_general
+    """plan_response/reflect_response - сырые ответы generate_json_raw для plan_node и
+    reflect_node соответственно (оба вызывают один и тот же llm_provider.generate_json_raw
     через llm_gateway.generate_json, различаем по маркеру в тексте промпта - см.
     _REFLECT_PROMPT_MARKER). По умолчанию - валидный PlanOutput с одной search_docs-
     подзадачей и ReflectOutput с "not_in_corpus" (не зацикливаемся на лишний поиск
@@ -56,12 +56,30 @@ def make_agent(
     llm_provider = MagicMock()
     llm_provider.generate = AsyncMock(return_value=llm_answer)
 
-    async def _fake_generate_general(*, query: str, context: str = "") -> str:
+    # generate_node (с 2026-08-05, StreamRunner удалён - см. AGENT_GRAPH_CURRENT.md §1/§2.10)
+    # зовёт generate_stream() ВСЕГДА, не только на /llm/answer/stream - generate() остаётся
+    # только аварийным fallback'ом на полный сбой стрима (см. test_lean_rag_agent.py::TestRunStream).
+    # side_effect - не async-функция сама по себе (не AsyncMock), а обычный callable,
+    # возвращающий настоящий async-генератор - так `self.llm_provider.generate_stream(...)`
+    # ведёт себя как настоящий provider (вызов синхронный, то, что он вернул - и есть то,
+    # что "async for" итерирует), а вызов при этом остаётся инспектируемым через .call_args.
+    def _default_generate_stream(*, current_query: str, data_prompt):
+        async def _gen():
+            yield llm_answer
+        return _gen()
+
+    llm_provider.generate_stream = MagicMock(side_effect=_default_generate_stream)
+
+    # plan_node/reflect_node зовут generate_json_raw (JSON-контрактный system-промпт,
+    # см. LLM_provider.py/ai_config.toml::json_contract_system_prompt) - generate_general
+    # с 2026-08-05 используется только легаси-expand_queries_node (не в живом графе).
+    async def _fake_generate_json_raw(*, query: str) -> str:
         if _REFLECT_PROMPT_MARKER in query:
             return reflect_response
         return plan_response
 
-    llm_provider.generate_general = AsyncMock(side_effect=_fake_generate_general)
+    llm_provider.generate_json_raw = AsyncMock(side_effect=_fake_generate_json_raw)
+    llm_provider.generate_general = AsyncMock(return_value=plan_response)
 
     query_router = MagicMock()
     query_router.route = MagicMock(return_value=route)
@@ -70,6 +88,10 @@ def make_agent(
     retrieval_service.retrieve = AsyncMock(
         return_value=RetrievalResult(items=retrieval_items or [], total=len(retrieval_items or []))
     )
+    # По умолчанию документ без приложений/не найден (None) - тесты, не про A21/appendix,
+    # не должны заботиться об этих моках вообще.
+    retrieval_service.get_appendix = AsyncMock(return_value=None)
+    retrieval_service.find_document_id_by_code = AsyncMock(return_value=None)
 
     reranker_service = MagicMock()
     if reranker_side_effect is not None:
@@ -345,6 +367,45 @@ class TestBuildPromptNode:
         result = await agent.nodes.build_prompt_node(make_state(retrieval_data=[]))
         assert result["final_context"].context == ""
 
+    # A21: reflect_node не вызывается вообще, когда rerank сразу дал "sufficient" - живой
+    # прогон подтвердил, что типичный случай (нашли раздел, который ссылается на
+    # приложение по имени, с высоким скором) иначе долетал бы до generate() без текста
+    # приложения. build_prompt_node - code-gate поверх regex на запрос, подстраховка.
+    @pytest.mark.asyncio
+    async def test_appendix_mention_in_query_triggers_fallback_fetch(self):
+        agent = make_agent()
+        agent.retrieval_service.get_appendix = AsyncMock(return_value="текст приложения А")
+        item = make_retrieve_item()
+        result = await agent.nodes.build_prompt_node(
+            make_state(query="что написано в приложении А?", retrieval_data=[item])
+        )
+        assert "[Приложения документа]" in result["final_context"].context
+        assert "текст приложения А" in result["final_context"].context
+        agent.retrieval_service.get_appendix.assert_awaited_once_with(item.metadata.doc_id)
+
+    @pytest.mark.asyncio
+    async def test_already_set_appendix_context_is_not_refetched(self):
+        agent = make_agent()
+        agent.retrieval_service.get_appendix = AsyncMock(return_value="СВЕЖИЙ текст")
+        item = make_retrieve_item()
+        result = await agent.nodes.build_prompt_node(
+            make_state(
+                query="что в приложении?", retrieval_data=[item], appendix_context="уже подтянуто reflect'ом",
+            )
+        )
+        assert "уже подтянуто reflect'ом" in result["final_context"].context
+        agent.retrieval_service.get_appendix.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_appendix_mention_does_not_fetch(self):
+        agent = make_agent()
+        item = make_retrieve_item()
+        result = await agent.nodes.build_prompt_node(
+            make_state(query="сроки проведения пусконаладочных работ", retrieval_data=[item])
+        )
+        assert "[Приложения документа]" not in result["final_context"].context
+        agent.retrieval_service.get_appendix.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # generate_node
@@ -362,7 +423,11 @@ class TestGenerateNode:
         assert result == {"response_model": "готовый ответ"}
 
     @pytest.mark.asyncio
-    async def test_calls_llm_generate_with_correct_args(self):
+    async def test_calls_llm_generate_stream_with_correct_args(self):
+        # generate_node с 2026-08-05 (StreamRunner удалён) всегда стримит через
+        # generate_stream(), не generate() - единый путь для /llm/answer (writer -
+        # no-op, дельты просто копятся) и /llm/answer/stream (writer реально доставляет
+        # токены наружу), см. AGENT_GRAPH_CURRENT.md §2.10.
         agent = make_agent()
         final_ctx = FinalPromptData(
             route="domain_rag", context="ctx", chat_history=[],
@@ -370,7 +435,7 @@ class TestGenerateNode:
         )
         state = make_state(query="q", final_context=final_ctx)
         await agent.nodes.generate_node(state)
-        agent.llm_provider.generate.assert_called_once_with(
+        agent.llm_provider.generate_stream.assert_called_once_with(
             current_query="q",
             data_prompt=final_ctx,
         )
@@ -384,7 +449,7 @@ class TestGenerateNode:
         )
         state = make_state(final_context=final_ctx)
         await agent.nodes.generate_node(state)
-        call_kwargs = agent.llm_provider.generate.call_args.kwargs
+        call_kwargs = agent.llm_provider.generate_stream.call_args.kwargs
         assert call_kwargs["data_prompt"] is final_ctx
 
 
@@ -613,6 +678,25 @@ class TestRerankNode:
         call_kwargs = agent.reranker_service.rerank.call_args.kwargs
         assert call_kwargs["query"] == "сырой вопрос"
 
+    @pytest.mark.asyncio
+    async def test_reranks_against_search_docs_query_when_get_appendix_is_first_subtask(self):
+        # B5: subtasks[0].args.get("query", ...) слепо брало первую подзадачу - если это
+        # get_appendix (args: {"document_code"}, без "query"), rerank_query тихо
+        # откатывался на сырой state.query, воспроизводя баг из
+        # test_reranks_against_plan_query_not_raw_state_query заново для планов вида
+        # [get_appendix, search_docs].
+        item = make_retrieve_item()
+        plan = PlanOutput(subtasks=[
+            PlanSubtask(tool="get_appendix", args={"document_code": "СП 1.13130"}),
+            PlanSubtask(tool="search_docs", args={"query": "расшифрованный запрос"}),
+        ])
+        agent = make_agent()
+        await agent.nodes.rerank_node(
+            make_state(query="сырой вопрос", retrieval_data=[item], plan=plan)
+        )
+        call_kwargs = agent.reranker_service.rerank.call_args.kwargs
+        assert call_kwargs["query"] == "расшифрованный запрос"
+
 
 class TestDecideAfterRerank:
     @pytest.mark.asyncio
@@ -652,6 +736,16 @@ class TestNoDataNode:
         assert result["retrieval_empty"] is True
         assert result["response_model"]
         agent.llm_provider.generate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_clears_retrieval_data(self):
+        # A7: reflect_node может выставить not_in_corpus при непустом (просто слабом)
+        # retrieval_data - без очистки здесь extract_sources_node строил бы источники
+        # рядом с "в базе знаний нет информации", что читается как противоречие.
+        agent = make_agent()
+        item = make_retrieve_item()
+        result = await agent.nodes.no_data_node(make_state(retrieval_data=[item]))
+        assert result["retrieval_data"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -699,7 +793,7 @@ class TestPlanNode:
             {"role": "assistant", "content": "здравствуй"},
         ])
         await agent.nodes.plan_node(state)
-        prompt_arg = agent.llm_provider.generate_general.call_args.kwargs["query"]
+        prompt_arg = agent.llm_provider.generate_json_raw.call_args.kwargs["query"]
         assert "Пользователь: привет" in prompt_arg
         assert "Ассистент: здравствуй" in prompt_arg
         assert "{'role'" not in prompt_arg
@@ -708,8 +802,23 @@ class TestPlanNode:
     async def test_query_included_in_prompt(self):
         agent = make_agent()
         await agent.nodes.plan_node(make_state(query="уникальный вопрос про редуктор"))
-        prompt_arg = agent.llm_provider.generate_general.call_args.kwargs["query"]
+        prompt_arg = agent.llm_provider.generate_json_raw.call_args.kwargs["query"]
         assert "уникальный вопрос про редуктор" in prompt_arg
+
+    # route теперь производная от решения plan (нужен ли поиск), а не захардкоженное
+    # значение - см. planning_nodes.py::plan_node. Без этого generate_node никогда не
+    # выбирал бы system_prompt_chat (route всегда был "domain_rag").
+    @pytest.mark.asyncio
+    async def test_non_empty_plan_sets_domain_rag_route(self):
+        agent = make_agent()
+        result = await agent.nodes.plan_node(make_state(query="что такое редуктор?"))
+        assert result["route"] == "domain_rag"
+
+    @pytest.mark.asyncio
+    async def test_empty_plan_sets_smalltalk_route(self):
+        agent = make_agent(plan_response=_EMPTY_PLAN_RESPONSE)
+        result = await agent.nodes.plan_node(make_state(query="привет"))
+        assert result["route"] == "smalltalk"
 
 
 class TestDecideAfterReflect:
@@ -775,21 +884,21 @@ class TestReflectNode:
         result = await agent.nodes.reflect_node(make_state(retrieval_data=[item], reflect_rounds=1))
         assert result["reflect_verdict"] == "sufficient"
         assert result["reflect_rounds"] == 2
-        agent.llm_provider.generate_general.assert_not_called()
+        agent.llm_provider.generate_json_raw.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_second_round_cap_with_empty_retrieval_is_not_in_corpus(self):
         agent = make_agent()
         result = await agent.nodes.reflect_node(make_state(retrieval_data=[], reflect_rounds=1))
         assert result["reflect_verdict"] == "not_in_corpus"
-        agent.llm_provider.generate_general.assert_not_called()
+        agent.llm_provider.generate_json_raw.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_prompt_includes_query_and_found_content(self):
         agent = make_agent(reflect_response='{"verdict": "sufficient", "new_queries": []}')
         item = make_retrieve_item(parent_chunk="уникальный текст найденного фрагмента")
         await agent.nodes.reflect_node(make_state(query="уникальный вопрос", retrieval_data=[item]))
-        prompt_arg = agent.llm_provider.generate_general.call_args.kwargs["query"]
+        prompt_arg = agent.llm_provider.generate_json_raw.call_args.kwargs["query"]
         assert "уникальный вопрос" in prompt_arg
         assert "уникальный текст найденного фрагмента" in prompt_arg
 
@@ -797,8 +906,40 @@ class TestReflectNode:
     async def test_prompt_marks_empty_retrieval(self):
         agent = make_agent(reflect_response='{"verdict": "not_in_corpus", "new_queries": []}')
         await agent.nodes.reflect_node(make_state(retrieval_data=[]))
-        prompt_arg = agent.llm_provider.generate_general.call_args.kwargs["query"]
+        prompt_arg = agent.llm_provider.generate_json_raw.call_args.kwargs["query"]
         assert "ничего не найдено" in prompt_arg
+
+    # A21 (rag_service/ISSUES.md): приложения не проиндексированы, reflect подтягивает
+    # их текст напрямую через RetrievalService.get_appendix, когда LLM выставляет
+    # needs_appendix - независимо от verdict.
+    @pytest.mark.asyncio
+    async def test_needs_appendix_fetches_and_sets_appendix_context(self):
+        agent = make_agent(
+            reflect_response='{"verdict": "sufficient", "new_queries": [], "needs_appendix": true}'
+        )
+        agent.retrieval_service.get_appendix = AsyncMock(return_value="текст приложения А")
+        item = make_retrieve_item()
+        result = await agent.nodes.reflect_node(make_state(retrieval_data=[item], reflect_rounds=0))
+        assert result["appendix_context"] == "текст приложения А"
+        agent.retrieval_service.get_appendix.assert_awaited_once_with(item.metadata.doc_id)
+
+    @pytest.mark.asyncio
+    async def test_needs_appendix_false_does_not_fetch(self):
+        agent = make_agent(reflect_response='{"verdict": "sufficient", "new_queries": []}')
+        item = make_retrieve_item()
+        result = await agent.nodes.reflect_node(make_state(retrieval_data=[item], reflect_rounds=0))
+        assert "appendix_context" not in result
+        agent.retrieval_service.get_appendix.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_needs_appendix_true_but_no_retrieval_data_does_not_fetch(self):
+        # Нечего резолвить doc_id из - retrieval_data пуст.
+        agent = make_agent(
+            reflect_response='{"verdict": "not_in_corpus", "new_queries": [], "needs_appendix": true}'
+        )
+        result = await agent.nodes.reflect_node(make_state(retrieval_data=[], reflect_rounds=0))
+        assert "appendix_context" not in result
+        agent.retrieval_service.get_appendix.assert_not_called()
 
 
 class TestNewStubNodesAreInert:
@@ -911,6 +1052,33 @@ class TestExecuteSubtasksNode:
         assert len(result["retrieval_data"]) == 1
         assert result["retrieval_data"][0].metadata.score == 0.9
 
+    # get_appendix - реальный тул с 2026-08-05 (см. tool_registry.py), но его результат
+    # не "search-результат" (нет score, не чанк) - идёт в отдельное поле appendix_context,
+    # не в retrieval_data (merge_search_docs_results его игнорирует).
+    @pytest.mark.asyncio
+    async def test_get_appendix_result_goes_to_appendix_context_not_retrieval_data(self):
+        agent = make_agent()
+        agent.retrieval_service.find_document_id_by_code = AsyncMock(return_value="doc-1")
+        agent.retrieval_service.get_appendix = AsyncMock(return_value="текст приложения А")
+        plan = PlanOutput(subtasks=[PlanSubtask(tool="get_appendix", args={"document_code": "СП 1.13130"})])
+
+        result = await agent.nodes.execute_subtasks_node(make_state(plan=plan))
+
+        assert result["appendix_context"] == "текст приложения А"
+        assert result["retrieval_data"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_appendix_no_result_does_not_set_appendix_context_key(self):
+        # Не найдено (document_code не резолвился) - appendix_context не должен попасть
+        # в update вообще, иначе затёр бы значение, выставленное на предыдущем круге.
+        agent = make_agent()
+        agent.retrieval_service.find_document_id_by_code = AsyncMock(return_value=None)
+        plan = PlanOutput(subtasks=[PlanSubtask(tool="get_appendix", args={"document_code": "неизвестно"})])
+
+        result = await agent.nodes.execute_subtasks_node(make_state(plan=plan))
+
+        assert "appendix_context" not in result
+
 
 class TestDecideAfterExecuteSubtasks:
     @pytest.mark.asyncio
@@ -948,10 +1116,20 @@ class TestExtractSourcesNode:
 
 class TestDecideAfterGenerate:
     @pytest.mark.asyncio
-    async def test_smalltalk_always_ends_even_with_marker(self):
+    async def test_smalltalk_without_marker_ends(self):
         agent = make_agent()
-        state = make_state(route="smalltalk", query="сохрани это")
+        state = make_state(route="smalltalk", query="привет, как дела?")
         assert await decisions.decide_after_generate(state) == "end"
+
+    @pytest.mark.asyncio
+    async def test_smalltalk_with_marker_goes_to_post_actions(self):
+        # route="smalltalk" теперь означает "plan решил не искать по базе" (см.
+        # planning_nodes.py::plan_node), не "точно не про действие" - запрос-действие
+        # без похода в базу ("сохрани это в заметку" без доп. контекста) тоже мог бы
+        # получить route="smalltalk". Маркер действия должен сработать независимо от route.
+        agent = make_agent()
+        state = make_state(route="smalltalk", query="сохрани это в заметку")
+        assert await decisions.decide_after_generate(state) == "post_actions"
 
     @pytest.mark.asyncio
     async def test_domain_rag_without_marker_ends(self):
@@ -1053,9 +1231,9 @@ class TestFullGraphByteForByteRegression:
         spy_post_actions.assert_not_called()
 
         # plan_node/execute_subtasks_node реально отработали - проверяем по эффектам:
-        # generate_general вызван (только plan_node его зовёт на этом пути), и ответ
+        # generate_json_raw вызван (только plan_node его зовёт на этом пути), и ответ
         # получен (граф дошёл до generate/END, значит execute_subtasks отработал).
-        agent.llm_provider.generate_general.assert_called_once()
+        agent.llm_provider.generate_json_raw.assert_called_once()
         assert final_state["response_model"]
 
 
@@ -1070,13 +1248,25 @@ class TestRunStreamParity:
 
         agent.llm_provider.generate_stream = fake_generate_stream
 
-        with patch.object(agent.nodes, "rerank_node", wraps=agent.nodes.rerank_node) as spy_rerank, \
-             patch.object(agent.nodes, "extract_sources_node", wraps=agent.nodes.extract_sources_node) as spy_extract:
-            events = [e async for e in agent.run_stream(query="вопрос", history_messages_db=[])]
+        # run_stream() с 2026-08-05 (StreamRunner удалён) гоняет ТОТ ЖЕ скомпилированный
+        # граф (agent.app.astream), что и run() - LangGraph захватывает bound-методы нод
+        # в момент build_agent_graph() (в __init__.py, до этого места), так что
+        # patch.object(agent.nodes, "rerank_node", ...) постфактум узел графа больше не
+        # подменяет (тот же caveat, что уже задокументирован в
+        # TestFullGraphByteForByteRegression::test_full_graph_never_touches_disabled_router_nodes) -
+        # проверяем по наблюдаемым эффектам вместо spy-вызовов: rerank_node реально
+        # отработал, если дошло до сетевого вызова реранкера; extract_sources_node - если
+        # финальное "sources"-событие несёт реально найденный item.
+        events = [e async for e in agent.run_stream(query="вопрос", history_messages_db=[])]
 
         assert [e["event"] for e in events] == ["status", "status", "token", "sources", "done"]
-        spy_rerank.assert_awaited_once()
-        spy_extract.assert_awaited_once()
+        agent.reranker_service.rerank.assert_awaited_once()
+        sources_event = next(e for e in events if e["event"] == "sources")
+        assert len(sources_event["data"]["sources"]) == 1
+        assert sources_event["data"]["sources"][0]["doc_id"] == item.metadata.doc_id
+        # score 0.99 (не исходные 0.9 у item) - подтверждает, что рерос отработал по-настоящему
+        # (make_agent по умолчанию мокает reranker на identity-порядок со скором 0.99).
+        assert sources_event["data"]["sources"][0]["score"] == 0.99
 
     @pytest.mark.asyncio
     async def test_smalltalk_like_empty_plan_event_sequence(self):

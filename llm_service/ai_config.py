@@ -23,6 +23,7 @@ class PromptsConfig(BaseModel):
     system_prompt_rag: str
     system_prompt_chat: str
     general_system_prompt: str
+    json_contract_system_prompt: str
     summary_system_prompt: str
     chapter_summary_system_prompt: str
     document_summary_system_prompt: str

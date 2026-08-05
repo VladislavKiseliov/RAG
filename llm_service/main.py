@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     yield
     await app.state.container.agent.retrieval_service.aclose()
     await app.state.container.agent.reranker_service.aclose()
+    await app.state.container.agent.llm_provider.aclose()
 
 
 app = FastAPI(lifespan=lifespan)

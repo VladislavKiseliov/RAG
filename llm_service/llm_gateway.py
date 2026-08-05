@@ -34,11 +34,11 @@ class LLMGateway:
 
     async def generate_json(self, *, schema: type[T], prompt: str, temperature: float = 0.2) -> T:
         """Pydantic-валидация + 1 ретрай на том же провайдере - реальная реализация,
-        не требует новой инфры (см. ARCHITECTURE.md §6). Ни одна нода не вызывает этот
-        метод в этом заходе (plan/reflect/post_actions - чистые заглушки без промптов) -
-        готов к подключению по мере того, как ноды получают реальные промпты.
-        """
-        raw = await self._llm_provider.generate_general(query=prompt, context="")
+        не требует новой инфры (см. ARCHITECTURE.md §6). Вызывается plan_node/reflect_node
+        (planning_nodes.py/retrieval_nodes.py) - 100% живого трафика графа проходит через
+        plan_node. Использует generate_json_raw() провайдера (не generate_general()) -
+        отдельный system-промпт про JSON-контракт, см. LLM_provider.py."""
+        raw = await self._llm_provider.generate_json_raw(query=prompt)
         try:
             return schema.model_validate_json(_strip_markdown_fence(raw))
         except ValidationError as exc:
@@ -47,7 +47,7 @@ class LLMGateway:
                 f"{prompt}\n\nПредыдущий ответ не прошёл валидацию схемы:\n{exc}\n"
                 "Верни СТРОГО валидный JSON по той же схеме, без markdown-разметки."
             )
-            raw_retry = await self._llm_provider.generate_general(query=retry_prompt, context="")
+            raw_retry = await self._llm_provider.generate_json_raw(query=retry_prompt)
             return schema.model_validate_json(_strip_markdown_fence(raw_retry))
 
 

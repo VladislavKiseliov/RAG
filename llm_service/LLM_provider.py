@@ -145,11 +145,13 @@ class LLMProvider(Protocol):
     async def generate(self, *, current_query: str, data_prompt: FinalPromptData) -> str: ...
     def generate_stream(self, *, current_query: str, data_prompt: FinalPromptData) -> AsyncIterator[str]: ...
     async def generate_general(self, *, query: str, context: str) -> str: ...
+    async def generate_json_raw(self, *, query: str) -> str: ...
     async def generate_summary(self, *, messages: list[dict], existing_summary: str = "") -> str: ...
     async def generate_note(self, *, raw_text: str) -> str: ...
     async def generate_chapter_summary(self, *, chapter_text: str) -> str: ...
     async def generate_document_summary(self, *, chapter_summaries: str) -> str: ...
     async def generate_table_summary(self, *, table_text: str) -> str: ...
+    async def aclose(self) -> None: ...
 
 
 class OpenAICompatLLMProvider:
@@ -164,6 +166,9 @@ class OpenAICompatLLMProvider:
         from openai import AsyncOpenAI
 
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
+
+    async def aclose(self) -> None:
+        await self._client.close()
 
     @staticmethod
     def _answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:
@@ -204,6 +209,22 @@ class OpenAICompatLLMProvider:
             messages=[
                 {"role": "system", "content": config.prompts.general_system_prompt},
                 {"role": "user", "content": content},
+            ],
+            temperature=config.llm.temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_json_raw(self, *, query: str) -> str:
+        """Для LLMGateway.generate_json (plan/reflect) - system-сообщение про JSON-контракт,
+        не про обычный чат (см. json_contract_system_prompt в ai_config.toml). Раньше эти
+        вызовы шли через generate_general(), чей general_system_prompt ни слова не говорит
+        про JSON и конфликтовал с "верни строго JSON" в user-сообщении."""
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.json_contract_system_prompt},
+                {"role": "user", "content": query},
             ],
             temperature=config.llm.temperature,
         )
@@ -289,6 +310,9 @@ class GroqLLMProvider:
             timeout=60.0,
         )
 
+    async def aclose(self) -> None:
+        await self._client.close()
+
     @staticmethod
     def _answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:
         return _build_answer_messages(current_query, data_prompt)
@@ -328,6 +352,22 @@ class GroqLLMProvider:
             messages=[
                 {"role": "system", "content": config.prompts.general_system_prompt},
                 {"role": "user", "content": content},
+            ],
+            temperature=config.llm.temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_json_raw(self, *, query: str) -> str:
+        """Для LLMGateway.generate_json (plan/reflect) - system-сообщение про JSON-контракт,
+        не про обычный чат (см. json_contract_system_prompt в ai_config.toml). Раньше эти
+        вызовы шли через generate_general(), чей general_system_prompt ни слова не говорит
+        про JSON и конфликтовал с "верни строго JSON" в user-сообщении."""
+        config = get_live_config()
+        response = await self._client.chat.completions.create(
+            model=config.llm.model_name,
+            messages=[
+                {"role": "system", "content": config.prompts.json_contract_system_prompt},
+                {"role": "user", "content": query},
             ],
             temperature=config.llm.temperature,
         )

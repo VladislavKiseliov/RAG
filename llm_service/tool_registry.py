@@ -8,10 +8,13 @@ from pydantic import BaseModel
 from llm_service.application.services.retrieval_service import RetrievalService
 
 # Framework-agnostic — без импортов LangGraph, чтобы этим же реестром впоследствии
-# мог пользоваться mcp_server.py (см. ARCHITECTURE.md §5). Пока единственный реальный
-# инструмент - search_docs (оборачивает уже существующий RetrievalService.retrieve).
-# Всё остальное - настоящая заглушка: вызов fn кидает NotImplementedError, а не
-# молча возвращает пустой "успех" - см. ARCHITECTURE.md §4/§10.
+# мог пользоваться mcp_server.py (см. ARCHITECTURE.md §5). Реально работают три
+# инструмента - search_docs, get_appendix, list_documents (все оборачивают
+# RetrievalService). list_documents НЕ упомянут в plan_prompt (ai_config.toml) -
+# planner о нём не знает и сам его не предложит; тул зарегистрирован и вызываем
+# (в т.ч. для будущего использования вне графа), но живым LLM-трафиком сегодня
+# не достигается. Всё остальное - настоящая заглушка: вызов fn кидает
+# NotImplementedError, а не молча возвращает пустой "успех" - см. ARCHITECTURE.md §4/§10.
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,10 @@ class SearchDocsArgs(BaseModel):
 class GetChapterArgs(BaseModel):
     doc: str
     chapter_number: str
+
+
+class GetAppendixArgs(BaseModel):
+    document_code: str
 
 
 class GetDocumentPassportArgs(BaseModel):
@@ -85,8 +92,7 @@ def _not_implemented_tool(name: str) -> Callable[..., Awaitable[Any]]:
 def build_tool_registry(*, retrieval_service: RetrievalService) -> dict[str, Tool]:
     """Строит реестр инструментов один раз при инициализации агента (см. LeanRagAgent.__init__).
 
-    search_docs - единственный реально работающий инструмент, оборачивает уже
-    протестированный RetrievalService.retrieve. doc_filter принимается схемой
+    search_docs оборачивает RetrievalService.retrieve. doc_filter принимается схемой
     (для совместимости с будущим payload-фильтром document_code, см. ARCHITECTURE.md
     §10 8.1), но пока не применяется - retrieve() ещё не поддерживает фильтрацию по
     документу на стороне rag_service.
@@ -96,12 +102,34 @@ def build_tool_registry(*, retrieval_service: RetrievalService) -> dict[str, Too
         result = await retrieval_service.retrieve([query])
         return {"items": [item.model_dump() for item in result.items], "total": result.total}
 
+    async def _get_appendix(*, document_code: str) -> dict[str, Any]:
+        doc_id = await retrieval_service.find_document_id_by_code(document_code)
+        if doc_id is None:
+            return {"text": None, "doc_id": None}
+        text = await retrieval_service.get_appendix(doc_id)
+        return {"text": text, "doc_id": doc_id}
+
+    async def _list_documents() -> dict[str, Any]:
+        documents = await retrieval_service.list_documents()
+        return {"documents": documents, "total": len(documents)}
+
     return {
         "search_docs": Tool(
             name="search_docs",
             description="Гибридный поиск по базе знаний (Qdrant dense+BM25).",
             args_schema=SearchDocsArgs,
             fn=_search_docs,
+            access="read",
+        ),
+        "get_appendix": Tool(
+            name="get_appendix",
+            description=(
+                "Текст приложений (ПРИЛОЖЕНИЕ N) конкретного документа по его названию/номеру "
+                "(например 'СП 1.13130.2020'). Приложения НЕ ищутся search_docs (не проиндексированы) - "
+                "используй этот тул, когда пользователь явно называет документ и просит именно приложение."
+            ),
+            args_schema=GetAppendixArgs,
+            fn=_get_appendix,
             access="read",
         ),
         "get_chapter": Tool(
@@ -122,7 +150,7 @@ def build_tool_registry(*, retrieval_service: RetrievalService) -> dict[str, Too
             name="list_documents",
             description="Обзор корпуса — список документов базы знаний.",
             args_schema=ListDocumentsArgs,
-            fn=_not_implemented_tool("list_documents"),
+            fn=_list_documents,
             access="read",
         ),
         "search_notes": Tool(

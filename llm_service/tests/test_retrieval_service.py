@@ -143,3 +143,96 @@ class TestRetrieveErrors:
 
         with pytest.raises(RagUnavailableError):
             await service.retrieve(["запрос"])
+
+
+# ---------------------------------------------------------------------------
+# Реестр документов (find_document_id_by_code / list_documents) - построен один раз
+# лениво при первом обращении, кэшируется в памяти на весь процесс.
+# ---------------------------------------------------------------------------
+
+def _mock_get_response(body, status_code: int = 200) -> MagicMock:
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = body
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.status_code = status_code
+    return mock_resp
+
+
+class TestDocumentRegistry:
+    @pytest.mark.asyncio
+    async def test_find_document_id_by_code_matches_filename_substring(self):
+        service = make_service()
+        docs = [
+            {"doc_id": "d1", "filename": "СП 1.13130 Эвакуационные пути.pdf"},
+            {"doc_id": "d2", "filename": "ГОСТ 12.1.004.pdf"},
+        ]
+        service._client.get = AsyncMock(return_value=_mock_get_response(docs))
+
+        result = await service.find_document_id_by_code("СП 1.13130")
+
+        assert result == "d1"
+
+    @pytest.mark.asyncio
+    async def test_find_document_id_by_code_case_insensitive(self):
+        service = make_service()
+        docs = [{"doc_id": "d1", "filename": "СП 1.13130.pdf"}]
+        service._client.get = AsyncMock(return_value=_mock_get_response(docs))
+
+        result = await service.find_document_id_by_code("сп 1.13130")
+
+        assert result == "d1"
+
+    @pytest.mark.asyncio
+    async def test_find_document_id_by_code_no_match_returns_none(self):
+        service = make_service()
+        docs = [{"doc_id": "d1", "filename": "ГОСТ 12.1.004.pdf"}]
+        service._client.get = AsyncMock(return_value=_mock_get_response(docs))
+
+        result = await service.find_document_id_by_code("несуществующий документ")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_registry_built_only_once_across_multiple_calls(self):
+        # Второй find_document_id_by_code (и любой list_documents) не должен снова
+        # ходить в сеть - реестр кэшируется в памяти после первой успешной сборки.
+        service = make_service()
+        docs = [{"doc_id": "d1", "filename": "СП 1.13130.pdf"}]
+        service._client.get = AsyncMock(return_value=_mock_get_response(docs))
+
+        await service.find_document_id_by_code("СП 1.13130")
+        await service.find_document_id_by_code("СП 1.13130")
+        await service.list_documents()
+
+        assert service._client.get.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_list_documents_returns_all_cached_entries(self):
+        service = make_service()
+        docs = [
+            {"doc_id": "d1", "filename": "СП 1.13130.pdf"},
+            {"doc_id": "d2", "filename": "ГОСТ 12.1.004.pdf"},
+        ]
+        service._client.get = AsyncMock(return_value=_mock_get_response(docs))
+
+        result = await service.list_documents()
+
+        assert len(result) == 2
+        assert {d["doc_id"] for d in result} == {"d1", "d2"}
+
+    @pytest.mark.asyncio
+    async def test_registry_build_failure_is_not_cached_and_retries_next_call(self):
+        # В отличие от мёртвого ML-роутера (best-effort, сдаётся навсегда), здесь есть
+        # смысл повторить попытку - rag_service мог просто ещё не подняться.
+        service = make_service()
+        docs = [{"doc_id": "d1", "filename": "СП 1.13130.pdf"}]
+        service._client.get = AsyncMock(
+            side_effect=[httpx.RequestError("connection refused"), _mock_get_response(docs)]
+        )
+
+        first = await service.find_document_id_by_code("СП 1.13130")
+        second = await service.find_document_id_by_code("СП 1.13130")
+
+        assert first is None
+        assert second == "d1"
+        assert service._client.get.await_count == 2
