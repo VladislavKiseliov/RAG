@@ -84,7 +84,7 @@ class RagSettings(BaseSettings):
 
     # Upload validation
     upload_allowed_extensions: list[str] = [".pdf", ".docx", ".txt"]
-    upload_max_size_bytes: int = 50 * 1024 * 1024  # 50 MB
+    upload_max_size_bytes: int = 70 * 1024 * 1024  # 70 MB
 
     # ──────────────────────────────────────────
     # Docling conversion

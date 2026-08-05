@@ -105,7 +105,13 @@ async def _proxy_request(
         except httpx.HTTPStatusError as exc:
             detail: Any
             try:
-                detail = exc.response.json()
+                body = exc.response.json()
+                # rag_service (exception_handlers.py) отдаёт {"status","code","message"},
+                # не FastAPI-дефолтный {"detail": ...} - без .get("message") сюда попадал
+                # весь dict целиком, и фронт (client.js: `data.detail || ...`) получал
+                # объект вместо строки -> new Error(object) -> "[object Object]" в UI
+                # вместо реального текста ошибки (например, лимита на размер файла).
+                detail = body.get("message") if isinstance(body, dict) and "message" in body else body
             except Exception:
                 detail = exc.response.text or "Upstream service error"
             raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
