@@ -24,14 +24,20 @@ class MessageRepository(BaseRepository):
         return message
 
     async def get_history(self, chat_id: int, limit: int = 50) -> List[Messages]:
+        # ASC + LIMIT брал первые N сообщений (самые старые), а не последние N -
+        # в чате длиннее limit новые сообщения (в т.ч. только что отправленное)
+        # никогда не попадали в ответ, хотя были в БД. DESC + reverse - тот же
+        # паттерн, что уже верно сделан в get_recent() ниже.
         stmt = (
             select(Messages)
             .where(Messages.chat_id == chat_id)
-            .order_by(Messages.id.asc())
+            .order_by(Messages.id.desc())
             .limit(limit)
         )
         result = await self._session.execute(stmt)
-        return list(result.scalars().all())
+        rows = list(result.scalars().all())
+        rows.reverse()
+        return rows
 
     async def get_recent(self, chat_id: int, limit: int = 10) -> List[Messages]:
         stmt = (
