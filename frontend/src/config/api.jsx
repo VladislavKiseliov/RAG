@@ -15,9 +15,9 @@ export const ENDPOINTS = {
     MESSENGER_DIRECT: "/messenger/chats/direct",
     MESSENGER_CHAT: (guid) => `/messenger/chats/${guid}`,
     MESSENGER_MESSAGES: (guid) => `/messenger/chats/${guid}/messages`,
-    MESSENGER_WS: (token) => {
+    MESSENGER_WS: () => {
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        return `${proto}://${window.location.host}/websocket/ws/?token=${token}`;
+        return `${proto}://${window.location.host}/websocket/ws/`;
     },
     KNOWLEDGE_DOCUMENTS: "/api/knowledge/documents",
     KNOWLEDGE_DOCUMENT_STATUS: (id) => `/api/knowledge/documents/${id}`,

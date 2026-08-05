@@ -1,8 +1,7 @@
 from typing import Annotated
 
-from fastapi import Request, Depends, Query, HTTPException
+from fastapi import Request, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from starlette.websockets import WebSocket
 
 from backend.services.messenger.message_service import MessageService
 from backend.services.auth_service import AuthService, CurrentUser
@@ -29,13 +28,6 @@ async def get_current_user_from_token(
     service: AuthService = Depends(get_auth_service)
 ) -> CurrentUser:
     return await service.get_user_from_token(token)
-
-async def get_current_from_token_user_ws(
-    websocket: WebSocket,
-    token: str = Query(...),
-    auth_service: AuthService = Depends(get_auth_service)
-) -> CurrentUser:
-    return await auth_service.get_user_from_token(token)
 
 async def require_admin_user(current_user: CurrentUser = Depends(get_current_user_from_token)) -> CurrentUser:
     if not current_user.is_superuser:
@@ -66,7 +58,6 @@ def get_messenger_service(container: BackendContainer = Depends(get_container)) 
 
 ContainerDep = Annotated[BackendContainer, Depends(get_container)]
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user_from_token)]
-CurrentUserWsDep = Annotated[CurrentUser, Depends(get_current_from_token_user_ws)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]

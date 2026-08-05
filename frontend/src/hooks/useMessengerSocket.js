@@ -13,11 +13,14 @@ export function useMessengerSocket({ getAccessToken, onMessage, enabled = true }
         if (!token || !enabled) return;
 
         wsRef.current?.close();
-        const ws = new WebSocket(ENDPOINTS.MESSENGER_WS(token));
+        const ws = new WebSocket(ENDPOINTS.MESSENGER_WS());
         wsRef.current = ws;
 
         ws.onopen = () => {
             backoffRef.current = 1000;
+            // Токен больше не в URL (утекал в access-логи nginx) - первое сообщение
+            // после подключения обязано быть auth, иначе backend закрывает сокет.
+            ws.send(JSON.stringify({ type: 'auth', token }));
         };
 
         ws.onmessage = (event) => {
