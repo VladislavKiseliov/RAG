@@ -12,6 +12,7 @@ from typing import Any, Annotated
 import httpx
 from fastapi import APIRouter, Depends, status, Query, Header, Response, Request
 from rag_service.api.schemas import (
+    AppendicesResponse,
     BatchDeleteDocumentsRequest,
     BatchDeleteDocumentsResponse,
     BatchDeleteErrorItem,
@@ -354,6 +355,35 @@ async def get_document_chapter_content(
             tables_out.append(ChapterTable(table_index=t.table_index, name=t.title or f"Таблица {t.table_index}", cols=cols, rows=rows))
 
     return ChapterContentResponse(text=text, tables=tables_out)
+
+
+@router.get("/documents/{doc_id}/appendices", response_model=AppendicesResponse)
+async def get_document_appendices(
+        doc_id: str,
+        document_query_service: DocQueryServiceDep,
+        document_orchestrator: DocumentOrchestratorDep,
+):
+    """Полный текст извлечённых приложений (ПРИЛОЖЕНИЕ N) документа, если Docling их нашёл.
+
+    Приложения не проходят через ChapterSplitter/векторизацию (см. A21 в ISSUES.md) —
+    `/documents/retrieve` их никогда не найдёт. Этот роут — единственный программный
+    доступ к их тексту, пока индексация не исправлена: используется как read-тул агента
+    (llm_service/tool_registry.py::get_appendix), когда запрос/найденный контекст
+    упоминает приложение. `text=None` (не 404) — отсутствие приложений у документа
+    штатная ситуация для большинства документов, не ошибка.
+    """
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError as exc:
+        raise InvalidDocumentIdError() from exc
+
+    meta_sections = await document_query_service.get_meta_sections_by_doc_id(doc_uuid)
+    appendices = next((s for s in meta_sections if s.section_type == "APPENDICES"), None)
+    if appendices is None:
+        return AppendicesResponse(doc_id=doc_id, text=None)
+
+    text_bytes = await document_orchestrator.get_file_s3_by_s3key(appendices.s3_md_path)
+    return AppendicesResponse(doc_id=doc_id, text=text_bytes.decode("utf-8").strip())
 
 
 @router.get("/parent-chunks/{parent_id}")

@@ -86,6 +86,11 @@ class ChapterContentResponse(BaseModel):
     tables: list[ChapterTable] = Field(default_factory=list)
 
 
+class AppendicesResponse(BaseModel):
+    doc_id: str
+    text: str | None = None
+
+
 class DocumentDetailResponse(DocumentSummaryResponse):
     file_hash: str | None = None
     s3key: str | None = None
