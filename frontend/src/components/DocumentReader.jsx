@@ -90,15 +90,6 @@ function DocumentReader({
                         <div className="kb-vec-cell"><div className="kb-vec-label">Таблиц и схем</div><div className="mono kb-vec-value">{fmt(doc.tables_count)} <span className="kb-vec-unit">табл.</span></div></div>
                     </div>
 
-                    <div className="kb-drawer-section-title">Векторизация</div>
-                    <div className="kb-vec-grid">
-                        <div className="kb-vec-cell"><div className="kb-vec-label">Размер чанка</div><div className="mono kb-vec-value">{fmt(doc.chunk_size)} <span className="kb-muted">ток.</span></div></div>
-                        <div className="kb-vec-cell"><div className="kb-vec-label">Перекрытие</div><div className="mono kb-vec-value">{fmt(doc.overlap)} <span className="kb-muted">ток.</span></div></div>
-                        <div className="kb-vec-cell"><div className="kb-vec-label">Чанков</div><div className="mono kb-vec-value">{fmt(doc.chunks)}</div></div>
-                        <div className="kb-vec-cell accent"><div className="kb-vec-label">Точек в БД</div><div className="mono kb-vec-value">{fmt(doc.chunks)}</div></div>
-                        <div className="kb-vec-cell span-2"><div className="kb-vec-label">Модель · размерность · метрика</div><div className="mono kb-vec-value">{fmt(doc.models)} · {fmt(doc.dim)}d · {fmt(doc.metric)}</div></div>
-                    </div>
-
                     <div className="kb-drawer-section-title">Оглавление</div>
                     <nav className="kb-reader-toc">
                         <div
@@ -113,7 +104,6 @@ function DocumentReader({
                                 className={`kb-reader-toc-item${chapterIdx === i ? ' active' : ''}`}
                                 onClick={() => onOpenChapter(i)}
                             >
-                                <span>{i + 1}</span>
                                 <span className="kb-reader-toc-title">{s.title}</span>
                                 <span className="count mono kb-muted">{fmt(s.chunks)}</span>
                             </div>
