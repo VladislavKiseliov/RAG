@@ -76,7 +76,7 @@ function AuthPage({ onLoginSuccess }) {
     return (
         <div className="auth-container">
             <div className="auth-box">
-                <h2>{isRegistering ? 'Регистрация' : 'Вход'} в RAG Chat Pro</h2>
+                <h2>{isRegistering ? 'Регистрация' : 'Вход'}</h2>
                 <form onSubmit={handleSubmit}>
                     {error && <p className="auth-error">{error}</p>}
 
