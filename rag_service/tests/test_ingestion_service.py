@@ -42,7 +42,9 @@ def vector_indexing_service_mock() -> AsyncMock:
 @pytest.fixture
 def s3_storage_mock() -> AsyncMock:
     mock = AsyncMock()
-    mock.get_file.return_value = b"pdf-bytes"
+    # A20: validate_file_content() теперь проверяет магические байты против
+    # заявленного расширения (.pdf для всех тестовых документов этого файла).
+    mock.get_file.return_value = b"%PDF-1.4 fake pdf bytes"
     return mock
 
 

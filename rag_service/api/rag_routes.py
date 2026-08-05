@@ -186,10 +186,9 @@ async def delete_document(
     except ValueError as exc:
         raise InvalidDocumentIdError() from exc
 
-    try:
-        await upload_service.delete_document(doc_id=doc_id)
-    except ValueError as exc:
-        raise DocumentNotFound(doc_id) from exc
+    # DocumentOrchestrator.delete_document raises the typed DocumentNotFound
+    # directly - no rewrap needed, exception_handlers.py maps it to 404.
+    await upload_service.delete_document(doc_id=doc_id)
 
     return DeleteDocumentResponse(status="deleted", doc_id=str(doc_id))
 
@@ -212,7 +211,7 @@ async def batch_delete_documents(
         try:
             await upload_service.delete_document(doc_id=parsed_doc_id)
             deleted.append(str(parsed_doc_id))
-        except ValueError:
+        except DocumentNotFound:
             not_found.append(str(parsed_doc_id))
         except Exception as exc:
             failed.append(BatchDeleteErrorItem(doc_id=str(parsed_doc_id), reason=str(exc)))

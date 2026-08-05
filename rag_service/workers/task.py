@@ -53,7 +53,15 @@ async def _post_summary_request(path: str, payload: dict, *, log_label: str) -> 
             response = await client.post(url, json=payload)
             response.raise_for_status()
             return response.json().get("summary")
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ValueError, AttributeError):
+        # httpx.HTTPError - сеть/таймаут/4xx-5xx. ValueError - response.json() на теле,
+        # которое не парсится как JSON (json.JSONDecodeError - подкласс ValueError).
+        # AttributeError - валидный JSON, но не dict (.get() на списке/строке). Раньше
+        # ловился только httpx.HTTPError - битый ответ llm_service падал бы наружу и
+        # обрывал весь summarize_document_chapters_task (max_retries=0, без per-item
+        # try/except в вызывающем цикле), теряя саммари всех оставшихся глав/таблиц
+        # документа, а не только текущего элемента - вопреки собственному контракту
+        # "best-effort, сбой одного элемента не должен ронять остальные".
         logger.warning("%s request failed, skipping", log_label, exc_info=True)
         return None
 

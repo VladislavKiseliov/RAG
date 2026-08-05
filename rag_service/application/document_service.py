@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from rag_service.domain.chunking.chunk_builder import ParentChunk
 from rag_service.domain.document import _sanitize_filename
-from rag_service.domain.errors.postgres import DocumentAlreadyExists
+from rag_service.domain.errors.postgres import DocumentIdConflict
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
 from rag_service.models import DocumentStatus, DocumentListItemDTO, ParentChunks
 
@@ -81,7 +81,7 @@ class DataBaseDocumentService:
         except IntegrityError as e:
             if "uq_documents_file_hash" in str(e.orig):
                 return False
-            raise e
+            raise
 
 
     async def get_document_by_hash(self, file_hash: str) -> DocumentListItemDTO | None:
@@ -117,7 +117,7 @@ class DataBaseDocumentService:
             existing_by_id = await repo.get_document_by_id(doc_id)
 
             if existing_by_id:
-                raise DocumentAlreadyExists(f"Document {doc_id} already exists")
+                raise DocumentIdConflict(str(doc_id))
 
             new_id = await repo.create_document(filename=safe_name,
                                                 metadata=metadata,

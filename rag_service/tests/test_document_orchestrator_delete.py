@@ -20,6 +20,7 @@ if "rag_service.utils.logger_config" not in sys.modules:
     sys.modules["rag_service.utils.logger_config"] = logger_stub
 
 from rag_service.application.document_orchestrator import DocumentOrchestrator
+from rag_service.domain.errors.postgres import DocumentNotFound
 from rag_service.domain.errors.storage import StorageNotFoundError
 
 
@@ -80,7 +81,7 @@ async def test_delete_document_succeeds_when_file_already_missing_from_storage()
 async def test_delete_document_raises_for_unknown_document():
     orchestrator, _s3, _vec, _db = make_orchestrator(document=None)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(DocumentNotFound):
         await orchestrator.delete_document(DOC_ID)
 
 

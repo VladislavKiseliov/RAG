@@ -19,6 +19,20 @@ class DocumentAlreadyExists(PostgresError):
         self.status_code = status.HTTP_409_CONFLICT
 
 
+class DocumentIdConflict(PostgresError):
+    """Raised when a document row with the given id already exists.
+
+    Distinct from DocumentAlreadyExists (keyed by file_hash, a real content
+    duplicate) - this is a doc_id collision, expected to be unreachable in
+    practice since IngestionDocument.create_new() always mints a fresh uuid7.
+    """
+
+    def __init__(self, doc_id: str):
+        self.doc_id = doc_id
+        super().__init__(message=f"Document '{doc_id}' already exists")
+        self.status_code = status.HTTP_409_CONFLICT
+
+
 class DocumentNotFound(PostgresError):
     """Raised when a requested document does not exist."""
 

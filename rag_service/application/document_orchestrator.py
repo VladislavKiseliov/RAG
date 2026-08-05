@@ -7,6 +7,7 @@ from typing import Any
 from rag_service.api.schemas import UploadFileResponse
 from rag_service.application.document_service import DataBaseDocumentService
 from rag_service.domain.document import IngestionDocument
+from rag_service.domain.errors.postgres import DocumentNotFound
 from rag_service.domain.errors.storage import StorageNotFoundError
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
@@ -45,7 +46,7 @@ class DocumentOrchestrator:
         """Шаг 3: Полная очистка"""
         document = await self.database.get_document_by_id(doc_id)
         if document is None:
-            raise ValueError(f"Document '{doc_id}' not found")
+            raise DocumentNotFound(str(doc_id))
 
         object_key = key or document.s3key
 
@@ -114,7 +115,7 @@ class DocumentOrchestrator:
         parsed_doc_id = uuid.UUID(doc_id)
         info = await self.database.get_document_full_info(parsed_doc_id)
         if info is None:
-            raise ValueError(f"Document '{doc_id}' not found")
+            raise DocumentNotFound(doc_id)
         return info
 
 

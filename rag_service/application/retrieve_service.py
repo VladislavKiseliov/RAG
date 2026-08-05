@@ -257,7 +257,12 @@ class RetrieveService:
         Returns:
             Dict with 'items' and 'total'.
         """
-        queries = self._abbreviation_expander.expand(queries)
+        # AbbreviationExpander.expand - синхронная pymorphy3-лемматизация (чистый
+        # Python, не C-расширение), считается для каждого слова запроса безусловно
+        # (см. _build_canonical). Без to_thread этот CPU-bound вызов держит event
+        # loop процесса на всё время разбора - под конкурентной нагрузкой стопорит
+        # остальные retrieve/health-check запросы того же процесса.
+        queries = await asyncio.to_thread(self._abbreviation_expander.expand, queries)
 
         if len(queries) == 1:
             return await self.search(query=queries[0], top_k=top_k)

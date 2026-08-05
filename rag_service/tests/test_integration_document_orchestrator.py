@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from rag_service.application.document_orchestrator import DocumentOrchestrator
 from rag_service.application.document_service import DataBaseDocumentService
+from rag_service.domain.errors.postgres import DocumentNotFound
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
 from rag_service.models import Base, DocumentListItemDTO
 from rag_service.settings import settings
@@ -280,7 +281,7 @@ async def test_get_document_info_raises_for_missing_doc(
     orchestrator: DocumentOrchestrator,
 ) -> None:
     missing_doc_id = str(uuid.uuid4())
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(DocumentNotFound):
         await orchestrator.get_document_info(missing_doc_id)
 
 

@@ -19,6 +19,28 @@ def _sanitize_filename(filename: str) -> str:
     return PurePath(cleaned).name
 
 
+# A20 (rag_service/ISSUES.md): create_new() только проверяет расширение по имени,
+# до того как байты файла существуют - клиент льёт файл напрямую в MinIO по
+# presigned URL, мимо rag_service. Эта проверка запускается отдельно, как только
+# байты появляются (ingestion_service.py, после скачивания из S3, до Docling).
+_PDF_MAGIC = b"%PDF-"
+_DOCX_MAGIC = b"PK\x03\x04"  # DOCX - ZIP-контейнер
+
+
+def validate_file_content(content: bytes, filename: str) -> None:
+    """Проверяет, что содержимое файла соответствует заявленному по имени расширению."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext == ".pdf" and not content.startswith(_PDF_MAGIC):
+        raise UploadValidationError("Содержимое файла не похоже на PDF (нет сигнатуры %PDF-).")
+    elif ext == ".docx" and not content.startswith(_DOCX_MAGIC):
+        raise UploadValidationError("Содержимое файла не похоже на DOCX (не ZIP-контейнер).")
+    elif ext == ".txt":
+        try:
+            content.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise UploadValidationError("Содержимое файла не декодируется как UTF-8 текст.") from exc
+
+
 class DocumentStatus(str, enum.Enum):
     # 1. Начальные этапы
     PENDING = "pending"  # Запись создана, ждем начала загрузки

@@ -30,6 +30,9 @@ from rag_service.domain.errors.vector import (
     VectorUpsertError,
 )
 from rag_service.domain.models.vector_point import VectorPoint
+from rag_service.utils.logger_config import setup_logger
+
+logger = setup_logger("rag_service.qdrant_vector_storage")
 
 
 class QdrantVectorStorage():
@@ -206,7 +209,12 @@ class QdrantVectorStorage():
                 for r in results.points
             ]
         except Exception as exc:
-            raise VectorSearchError(f"Failed to execute vector search in Qdrant {exc=}") from exc
+            # A19: repr(exc) (хост/порт/детали таймаута Qdrant) раньше уходил в exc.message,
+            # который exception_handlers.py возвращает как есть в теле HTTP-ответа - логируем
+            # детали только на сервере, наружу отдаём статичное сообщение, как соседние
+            # VectorUpsertError/VectorDeleteError.
+            logger.exception("Vector search failed in Qdrant collection %s", self._collection)
+            raise VectorSearchError("Failed to execute vector search in Qdrant") from exc
 
 
     async def batch_search(
@@ -265,7 +273,8 @@ class QdrantVectorStorage():
                 for result in batch_results
             ]
         except Exception as exc:
-            raise VectorSearchError(f"Failed to execute batch vector search in Qdrant {exc=}") from exc
+            logger.exception("Batch vector search failed in Qdrant collection %s", self._collection)
+            raise VectorSearchError("Failed to execute batch vector search in Qdrant") from exc
 
 
     async def delete_by_field(self, field: str, value: str) -> None:

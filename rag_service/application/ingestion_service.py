@@ -10,7 +10,7 @@ import hashlib
 
 from sqlalchemy.exc import OperationalError
 
-from rag_service.domain.errors.base import DuplicateFileError, InvalidIngestionStateError
+from rag_service.domain.errors.base import DuplicateFileError, InvalidIngestionStateError, UploadValidationError
 from rag_service.domain.errors.storage import StorageDeleteError, StorageReadError, StorageWriteError
 from rag_service.domain.errors.vector import VectorUpsertError, VectorDeleteError
 from rag_service.domain.models.vector_point import VectorPoint
@@ -26,7 +26,7 @@ from rag_service.domain.chunking.chunk_builder import ChunkDeduplicator
 from rag_service.domain.chunking.chunk_builder import ContentFilter
 from rag_service.domain.chunking.chunk_builder import ParentChunk
 from rag_service.domain.chunking.docling_segmenter import parse_abbreviation_section
-from rag_service.domain.document import IngestionDocument
+from rag_service.domain.document import IngestionDocument, validate_file_content
 
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
@@ -93,8 +93,9 @@ class IngestionService:
               ловим здесь `DBAPIError` (базовый класс и для `IntegrityError`/`ProgrammingError`) —
               настоящее нарушение constraint'а или баг в SQL должен сразу падать в ERROR, а не
               молча ретраиться до `max_retries` как будто это временная сеть (см. B5 в ISSUES.md).
-            - `ValueError`/`InvalidIngestionStateError` — детерминированная ошибка (пустой/
-              битый PDF, нарушение порядка стадий) — ретрай не поможет, статус ERROR.
+            - `ValueError`/`InvalidIngestionStateError`/`UploadValidationError` — детерминированная
+              ошибка (пустой/битый PDF, содержимое не совпадает с заявленным расширением,
+              нарушение порядка стадий) — ретрай не поможет, статус ERROR.
             - Всё остальное (неизвестная ошибка) — по умолчанию тоже не ретраим: безопаснее
               один раз пометить ERROR и разобраться, чем молча повторять баг.
             Во всех "не ретраим" случаях, кроме дубликата, документ не удаляется сразу —
@@ -132,6 +133,11 @@ class IngestionService:
                 doc.start_processing()
                 file_bytes, file_hash = await self._download_and_validate_hashes(doc_id=doc_id, s3key=s3key)
                 doc.file_hash = file_hash
+                # A20: клиент льёт файл в MinIO напрямую по presigned URL, минуя
+                # rag_service - до этого момента содержимое ни разу не проверялось,
+                # только имя/размер (см. IngestionDocument.create_new). Первая точка,
+                # где реальные байты есть в rag_service.
+                validate_file_content(file_bytes, file_name)
 
             async with self._lifecycle_step(doc):
                 doc.start_extraction()
@@ -179,7 +185,7 @@ class IngestionService:
             logger.warning("Transient infrastructure error doc_id=%s: %s", doc_id, e)
             raise
 
-        except (ValueError, InvalidIngestionStateError) as e:
+        except (ValueError, InvalidIngestionStateError, UploadValidationError) as e:
             # Детерминированная ошибка (пустой/битый PDF, нарушение порядка стадий) —
             # ретрай не поможет, тот же файл сломается точно так же
             logger.error("Non-retryable ingestion error doc_id=%s: %s", doc_id, e)

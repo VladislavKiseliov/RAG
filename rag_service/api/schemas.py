@@ -1,13 +1,19 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from rag_service.domain.document import DocumentStatus
 
+# Раньше не было ни лимита на число запросов в батче, ни на длину одного запроса
+# (B16 в rag_service/ISSUES.md) - AbbreviationExpander лемматизирует каждое слово
+# каждого запроса (см. B15), неограниченный вход давал неограниченную CPU-работу
+# на один вызов /documents/retrieve.
+_QueryStr = Annotated[str, Field(max_length=2000)]
+
 
 class RetrieveRequest(BaseModel):
-    queries: list[str] = Field(..., min_length=1, description="One or more search queries")
+    queries: list[_QueryStr] = Field(..., min_length=1, max_length=30, description="One or more search queries")
     top_k: int = Field(default=5, ge=1, le=50)
 
     @field_validator("queries")
