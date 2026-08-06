@@ -38,8 +38,6 @@ class GatewayConfig(BaseModel):
     """Пороги плана/сравнения документов/реранка, см. ARCHITECTURE.md §3/§10 (шаги 1c/4/5b)."""
     max_docs_interactive: int = 4
     max_subtasks: int = 4
-    router_knn_threshold: float = 0.15
-    router_confidence_threshold: float = 0.7
     # Стартовые оценки (не откалиброваны eval'ом - см. ARCHITECTURE.md §1 п.3, второе
     # сознательное исключение). Ниже no_data_threshold и между порогами ("серая зона") -
     # обе ветки теперь уходят в reflect_node (реальный, см. retrieval_nodes.py) - LLM
@@ -47,6 +45,19 @@ class GatewayConfig(BaseModel):
     # grey_zone_threshold - обычный sufficient, reflect не вызывается.
     rerank_no_data_threshold: float = 0.35
     rerank_grey_zone_threshold: float = 0.60
+    # Кросс-энкодер сортирует, но сам по себе не отсекает - без среза весь найденный
+    # пул (включая слабый хвост) доезжает до generate_node, а после накопления между
+    # кругами reflect (см. execute_subtasks_node) пул может удвоиться. Больше слабого
+    # контекста - больше материала для "додумывания" в ответе (см. §6.9
+    # AGENT_GRAPH_CURRENT.md). Стартовая оценка, не откалибрована eval'ом.
+    rerank_final_k: int = 6
+    # Раньше жили как дефолты аргументов в RetrievalService.retrieve() - правка
+    # требовала менять код и пересобирать образ. Вынесены в конфиг вместе с
+    # rerank_final_k ради согласованности - все параметры "сколько кандидатов
+    # подавать реранкеру" в одном месте, без eval_overrides пока не нужно (ablation
+    # ещё не запускали).
+    retrieval_top_k_per_query: int = 3
+    retrieval_max_parents: int = 6
 
 
 class AppConfig(BaseModel):

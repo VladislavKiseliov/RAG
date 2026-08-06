@@ -42,7 +42,9 @@ async def test_search_docs_is_real_and_wraps_retrieval_service():
 
     result = await registry["search_docs"].fn(queries=["test query"])
 
-    retrieval_service.retrieve.assert_awaited_once_with(["test query"])
+    retrieval_service.retrieve.assert_awaited_once_with(
+        ["test query"], top_k_per_query=3, max_parents=6,
+    )
     assert result["total"] == 1
     assert result["items"][0]["metadata"]["doc_id"] == "d1"
 
@@ -56,7 +58,9 @@ async def test_search_docs_forwards_multiple_queries_in_one_call():
 
     await registry["search_docs"].fn(queries=["запрос один", "запрос два"])
 
-    retrieval_service.retrieve.assert_awaited_once_with(["запрос один", "запрос два"])
+    retrieval_service.retrieve.assert_awaited_once_with(
+        ["запрос один", "запрос два"], top_k_per_query=3, max_parents=6,
+    )
 
 
 @pytest.mark.asyncio

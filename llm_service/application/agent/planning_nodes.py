@@ -24,6 +24,17 @@ PLAN_FALLBACK_COUNT = Counter(
     "plan_node fell back to a default search_docs(query) plan after an LLM/JSON contract failure",
 )
 
+# Вся диспетчеризация системы висит на одном JSON-ответе дешёвой модели (route -
+# производная от "пустой ли план", не отдельная ML-классификация, см. §2.1/§6.2
+# AGENT_GRAPH_CURRENT.md). Доля smalltalk/domain_rag в логах - канарейка: если
+# планировщик начнёт систематически решать "поиск не нужен" на документных вопросах,
+# это будет видно метрикой, а не жалобой пользователя.
+PLAN_ROUTE_COUNT = Counter(
+    "llm_plan_route_total",
+    "plan_node route decisions (smalltalk vs domain_rag)",
+    ["route"],
+)
+
 
 class PlanningNodesMixin:
     async def plan_node(self, state: LeanAgentState) -> dict[str, Any]:
@@ -71,6 +82,7 @@ class PlanningNodesMixin:
         # сам диалог). "smalltalk" здесь - технический ярлык для "поиск не нужен", не
         # обязательно буквально приветствие.
         route = "smalltalk" if not plan.subtasks else "domain_rag"
+        PLAN_ROUTE_COUNT.labels(route=route).inc()
 
         # SSE "status"-событие (см. lean_rag_agent.py::run_stream, custom stream_mode) -
         # no-op вне графа/вне astream(stream_mode="custom") (get_safe_stream_writer).
@@ -124,18 +136,17 @@ class PlanningNodesMixin:
         # предыдущем круге, даже если это было релевантно, просто под другой
         # формулировкой ("искал так - нашёл это, искал иначе - нашёл то" должно
         # складываться, а не подменяться). Мёржим свежие находки с уже накопленным
-        # state.retrieval_data, дедуп по parent_id (глобально уникальный PK), оставляем
-        # версию с большим score - тот же принцип, что merge_search_docs_results уже
-        # применяет внутри одного круга. Объединённый пул уходит дальше в rerank
-        # (decide_after_execute_subtasks), который единообразно пересчитает score для
-        # всех элементов сразу против актуальной формулировки - "выбрать лучшее из
-        # всего", а не только из последнего круга.
+        # state.retrieval_data, дедуп по parent_id (глобально уникальный PK).
+        # Обновлено 2026-08-06: свежий элемент побеждает безусловно, без сравнения
+        # score - у существующих элементов на повторном круге score уже калиброванный
+        # (0..1 кросс-энкодера из rerank_node), а у свежих - сырой fusion-скор из
+        # rag_service (другая шкала/диапазон), сравнивать их напрямую бессмысленно.
+        # Объединённый пул всё равно уходит дальше в rerank, который единообразно
+        # пересчитает score для всех элементов сразу против актуальной формулировки -
+        # "выбрать лучшее из всего", а не только из последнего круга.
         new_items = merge_search_docs_results(results)
         merged: dict[str, RetrieveItem] = {item.metadata.parent_id: item for item in state.retrieval_data}
-        for item in new_items:
-            existing = merged.get(item.metadata.parent_id)
-            if existing is None or item.metadata.score > existing.metadata.score:
-                merged[item.metadata.parent_id] = item
+        merged.update({item.metadata.parent_id: item for item in new_items})
         retrieval_data = sorted(merged.values(), key=lambda item: item.metadata.score, reverse=True)
 
         update: dict[str, Any] = {"subtask_results": results, "retrieval_data": retrieval_data}

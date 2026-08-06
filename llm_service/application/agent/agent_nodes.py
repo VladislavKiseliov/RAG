@@ -10,7 +10,6 @@ from llm_service.application.agent.generation_nodes import GenerationNodesMixin
 from llm_service.application.agent.legacy_disabled_nodes import LegacyDisabledNodesMixin
 from llm_service.application.agent.planning_nodes import PlanningNodesMixin
 from llm_service.application.agent.retrieval_nodes import RetrievalNodesMixin
-from llm_service.application.lean_rag_models import QueryRouterProtocol
 from llm_service.application.services.reranker_service import RerankerService
 from llm_service.application.services.retrieval_service import RetrievalService
 from llm_service.llm_gateway import LLMGateway
@@ -28,14 +27,12 @@ class AgentNodes(
         *,
         llm_provider: OpenAICompatLLMProvider,
         llm_gateway: LLMGateway,
-        query_router: QueryRouterProtocol,
         retrieval_service: RetrievalService,
         reranker_service: RerankerService,
         tool_registry: dict[str, Tool],
     ) -> None:
         self.llm_provider = llm_provider
         self.llm_gateway = llm_gateway
-        self.query_router = query_router
         self.retrieval_service = retrieval_service
         self.reranker_service = reranker_service
         self.tool_registry = tool_registry

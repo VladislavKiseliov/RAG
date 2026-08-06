@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Any, Literal, Protocol
+from typing import Annotated, Any, Literal
 
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel, ConfigDict, Field
 
-
-class QueryRouterProtocol(Protocol):
-    def route(self, query: str) -> Literal["smalltalk", "domain_rag", "out_of_domain", "personal", "complex"]:
-        ...
 
 class RetrieveItemMetadata(BaseModel):
     """Document reference metadata: source document, page, and search score."""

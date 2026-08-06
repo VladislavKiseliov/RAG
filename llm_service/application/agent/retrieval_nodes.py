@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from prometheus_client import Counter
+
 from llm_service.ai_config import get_live_config
 from llm_service.application.agent.formatters import format_retrieval_item_for_prompt
 from llm_service.application.lean_rag_models import LeanAgentState, PlanOutput, PlanSubtask, ReflectOutput, RetrieveItem
@@ -16,6 +18,13 @@ logger = setup_logger("llm_service.lean_rag_agent")
 # Дефолтный текст no_data - честный отказ вместо LLM-галлюцинации на пустом/слабом
 # контексте (Принцип №4 "Честность важнее умности", ARCHITECTURE.md §3).
 _NO_DATA_ANSWER = "В базе знаний нет информации по вашему запросу."
+
+# Симметрично PLAN_FALLBACK_COUNT (planning_nodes.py) - частота деградации на этом
+# пути отдельно важна: reflect достижим только когда что-то уже слабо нашлось.
+REFLECT_FALLBACK_COUNT = Counter(
+    "llm_reflect_fallback_total",
+    "reflect_node fell back to a verdict derived from retrieval_data alone after an LLM/JSON contract failure",
+)
 
 # Приложение может занимать несколько страниц - это сырой текст, не чанк с рассчитанным
 # скором (см. A21 в rag_service/ISSUES.md), в промпт целиком не льём.
@@ -44,17 +53,20 @@ class RetrievalNodesMixin:
         # реранка, а не сырой исходный вопрос. Живой пример бага: один и тот же кусок
         # (акт приостановки ПНР) получал 0.004 против сырого запроса и 0.85 против
         # переписанного - реранкер и retrieval сравнивали с разными формулировками.
-        # Собираем ВСЕ формулировки из search_docs-подзадач (ключ "queries" - список, не
-        # одна строка, см. tool_registry.py::SearchDocsArgs) и склеиваем в один
-        # rerank_query - если несколько формулировок искали кандидатов, в сравнении при
-        # реранке должны участвовать все, не только первая. get_appendix - второй тул
-        # (args: {"document_code"}, без "queries") - пропускаем его подзадачи тем же
-        # фильтром по ключу, чтобы план вида [get_appendix, search_docs] не откатывал
-        # rerank_query на сырой state.query.
+        # Обновлено 2026-08-06: берём АКТУАЛЬНУЮ формулировку (последнюю), не склеиваем
+        # все через пробел - bge-reranker-v2-m3 обучен на парах "один запрос - один
+        # пассаж", склейка нескольких перефразировок в одну строку - данные вне
+        # распределения обучения, разбавляет сигнал так же, как разбавлял бы целый
+        # parent_chunk вместо лучшего child (та же причина, что и там). Если reflect
+        # переформулировал (state.plan заменён целиком на новый) - реранкаем по новой
+        # формулировке, не по смеси со старой. get_appendix - второй тул (args:
+        # {"document_code"}, без "queries") - пропускаем его подзадачи тем же фильтром
+        # по ключу, чтобы план вида [get_appendix, search_docs] не откатывал rerank_query
+        # на сырой state.query.
         query_parts = [
             q for subtask in state.plan.subtasks if "queries" in subtask.args for q in subtask.args["queries"]
         ] if state.plan else []
-        rerank_query = " ".join(query_parts) if query_parts else state.query
+        rerank_query = query_parts[-1] if query_parts else state.query
 
         texts = [
             max(item.child_chunks, key=lambda c: c.score).text if item.child_chunks else item.parent_chunk
@@ -67,7 +79,16 @@ class RetrievalNodesMixin:
             original = state.retrieval_data[entry["index"]]
             new_metadata = original.metadata.model_copy(update={"score": entry["score"]})
             reordered.append(original.model_copy(update={"metadata": new_metadata}))
-        return {"retrieval_data": reordered}
+
+        # Срез после реранка (обновлено 2026-08-06) - кросс-энкодер до этого места
+        # только пересортировывал, весь пул (включая слабый хвост) доезжал до
+        # generate_node. После накопления между кругами reflect пул может удвоиться -
+        # без среза это чистое ухудшение (больше слабого контекста - больше материала
+        # для "додумывания", см. §6.9 AGENT_GRAPH_CURRENT.md). Режем здесь, не в
+        # build_prompt_node - extract_sources_node тоже читает retrieval_data, источники
+        # на фронте должны соответствовать тому, что реально видела LLM.
+        final_k = get_live_config().gateway.rerank_final_k
+        return {"retrieval_data": reordered[:final_k]}
 
     async def reflect_node(self, state: LeanAgentState) -> dict[str, Any]:
         """РЕАЛЬНЫЙ reflect - и grey_zone (слабый score), и empty (ничего не нашли) из
@@ -110,7 +131,22 @@ class RetrievalNodesMixin:
             tried_queries = "(поиск ещё не выполнялся)"
         prompt = reflect_prompt.format(query=state.query, found_content=found_content, tried_queries=tried_queries)
 
-        result: ReflectOutput = await self.llm_gateway.generate_json(schema=ReflectOutput, prompt=prompt)
+        # Асимметрия с plan_node (у того есть фолбэк, здесь не было): generate_json
+        # делает один ретрай на невалидном JSON - если и он не пройдёт, исключение
+        # раньше улетало наружу необработанным в общий except агента (502), причём в
+        # худший момент - reflect достижим только на grey_zone/empty (что-то уже
+        # нашлось, но слабо), то есть пользователь получал ошибку вместо честного
+        # ответа с тем, что реально есть. Тот же паттерн деградации, что у plan_node.
+        try:
+            result: ReflectOutput = await self.llm_gateway.generate_json(schema=ReflectOutput, prompt=prompt)
+        except Exception:
+            REFLECT_FALLBACK_COUNT.inc()
+            logger.exception(
+                "reflect_node: LLM/JSON contract failed, falling back to verdict from retrieval_data alone",
+                extra={"event": "reflect_fallback_used", "query": state.query},
+            )
+            verdict = "sufficient" if state.retrieval_data else "not_in_corpus"
+            return {"reflect_rounds": state.reflect_rounds + 1, "reflect_verdict": verdict}
 
         verdict = result.verdict
         update: dict[str, Any] = {"reflect_rounds": state.reflect_rounds + 1}

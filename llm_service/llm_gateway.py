@@ -38,7 +38,7 @@ class LLMGateway:
         (planning_nodes.py/retrieval_nodes.py) - 100% живого трафика графа проходит через
         plan_node. Использует generate_json_raw() провайдера (не generate_general()) -
         отдельный system-промпт про JSON-контракт, см. LLM_provider.py."""
-        raw = await self._llm_provider.generate_json_raw(query=prompt)
+        raw = await self._llm_provider.generate_json_raw(query=prompt, temperature=temperature)
         try:
             return schema.model_validate_json(_strip_markdown_fence(raw))
         except ValidationError as exc:
@@ -47,7 +47,7 @@ class LLMGateway:
                 f"{prompt}\n\nПредыдущий ответ не прошёл валидацию схемы:\n{exc}\n"
                 "Верни СТРОГО валидный JSON по той же схеме, без markdown-разметки."
             )
-            raw_retry = await self._llm_provider.generate_json_raw(query=retry_prompt)
+            raw_retry = await self._llm_provider.generate_json_raw(query=retry_prompt, temperature=temperature)
             return schema.model_validate_json(_strip_markdown_fence(raw_retry))
 
 

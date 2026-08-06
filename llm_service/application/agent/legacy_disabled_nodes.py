@@ -1,14 +1,20 @@
 """Ноды/гейты, отключённые от графа при переходе на planner-first схему
 (см. graph_builder.py). НЕ удалены - просто не подключены `add_node`/`add_edge`
-в build_agent_graph(), чтобы старую ML-роутер-схему можно было вернуть, не
+в build_agent_graph(), чтобы часть старой схемы можно было вернуть, не
 переписывая код этих нод заново. Каждая - методы, а не свободные функции: те,
-что реально делали I/O (route_node/expand_queries_node/retrieve_multi_node),
-используют self.query_router/self.llm_provider/self.retrieval_service.
+что реально делали I/O (expand_queries_node/retrieve_multi_node), используют
+self.llm_provider/self.retrieval_service.
+
+route_node/decide_after_router (классификация smalltalk/domain_rag/out_of_domain
+через MLQueryRouter, LogReg+e5) удалены 2026-08-06 вместе с query_router из
+конструкторов - не просто отключены, а полностью выпилены: заявленная будущая
+замена роутинга - KNN-кластеризация по эмбеддингам (обсуждалась отдельно, ещё не
+реализована), не ревайвл ЭТОЙ реализации, так что держать её мёртвым грузом
+"на всякий случай" не было смысла.
 """
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
 
@@ -21,37 +27,6 @@ logger = setup_logger("llm_service.lean_rag_agent")
 
 
 class LegacyDisabledNodesMixin:
-    async def route_node(self, state: LeanAgentState) -> dict[str, str | list[str]]:
-        """Определяет тип запроса: smalltalk / domain_rag / out_of_domain."""
-        started = time.perf_counter()
-        # .route() внутри синхронно гоняет SentenceTransformer.encode + predict_proba (CPU-bound) —
-        # без to_thread это блокирует event loop на всё время эмбеддинга, стопоря остальные
-        # параллельные запросы к сервису.
-        route = await asyncio.to_thread(self.query_router.route, state.query)
-
-        logger.info(
-            "Router finished",
-            extra={
-                "route": route,
-                "query": state.query,
-                "duration_ms": int((time.perf_counter() - started) * 1000),
-            },
-        )
-        return {"route": route}
-
-    async def decide_after_router(self, state: LeanAgentState) -> str:
-        """Выбирает следующий узел графа на основе route.
-
-        personal/complex структурно смаршрутизированы, но MLQueryRouter физически
-        не может их вернуть (нет обучающих примеров в ml_router/data/dataset.csv) -
-        недостижимо живым трафиком, пока роутер не переобучен (см. ARCHITECTURE.md
-        §10 шаг 1c).
-        """
-        if state.route in {"smalltalk", "out_of_domain", "personal", "complex"}:
-            return state.route
-
-        return "expand"
-
     async def expand_queries_node(self, state: LeanAgentState) -> dict[str, list[str]]:
         """Генерирует альтернативные формулировки запроса через LLM для улучшения recall."""
         started = time.perf_counter()

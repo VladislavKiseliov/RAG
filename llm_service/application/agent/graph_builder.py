@@ -13,14 +13,14 @@ from llm_service.application.lean_rag_models import LeanAgentState
 def build_agent_graph(nodes: AgentNodes):
     """Собирает и компилирует LangGraph граф один раз при инициализации агента.
 
-    ВРЕМЕННО (см. llm_service/ISSUES.md): ML-роутер отключён от графа в пользу
-    planner-first схемы - каждый запрос идёт прямо в plan_node, который через LLM
-    сам решает, нужен ли поиск (вплоть до пустого плана для smalltalk/оффтопика),
-    вместо отдельного обученного классификатора. route_node/expand_queries_node/
-    retrieve_multi_node/personal_search_node/resolve_docs_node/clarify_node/
-    background_report_node/gather_passports_node (см. legacy_disabled_nodes.py) -
-    НЕ удалены, просто не добавлены в этот граф (`add_node`) - вернуть старую схему
-    можно, не трогая код нод, только эту сборку.
+    ML-роутер отключён от графа в пользу planner-first схемы - каждый запрос идёт
+    прямо в plan_node, который через LLM сам решает, нужен ли поиск (вплоть до
+    пустого плана для smalltalk/оффтопика), вместо отдельного обученного
+    классификатора. Сам классификатор (route_node/decide_after_router) удалён
+    2026-08-06 - не просто отключён (см. legacy_disabled_nodes.py). Остальное -
+    expand_queries_node/retrieve_multi_node/personal_search_node/resolve_docs_node/
+    clarify_node/background_report_node/gather_passports_node - НЕ удалены, просто
+    не добавлены в этот граф (`add_node`), можно вернуть, не трогая код нод.
 
     plan -> execute_subtasks (реальный диспетчер тулов, единственный рабочий тул -
     search_docs) -> rerank, если был поиск, иначе сразу build_prompt.

@@ -13,7 +13,7 @@ from llm_service.LLM_provider import OpenAICompatLLMProvider
 from llm_service.application.agent.agent_nodes import AgentNodes
 from llm_service.application.agent.formatters import build_sources_payload
 from llm_service.application.agent.graph_builder import build_agent_graph
-from llm_service.application.lean_rag_models import LeanAgentState, QueryRouterProtocol, RetrieveItem
+from llm_service.application.lean_rag_models import LeanAgentState, RetrieveItem
 from llm_service.application.services.reranker_service import RerankerService
 from llm_service.application.services.retrieval_service import RetrievalService
 from llm_service.llm_gateway import LLMGateway
@@ -28,12 +28,10 @@ class LeanRagAgent:
         self,
         *,
         llm_provider: OpenAICompatLLMProvider,
-        query_router: QueryRouterProtocol,
         retrieval_service: RetrievalService,
         reranker_service: RerankerService,
     ) -> None:
         self.llm_provider = llm_provider
-        self.query_router = query_router
         self.retrieval_service = retrieval_service
         self.reranker_service = reranker_service
         self.tool_registry = build_tool_registry(retrieval_service=retrieval_service)
@@ -42,7 +40,6 @@ class LeanRagAgent:
         self.nodes = AgentNodes(
             llm_provider=llm_provider,
             llm_gateway=self.llm_gateway,
-            query_router=query_router,
             retrieval_service=retrieval_service,
             reranker_service=reranker_service,
             tool_registry=self.tool_registry,
@@ -66,7 +63,6 @@ class LeanRagAgent:
             messages=history_messages_db or [],
             summary=summary,
             route="domain_rag",
-            expanded_queries=[query],
         )
 
         final_state = await self.app.ainvoke(inputs)
@@ -113,7 +109,6 @@ class LeanRagAgent:
             messages=history_messages_db or [],
             summary=summary,
             route="domain_rag",
-            expanded_queries=[query],
         )
 
         final_state: dict[str, Any] = {}

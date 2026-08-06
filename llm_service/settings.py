@@ -20,10 +20,6 @@ class LLMSettings(BaseSettings):
     LLM_RAG_TIMEOUT: float
     LLM_MAX_CONTEXT_CHARS: int
 
-    ML_ROUTER_MODEL_PATH: str
-    ML_ROUTER_CONFIDENCE_THRESHOLD: float
-
-    TEI_URL: str
     RERANKER_TEI_URL: str
     LLM_RERANK_TIMEOUT: float = 30.0
 

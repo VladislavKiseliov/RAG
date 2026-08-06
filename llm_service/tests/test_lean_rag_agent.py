@@ -41,7 +41,6 @@ _REFLECT_PROMPT_MARKER = "оцениваешь, достаточно ли най
 
 
 def make_agent(
-    route: str = "domain_rag",
     llm_answer: str = "финальный ответ",
     plan_response: str = _DEFAULT_PLAN_RESPONSE,
     reflect_response: str = _DEFAULT_REFLECT_RESPONSE,
@@ -74,16 +73,13 @@ def make_agent(
     # plan_node/reflect_node зовут generate_json_raw (JSON-контрактный system-промпт,
     # см. LLM_provider.py/ai_config.toml::json_contract_system_prompt) - generate_general
     # с 2026-08-05 используется только легаси-expand_queries_node (не в живом графе).
-    async def _fake_generate_json_raw(*, query: str) -> str:
+    async def _fake_generate_json_raw(*, query: str, temperature: float = 0.2) -> str:
         if _REFLECT_PROMPT_MARKER in query:
             return reflect_response
         return plan_response
 
     llm_provider.generate_json_raw = AsyncMock(side_effect=_fake_generate_json_raw)
     llm_provider.generate_general = AsyncMock(return_value=plan_response)
-
-    query_router = MagicMock()
-    query_router.route = MagicMock(return_value=route)
 
     retrieval_service = MagicMock()
     retrieval_service.retrieve = AsyncMock(
@@ -108,7 +104,6 @@ def make_agent(
 
     return LeanRagAgent(
         llm_provider=llm_provider,
-        query_router=query_router,
         retrieval_service=retrieval_service,
         reranker_service=reranker_service,
     )
@@ -150,55 +145,9 @@ def make_retrieve_item(
 
 
 # ---------------------------------------------------------------------------
-# route_node
+# route_node/decide_after_router - удалены 2026-08-06 вместе с query_router
+# (см. legacy_disabled_nodes.py), тесты на них удалены тоже.
 # ---------------------------------------------------------------------------
-
-class TestRouteNode:
-    @pytest.mark.asyncio
-    async def test_writes_route_to_state(self):
-        agent = make_agent(route="domain_rag")
-        result = await agent.nodes.route_node(make_state(query="что такое редуктор?"))
-        assert result == {"route": "domain_rag"}
-
-    @pytest.mark.asyncio
-    async def test_calls_router_with_query(self):
-        agent = make_agent()
-        await agent.nodes.route_node(make_state(query="привет"))
-        agent.query_router.route.assert_called_once_with("привет")
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("route", ["smalltalk", "out_of_domain", "domain_rag"])
-    async def test_all_routes_passed_through(self, route: str):
-        agent = make_agent(route=route)
-        result = await agent.nodes.route_node(make_state())
-        assert result["route"] == route
-
-
-# ---------------------------------------------------------------------------
-# decide_after_router
-# ---------------------------------------------------------------------------
-
-class TestDecideAfterRouter:
-    @pytest.mark.asyncio
-    async def test_smalltalk_returns_smalltalk(self):
-        agent = make_agent()
-        result = await agent.nodes.decide_after_router(make_state(route="smalltalk"))
-        assert result == "smalltalk"
-
-    @pytest.mark.asyncio
-    async def test_out_of_domain_returns_out_of_domain(self):
-        agent = make_agent()
-        result = await agent.nodes.decide_after_router(make_state(route="out_of_domain"))
-        assert result == "out_of_domain"
-
-    @pytest.mark.asyncio
-    async def test_domain_rag_goes_to_expand(self):
-        # Pre-existing: код возвращает "expand", не "expand_queries" - assert был
-        # рассинхронен с реализацией ещё до отключения ML-роутера от графа.
-        agent = make_agent()
-        result = await agent.nodes.decide_after_router(make_state(route="domain_rag"))
-        assert result == "expand"
-
 
 # ---------------------------------------------------------------------------
 # expand_queries_node
@@ -660,6 +609,24 @@ class TestRerankNode:
         assert reordered[1].metadata.score == 0.1
 
     @pytest.mark.asyncio
+    async def test_truncates_to_rerank_final_k(self):
+        # 2026-08-06: реранкер до этой правки только пересортировывал, весь пул
+        # (включая слабый хвост) доезжал до generate_node - после накопления между
+        # кругами reflect пул мог удвоиться. gateway.rerank_final_k = 6 в ai_config.toml.
+        items = [make_retrieve_item(parent_chunk=f"чанк {i}") for i in range(8)]
+
+        async def fake_rerank(*, query, texts):
+            # Скор убывает с индексом - порядок должен сохраниться после среза.
+            return [{"index": i, "score": 1.0 - i * 0.1} for i in range(len(texts))]
+
+        agent = make_agent(reranker_side_effect=fake_rerank)
+        result = await agent.nodes.rerank_node(make_state(retrieval_data=items))
+
+        reordered = result["retrieval_data"]
+        assert len(reordered) == 6
+        assert [item.parent_chunk for item in reordered] == [f"чанк {i}" for i in range(6)]
+
+    @pytest.mark.asyncio
     async def test_empty_retrieval_skips_network_call(self):
         agent = make_agent()
         result = await agent.nodes.rerank_node(make_state(retrieval_data=[]))
@@ -739,11 +706,11 @@ class TestRerankNode:
         assert call_kwargs["query"] == "расшифрованный запрос"
 
     @pytest.mark.asyncio
-    async def test_reranks_against_concatenated_queries_in_one_search_docs_subtask(self):
-        # 2026-08-06: search_docs теперь принимает СПИСОК формулировок в одной
-        # подзадаче (rag_service батчит их одним вызовом - RetrieveService.batch_search),
-        # не отдельную подзадачу на каждую формулировку. Реранк должен сравнивать со
-        # всеми формулировками сразу, не только с первой.
+    async def test_reranks_against_latest_query_not_concatenated(self):
+        # 2026-08-06: bge-reranker-v2-m3 обучен на парах "один запрос - один пассаж" -
+        # склейка нескольких формулировок в одну строку - данные вне распределения
+        # обучения. Реранк должен сравнивать с АКТУАЛЬНОЙ (последней) формулировкой,
+        # не со смесью всех.
         item = make_retrieve_item()
         plan = PlanOutput(subtasks=[
             PlanSubtask(tool="search_docs", args={"queries": ["запрос один", "запрос два"]}),
@@ -753,13 +720,13 @@ class TestRerankNode:
             make_state(query="сырой вопрос", retrieval_data=[item], plan=plan)
         )
         call_kwargs = agent.reranker_service.rerank.call_args.kwargs
-        assert call_kwargs["query"] == "запрос один запрос два"
+        assert call_kwargs["query"] == "запрос два"
 
     @pytest.mark.asyncio
-    async def test_reranks_against_concatenated_queries_across_multiple_subtasks(self):
+    async def test_reranks_against_latest_query_across_multiple_subtasks(self):
         # Защитный случай: даже если формулировки почему-то оказались в РАЗНЫХ
         # search_docs-подзадачах (не одна подзадача со списком), rerank_query всё
-        # равно должен собрать их все, а не только из первой подзадачи.
+        # равно должен взять последнюю по порядку, а не первую.
         item = make_retrieve_item()
         plan = PlanOutput(subtasks=[
             PlanSubtask(tool="search_docs", args={"queries": ["запрос один"]}),
@@ -770,7 +737,7 @@ class TestRerankNode:
             make_state(query="сырой вопрос", retrieval_data=[item], plan=plan)
         )
         call_kwargs = agent.reranker_service.rerank.call_args.kwargs
-        assert call_kwargs["query"] == "запрос один запрос два"
+        assert call_kwargs["query"] == "запрос два"
 
 
 class TestDecideAfterRerank:
@@ -1165,7 +1132,9 @@ class TestExecuteSubtasksNode:
 
         await agent.nodes.execute_subtasks_node(make_state(plan=plan))
 
-        agent.retrieval_service.retrieve.assert_awaited_once_with(["формулировка 1", "формулировка 2"])
+        agent.retrieval_service.retrieve.assert_awaited_once_with(
+            ["формулировка 1", "формулировка 2"], top_k_per_query=3, max_parents=6,
+        )
 
     @pytest.mark.asyncio
     async def test_multiple_search_docs_subtasks_deduplicated_by_parent_id(self):
@@ -1211,21 +1180,24 @@ class TestExecuteSubtasksNode:
         assert parent_ids == {"parent-old", "parent-1"}
 
     @pytest.mark.asyncio
-    async def test_accumulation_deduplicates_by_parent_id_keeping_higher_score(self):
-        # Тот же parent_id найден и в первом, и во втором круге - остаётся версия с
-        # более высоким score, не механически "последний круг побеждает".
-        prior_item = make_retrieve_item(parent_chunk="старая версия, низкий скор")
-        prior_item.metadata.score = 0.2
-        new_item = make_retrieve_item(parent_chunk="новая версия, высокий скор")  # тот же parent_id
-        new_item.metadata.score = 0.9
+    async def test_accumulation_deduplicates_by_parent_id_keeping_fresh_version(self):
+        # 2026-08-06: тот же parent_id найден и в первом, и во втором круге - свежая
+        # версия побеждает безусловно, без сравнения score. У прежнего элемента score
+        # уже калиброванный (0..1 кросс-энкодера из rerank_node прошлого круга), у
+        # свежего - сырой fusion-скор из rag_service (другая шкала) - сравнивать их
+        # напрямую бессмысленно, а объединённый пул всё равно уйдёт на пересчёт в
+        # rerank_node сразу после этой ноды.
+        prior_item = make_retrieve_item(parent_chunk="старая версия")
+        prior_item.metadata.score = 0.9  # выше, чем у свежей - и всё равно не побеждает
+        new_item = make_retrieve_item(parent_chunk="новая версия")  # тот же parent_id
+        new_item.metadata.score = 0.2
         agent = make_agent(retrieval_items=[new_item])
         plan = PlanOutput(subtasks=[PlanSubtask(tool="search_docs", args={"queries": ["q"]})])
 
         result = await agent.nodes.execute_subtasks_node(make_state(plan=plan, retrieval_data=[prior_item]))
 
         assert len(result["retrieval_data"]) == 1
-        assert result["retrieval_data"][0].metadata.score == 0.9
-        assert result["retrieval_data"][0].parent_chunk == "новая версия, высокий скор"
+        assert result["retrieval_data"][0].parent_chunk == "новая версия"
 
     # get_appendix - реальный тул с 2026-08-05 (см. tool_registry.py), но его результат
     # не "search-результат" (нет score, не чанк) - идёт в отдельное поле appendix_context,
@@ -1266,18 +1238,6 @@ class TestDecideAfterExecuteSubtasks:
     async def test_no_search_docs_routes_to_build_prompt(self):
         agent = make_agent()
         assert await decisions.decide_after_execute_subtasks(make_state(subtask_results=[])) == "build_prompt"
-
-
-class TestDecideAfterRouterNewClasses:
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("route", ["personal", "complex"])
-    async def test_new_routes_pass_through(self, route):
-        # Через make_state напрямую, минуя мок роутера - доказывает корректность
-        # маршрутизации графа даже притом, что MLQueryRouter физически не может
-        # вернуть эти классы сегодня (нет обучающих примеров).
-        agent = make_agent()
-        result = await agent.nodes.decide_after_router(make_state(route=route))
-        assert result == route
 
 
 class TestExtractSourcesNode:
@@ -1331,7 +1291,7 @@ class TestFullGraphByteForByteRegression:
     @pytest.mark.asyncio
     async def test_domain_rag_full_graph_matches_expected_answer_and_sources(self):
         item = make_retrieve_item(parent_chunk="важный раздел документа")
-        agent = make_agent(route="domain_rag", llm_answer="итоговый ответ", retrieval_items=[item])
+        agent = make_agent(llm_answer="итоговый ответ", retrieval_items=[item])
 
         inputs = LeanAgentState(
             query="вопрос", messages=[], summary="", route="domain_rag", expanded_queries=["вопрос"],
@@ -1365,12 +1325,13 @@ class TestFullGraphByteForByteRegression:
     @pytest.mark.parametrize("plan_response", [_DEFAULT_PLAN_RESPONSE, _EMPTY_PLAN_RESPONSE])
     async def test_full_graph_never_touches_disabled_router_nodes(self, plan_response):
         """С отключением ML-роутера (см. _build_graph) plan_node/execute_subtasks_node
-        теперь ВСЕГДА на живом пути - это больше не "мёртвый код". Мёртвыми стали
-        route_node и всё, что раньше висело на его ветках (expand_queries/
-        retrieve_multi/personal_search/resolve_docs/gather_passports) - они всё ещё
-        методы класса (см. docstring _build_graph), просто не в графе. no_data/
-        reflect/post_actions остаются недостижимыми на happy-path независимо от
-        плана (высокий score от дефолтного реранкера, нет action-маркера в запросе)."""
+        теперь ВСЕГДА на живом пути - это больше не "мёртвый код". route_node/
+        decide_after_router удалены совсем (2026-08-06, не просто отключены).
+        Остальное - expand_queries/retrieve_multi/personal_search/resolve_docs/
+        gather_passports - всё ещё методы класса (см. docstring _build_graph),
+        просто не в графе. no_data/reflect/post_actions остаются недостижимыми на
+        happy-path независимо от плана (высокий score от дефолтного реранкера, нет
+        action-маркера в запросе)."""
         item = make_retrieve_item()
         agent = make_agent(plan_response=plan_response, retrieval_items=[item])
         inputs = LeanAgentState(
@@ -1382,10 +1343,9 @@ class TestFullGraphByteForByteRegression:
         # patch.object), так что подмена self.plan_node постфактум не перехватывает
         # вызовы внутри agent.app.ainvoke(). Для нод, реально входящих в граф, это
         # нужно проверять по наблюдаемым эффектам (ниже), не спаем на них - для нод,
-        # которых в графе НЕТ вообще (route_node и т.д.), patch.object работает как
-        # обычно, т.к. графу подменять нечего.
-        with patch.object(agent.nodes, "route_node", wraps=agent.nodes.route_node) as spy_router, \
-             patch.object(agent.nodes, "expand_queries_node", wraps=agent.nodes.expand_queries_node) as spy_expand, \
+        # которых в графе НЕТ вообще (expand_queries_node и т.д.), patch.object работает
+        # как обычно, т.к. графу подменять нечего.
+        with patch.object(agent.nodes, "expand_queries_node", wraps=agent.nodes.expand_queries_node) as spy_expand, \
              patch.object(agent.nodes, "retrieve_multi_node", wraps=agent.nodes.retrieve_multi_node) as spy_retrieve_multi, \
              patch.object(agent.nodes, "personal_search_node", wraps=agent.nodes.personal_search_node) as spy_personal, \
              patch.object(agent.nodes, "resolve_docs_node", wraps=agent.nodes.resolve_docs_node) as spy_resolve_docs, \
@@ -1395,7 +1355,6 @@ class TestFullGraphByteForByteRegression:
              patch.object(agent.nodes, "post_actions_node", wraps=agent.nodes.post_actions_node) as spy_post_actions:
             final_state = await agent.app.ainvoke(inputs)
 
-        spy_router.assert_not_called()
         spy_expand.assert_not_called()
         spy_retrieve_multi.assert_not_called()
         spy_personal.assert_not_called()
@@ -1416,7 +1375,7 @@ class TestRunStreamParity:
     @pytest.mark.asyncio
     async def test_domain_rag_event_sequence_unchanged_and_new_nodes_invoked(self):
         item = make_retrieve_item()
-        agent = make_agent(route="domain_rag", retrieval_items=[item])
+        agent = make_agent(retrieval_items=[item])
 
         async def fake_generate_stream(*, current_query, data_prompt):
             yield "ответ"
@@ -1459,13 +1418,12 @@ class TestRunStreamParity:
     async def test_run_stream_no_longer_raises_not_implemented_for_any_route(self):
         # Регрессия наоборот: раньше run_stream() кидал NotImplementedError, если
         # state.route оказывался personal/complex (ML-роутер их не мог вернуть живьём,
-        # guard был на всякий случай). После отключения ML-роутера run_stream() больше
-        # не читает query_router вообще - state.route всегда "domain_rag" по
+        # guard был на всякий случай). ML-роутер отключён от графа, а с 2026-08-06
+        # query_router удалён совсем - run_stream() строит state.route="domain_rag" по
         # построению (см. run_stream), guard и его исключение убраны как мёртвый код.
         agent = make_agent()
         events = [e async for e in agent.run_stream(query="что-то", history_messages_db=[])]
         assert events[-1]["event"] == "done"
-        agent.query_router.route.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_domain_rag_no_data_short_circuits_without_calling_llm(self):

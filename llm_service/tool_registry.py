@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable, Literal
 
 from pydantic import BaseModel
 
+from llm_service.ai_config import get_live_config
 from llm_service.application.services.retrieval_service import RetrievalService
 
 # Framework-agnostic — без импортов LangGraph, чтобы этим же реестром впоследствии
@@ -108,7 +109,12 @@ def build_tool_registry(*, retrieval_service: RetrievalService) -> dict[str, Too
     """
 
     async def _search_docs(*, queries: list[str], doc_filter: str | None = None) -> dict[str, Any]:
-        result = await retrieval_service.retrieve(queries)
+        gateway_config = get_live_config().gateway
+        result = await retrieval_service.retrieve(
+            queries,
+            top_k_per_query=gateway_config.retrieval_top_k_per_query,
+            max_parents=gateway_config.retrieval_max_parents,
+        )
         return {"items": [item.model_dump() for item in result.items], "total": result.total}
 
     async def _get_appendix(*, document_code: str) -> dict[str, Any]:
