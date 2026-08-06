@@ -68,6 +68,7 @@ class LLMClient:
                 return {
                     "answer": data.get("answer", "Ответ не получен"),
                     "sources": data.get("sources", []),
+                    "degraded": data.get("degraded", False),
                 }
             except httpx.HTTPStatusError as e:
                 logger.error("LLM answer error %s", e.response.status_code, extra={"body": e.response.text})

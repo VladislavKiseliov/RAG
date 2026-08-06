@@ -134,11 +134,15 @@ class ConversationService:
         assistant_response = rag_result["answer"]
         sources = rag_result.get("sources", [])
 
-        async with self._sf() as session:
-            async with session.begin():
-                await MessageRepository(session).add_message(
-                    chat_id, content=assistant_response, role="assistant", sources=sources
-                )
+        # degraded (llm_service::response_degraded) - служебная нота об обрыве/сбое, не
+        # настоящий ответ. Пользователь и так видит её в этом ответе - в БД не пишем,
+        # чтобы не засорять историю/саммари следующих ходов текстом ошибки.
+        if not rag_result.get("degraded", False):
+            async with self._sf() as session:
+                async with session.begin():
+                    await MessageRepository(session).add_message(
+                        chat_id, content=assistant_response, role="assistant", sources=sources
+                    )
 
         self._trigger_summary_in_background(chat_id, summary_link)
         return {"response": assistant_response, "sources": sources}
@@ -194,6 +198,7 @@ class ConversationService:
         async def generate_and_persist() -> None:
             answer_parts: list[str] = []
             sources: list = []
+            degraded = False
             try:
                 try:
                     async for event_name, data in self._llm.stream_answer(
@@ -208,26 +213,33 @@ class ConversationService:
                             # если генерация прервалась на его стороне) - он авторитетный,
                             # накопленные по token-событиям куски ему не нужны.
                             answer_parts = [data.get("answer", "")]
+                            degraded = data.get("degraded", False)
                         await queue.put((event_name, data))
                 except (LLMError, LLMUnavailableError) as exc:
                     # Обрыв связи backend -> llm_service (не сам апстрим-LLM - тот уже
                     # восстанавливается внутри llm_service, см. LeanRagAgent.run_stream).
-                    # То, что успело прийти token-событиями, не теряем - сохраняем с
-                    # пометкой, а не молча роняем на середине ответа.
+                    # То, что успело прийти token-событиями, не теряем - показываем с
+                    # пометкой, а не молча роняем на середине ответа. Всегда деградация -
+                    # обрыв нашего же соединения к llm_service, не настоящий ответ.
                     note = (
                         "\n\n_[ответ прерван: обрыв соединения с llm_service]_"
-                        if answer_parts else f"_Не удалось получить ответ: {exc}_"
+                        if answer_parts else "_Не удалось получить ответ: сбой при обращении к llm_service._"
                     )
                     answer_parts.append(note)
+                    degraded = True
                     await queue.put(("token", {"text": note}))
                     await queue.put(("error", {"message": str(exc)}))
 
                 answer = "".join(answer_parts)
-                async with self._sf() as session:
-                    async with session.begin():
-                        await MessageRepository(session).add_message(
-                            chat_id, content=answer, role="assistant", sources=sources
-                        )
+                # degraded - служебная нота, не настоящий ответ. Пользователь уже увидел
+                # её через token/error-события выше - в БД не пишем, чтобы не засорять
+                # историю/саммари следующих ходов текстом ошибки (см. process_message()).
+                if not degraded:
+                    async with self._sf() as session:
+                        async with session.begin():
+                            await MessageRepository(session).add_message(
+                                chat_id, content=answer, role="assistant", sources=sources
+                            )
 
                 self._trigger_summary_in_background(chat_id, summary_link)
             except Exception:
