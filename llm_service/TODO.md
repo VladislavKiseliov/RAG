@@ -1,5 +1,13 @@
 # LLM Service — TODO
 
+> **Актуализировано 2026-08-06 под planner-first.** 04-08 граф агента переведён с
+> ML-роутера (`route_node`/`expand_queries_node`/`retrieve_multi_node`) на planner-first
+> (`plan_node`/`execute_subtasks_node`) — см. `AGENT_GRAPH_CURRENT.md`, это источник
+> истины по тому, что реально исполняется живым трафиком сегодня (пофазово, построчно
+> сверено с кодом). Этот файл — историческая карта решений и открытых веток, статусы
+> ниже поправлены под новую архитектуру, но детали живого поведения смотри в
+> `AGENT_GRAPH_CURRENT.md`, не здесь.
+
 ## Критические ✅ Всё исправлено
 
 ### 1. ~~RetrieveItem схема~~ ✅
@@ -22,17 +30,26 @@
 ## Остаётся
 
 - [x] Structured logging — `utils/logger_config.py` (`CustomJsonFormatter`), все ноды графа логируют через `extra={...}` (проверено 2026-07-17, было отмечено как незавершённое — стало стейл)
-- [~] Тесты — ноды `expand`/`retrieve`/`generate` покрыты (`tests/test_lean_rag_agent.py`, 27 тестов), но end-to-end `LeanRagAgent.run()`/`self.app.ainvoke` ничем не покрыт
+- [x] ~~Тесты — ноды `expand`/`retrieve`/`generate` покрыты (27 тестов)~~ — стейл, `expand`/`retrieve` (legacy) больше не в живом графе. Актуально 2026-08-06: `tests/test_lean_rag_agent.py` + `test_retrieval_service.py`/`test_tool_registry.py`/`test_llm_gateway.py`/`test_reranker_service.py`/`test_llm_provider_stream_retry.py`/`test_infrastructure.py` — 233 теста, живые ноды planner-first покрыты (`plan`/`execute_subtasks`/`rerank`/`reflect`/`no_data`/`build_prompt`/`generate`/`extract_sources`/`post_actions`). End-to-end через `self.app.ainvoke()`/`astream()` покрыт частично — см. `TestRunStream`/параметризованный `test_full_graph_never_touches_disabled_router_nodes`
 - [x] Убрать мёртвый код: `promt/promts.py` (промпты перенесены в `ai_config.toml`, файл удалён)
 - [x] Убрать мёртвый код: `agent_service.py`, `answer_service.py` — файлов больше нет в репозитории (проверено 2026-07-17, было отмечено как незавершённое — стало стейл)
 - [ ] `max_tokens` есть в `ai_config.toml` (`[llm]`) и валидируется в `AppConfig`, но нигде не передаётся в `chat.completions.create()` — решение отложено намеренно, вернуться к этому позже
 
 ---
 
-## ML-роутер (e5 + LogReg) — статус на 2026-07-17
+## ML-роутер (e5 + LogReg) — ОТКЛЮЧЁН ОТ ГРАФА 2026-08-04 (статус ниже — история до отключения)
+
+**Актуально 2026-08-06:** `route_node`/`decide_after_router` больше не в `build_agent_graph()`
+(живут в `legacy_disabled_nodes.py`, не удалены, но не подключены `add_node`/`add_edge`) —
+заменены `plan_node` (LLM сама решает, нужен ли поиск, вместо обученного классификатора).
+`_build_query_router()` в `infrastructure.py` всё ещё строит `MLQueryRouter` при старте
+(best-effort, сбой не роняет сервис — см. `ISSUES.md` B4/`AGENT_GRAPH_CURRENT.md` §6.6), но
+результат сегодня никем не читается — живой код на него не ссылается. Причина — временное
+архитектурное решение (planner-first проще: одна LLM вместо роутера+классов), не находка о
+качестве самого роутера. Пункты ниже — история строительства, до момента отключения:
 
 - [x] Обучение/классификатор существуют (`ml_router/train.py`, `intent_model_small.pkl`)
-- [x] Роутер реально вызывается в проде: `infrastructure.py` строит `MLQueryRouter` → `LeanRagAgent.route_node` (`application/lean_rag_agent.py`) вызывает `.route()` на каждый запрос — не только автономный скрипт
+- [x] ~~Роутер реально вызывается в проде~~ — было верно до 2026-08-04, `infrastructure.py` строит `MLQueryRouter`, но с переходом на planner-first ничто в живом графе `.route()` не вызывает
 - [x] ~~Несоответствие модели эмбеддера~~ — ложная тревога (проверено 2026-07-20). `ml_router/train.py` действительно обучает на e5-small (`intent_model_small.pkl`), но `.env`/`.env.example` (`ML_ROUTER_MODEL_PATH`) указывают на `intent_model.pkl` — отдельный артефакт, обученный на e5-large (см. `ml_router/test_model.py:MODEL_NAME`), совпадает с эмбеддером в `infrastructure.py`. `train.py`/`intent_model_small.pkl` — просто старый неиспользуемый скрипт/артефакт, не риск в проде
 - [x] `route_node` блокировал event loop ✅ 2026-07-20 — `.route()` вызывается через `asyncio.to_thread` в `lean_rag_agent.py`
 - [x] Второй неиспользуемый `MLQueryRouter` в `application/services/query_service.py` ✅ 2026-07-22 — удалён (был мёртвым кодом с другим порогом, 0.5 вместо 0.6 в проде, вводил в заблуждение). Заодно поправлена опечатка `row_query` → `raw_query` в `QueryExpansionService.expand()` (был найден внешним код-ревью 2026-07-21, см. `rag_service/ISSUES.md`-стиль пунчлиста)
@@ -42,7 +59,16 @@
 
 ## Финальный план развития агента и экосистемы (записан 2026-07-24)
 
-Порядок фаз — по зависимостям, не обязательно по времени начала. Статус на 2026-07-27: 3.1 и 3.4 закрыты — блокер на `gatellm.ru` пропал сам, SSE подключён от `llm_service` до фронта (см. п. 3.4 ниже).
+Порядок фаз — по зависимостям, не обязательно по времени начала.
+
+**Статус на 2026-08-06:** 3.1, 3.2, 3.4, 3.4a, 3.4b, Фаза 4, Фаза 5 закрыты (частично — реализация
+да, DoD-калибровка через eval нет, см. пометки у каждой). 3.3 — ветка есть, тот же
+незакалиброванный порог. Фазы 6-8 — без изменений, не начаты (Фаза 6 частично готова на
+уровне реестра тулов, см. ниже). Всё это реализовано НЕ через топологию, описанную в фазах
+ниже буквально (`route`→`expand`→`retrieve_multi`→`rerank`→`reflect`) — граф переехал на
+planner-first 2026-08-04 (`plan`→`execute_subtasks`→`rerank`→`reflect`), см. предупреждение
+в начале файла и `AGENT_GRAPH_CURRENT.md`. Названия фаз/DoD ниже описывают ЦЕЛИ, которые
+все были достигнуты, просто другой топологией графа, чем предполагалось 24.07.
 
 ### Фаза 3 — Фундамент агента (`llm_service/application/lean_rag_agent.py`)
 
@@ -52,20 +78,19 @@
 - [x] История в `expand_queries_node` — была вторая утечка repr: `state.messages` (список словарей) подставлялся напрямую в `.format(recent_history=...)`, тоже сырым Python-repr. `build_prompt_node` уже форматировал `role: content` правильно — `expand_queries_node` теперь так же
 - DoD: юнит-тесты `TestFormatChildChunks`/`test_history_formatted_as_role_content_not_raw_list_repr` в `tests/test_lean_rag_agent.py` — регрессия на repr явно проверяется (`assert "{'" not in result`)
 
-**3.2 Структурированный ответ + `extract_sources`**
-- [ ] Pydantic `AgentResponse { answer, sources: list[SourceRef], route, retrieval_empty }`, `SourceRef { doc_id, filename, chapter_number, title, page }`
-- [ ] Нода `extract_sources` — sources строго из чанков, реально попавших в `build_prompt` (не рассинхронизируется, если LLM перефразирует название СП/ГОСТа)
-- [ ] Убрать мёртвое поле `sources` из логирования `run()` либо перевести на заполнение из `AgentResponse`
-- DoD: тест на структуру в `tests/test_lean_rag_agent.py`; backend штатно прокидывает `sources` на фронт
-- Примечание: эта структурированная схема заодно снимает блокер, зафиксированный в памяти сессии по Фиче 1 (AI-аудит опросников) — «structured-output LLM не существует нигде в проекте». Делать 3.2 раньше 8.2, не наоборот
+**3.2 Структурированный ответ + `extract_sources`** ✅ реализовано (другим путём, чем задумывалось)
+- [x] `api/schemas.py::AskResponse { answer, sources: list[SourceItem], route, retrieval_empty, proposed_action }` — почти буквально исходно задуманная схема; `SourceItem { doc_id, parent_id, page_num, score, text, child_chunks, headers, source }` (не `SourceRef { filename, chapter_number, title, page }`, но эквивалентно — `source`/`headers.title` те же данные под другими именами)
+- [x] Нода `extract_sources_node` (`application/agent/generation_nodes.py`) — `build_sources_payload(state.retrieval_data)`, строго из финального `retrieval_data`, не рассинхронизируется
+- [x] Комментарий на `AskResponse.route`/`retrieval_empty`/`proposed_action` (строки 39-42 `schemas.py`) устарел — говорит "производящие ноды недостижимы", хотя `plan_node`/`no_data_node`/`post_actions_node` уже реально их заполняют с 2026-08-05 — поправить при следующей правке файла
+- DoD выполнен: `tests/test_lean_rag_agent.py::TestExtractSourcesNode`; backend штатно получает `sources`
 
-**3.3 Ветка `no_data`**
-- [ ] После `retrieve`: пустой список ИЛИ top-score ниже порога → детерминированный ответ «В базе знаний нет информации по вашему запросу», `retrieval_empty=True`, без вызова LLM
-- [ ] Порог — из распределения negative-вопросов eval-датасета (Фаза 1), выносится в конфиг
-- DoD: negative-вопросы датасета гарантированно идут через ветку; `negative_precision` в eval вырос
+**3.3 Ветка `no_data`** ✅ ветка реализована, ⚠️ DoD (порог из eval) — не выполнен, актуальный открытый пункт
+- [x] `decide_after_rerank` (`routing_decisions.py`) + `no_data_node` (`retrieval_nodes.py`) — пустой список ИЛИ top-score ниже `rerank_no_data_threshold` → `reflect_node` решает, не сразу `no_data` (изменение топологии относительно исходного плана — LLM сначала пробует переформулировать, честный отказ только после этого или сразу на `not_in_corpus`)
+- [ ] Порог (`rerank_no_data_threshold`/`rerank_grey_zone_threshold`, `ai_config.toml::gateway`) — по-прежнему "на глаз", не из распределения eval-датасета. **Это САМЫЙ старый открытый пункт в этом файле** (записан здесь ещё 2026-07-24) — см. живой воспроизведённый пример провала в `AGENT_GRAPH_CURRENT.md` §6.9 (2026-08-06): высокий скор boilerplate-раздела обманул именно этот порог
+- DoD не выполнен: нет eval-датасета с размеченными negative-вопросами, `negative_precision` не измерялся вживую (кроме одного ручного прогона E3, см. память сессии)
 
-**3.4 SSE-стриминг** ✅ подключён 2026-07-27
-- [x] Контракт событий: `status → (token|ping)* → sources → done` — `LeanRagAgent.run_stream()`, узлы `route/expand/retrieve/build_prompt` вызываются напрямую в порядке графа (у `self.app.ainvoke()` нет токен-стриминга без `astream_events`), стримится только сам LLM-вызов
+**3.4 SSE-стриминг** ✅ подключён 2026-07-27, ⚠️ механизм ниже описан устаревший (см. правку 2026-08-05)
+- [x] ~~Контракт событий: `status → (token|ping)* → sources → done` — узлы `route/expand/retrieve/build_prompt` вызываются напрямую в порядке графа~~ — это был `StreamRunner` (`agent_stream.py`), императивная копия топологии графа в обход LangGraph. **Удалён 2026-08-05**: `run_stream()` теперь гоняет ТОТ ЖЕ `self.app` через `astream(stream_mode=["custom", "values"])`, что и `run()` через `ainvoke()` — ноды сами пишут в поток через `get_safe_stream_writer()` (`plan_node`/`execute_subtasks_node` — `status`, `generate_node`/`no_data_node` — `token`), не отдельный ручной раннер. Контракт событий (`status → token* → sources → done`) не изменился, изменился только механизм под ним — см. `AGENT_GRAPH_CURRENT.md` §1
 - [x] `OpenAICompatLLMProvider.generate_stream()` + `GroqLLMProvider.generate_stream()` (`stream=True` в `chat.completions.create`) — оба провайдера, не только дефолтный
 - [x] `POST /llm/answer/stream` (`agent_routers.py`) — `StreamingResponse`, `text/event-stream`, ошибка на любом этапе (в т.ч. после части токенов) → событие `error`, не `HTTPException` (заголовки уже ушли)
 - [x] `LeanRagAgent.build_sources()` — общий маппинг `RetrieveItem → dict`, переиспользован и в `/llm/answer`, и в `/llm/answer/stream` (раньше было продублировано)
@@ -134,37 +159,41 @@ keepalive-inserter — отдельные `anyio`-таски поверх `anyio
   (`ModuleNotFoundError`). Апгрейд FastAPI на живом сервисе — отдельная, более рискованная задача
   (много версий разницы, потенциальные breaking changes в DI/middleware), не сделано в этом заходе
 
-### Фаза 4 — Rerank (пересборка контекста)
-- [ ] Второй TEI-контейнер: `--model-id BAAI/bge-reranker-v2-m3`, эндпоинт `/rerank` (GPU, ~1.5GB VRAM)
-- [ ] Нода `rerank` между `retrieve_multi` и `reflect`/`build_prompt`
-- [ ] Топ 20-30 child-чанков → rerank → пересборка родителей по новым скорам, дедупликация родительских чанков (не схлопывать выборку в 1 документ)
-- [ ] Калиброванные скоры реранкера (0..1) заменяют DBSF-скоры во всех порогах (`no_data`, будущий гейт `reflect`)
-- DoD: eval `hybrid_rerank` vs baseline (`--compare`); латентность ноды ≤200мс; `rerank_no_expansion` — повторный прогон
-- ⚠️ **Бюджет VRAM**: сейчас одна GTX 1660 Ti (6GB) уже делит TEI (эмбеддинги) и Docling (OCR/layout — GPU туда вернули 2026-07-24, см. `fix(rag_service): ChapterSplitter дублирует номера глав + GPU для Docling`). Третий потребитель на ту же карту — посчитать бюджет VRAM заранее, не по факту OOM
+### Фаза 4 — Rerank (пересборка контекста) ✅ реализовано 07.2026, ⚠️ DoD (eval/калибровка) не выполнен
+- [x] Второй TEI-контейнер `tei-reranker` — `BAAI/bge-reranker-v2-m3`, `docker-compose.full.yml`, GPU (та же GTX 1660 Ti, что и `tei`/`rag-worker` — бюджет VRAM учтён, см. память "Admin Status + ML Router TEI Migration")
+- [x] Нода `rerank_node` (`application/agent/retrieval_nodes.py`) — между `execute_subtasks_node` и `reflect`/`build_prompt` (не между `retrieve_multi` и `reflect` — `retrieve_multi_node` заменён на `execute_subtasks_node`, топология другая, суть та же)
+- [x] Ранжирует по лучшему child-чанку каждого parent, не по `parent_chunk` целиком; парент-чанки не схлопываются в 1 документ (см. `AGENT_GRAPH_CURRENT.md` §2.4)
+- [x] Калиброванные скоры реранкера (0..1) заменили DBSF-скоры во всех порогах (`rerank_no_data_threshold`/`rerank_grey_zone_threshold`, `no_data`/`reflect`-гейт) — сделано, но САМИ значения порогов не калиброваны (см. 3.3 выше, тот же открытый пункт)
+- DoD не выполнен: eval `hybrid_rerank` vs baseline не прогонялся, латентность ноды не измерялась формально — сознательное исключение из eval-ворот (см. `AGENT_GRAPH_CURRENT.md` §2.4, "развёрнут как сознательное исключение")
 
-### Фаза 5 — Reflect (ограниченная рефлексия)
-- [ ] Нода `reflect` после `rerank`, вызывается только если top-score реранкера в «серой зоне» и/или мало результатов
-- [ ] Вердикт через Pydantic + 1 retry: `{"status": "sufficient|need_more|not_in_corpus", "missing": str, "new_queries": list[str]}`, лёгкая модель из `[llm_summary]`
-- [ ] Жёсткий потолок: `iteration >= 2` → принудительно в `generate`. `not_in_corpus` → в `no_data`. `need_more` → повторный `retrieve` по `new_queries`
-- DoD: eval `with_reflection` vs `hybrid_rerank` — прирост на cross_chapter/abbrev без деградации p95 на простых запросах; тест на потолок итераций
+### Фаза 5 — Reflect (ограниченная рефлексия) ✅ реализовано 2026-08-05, ⚠️ DoD (eval) не выполнен
+- [x] Нода `reflect_node` после `rerank`, вызывается когда `decide_after_rerank` вернул `grey_zone` ИЛИ `empty` (шире исходного "top-score в серой зоне и/или мало результатов" — пустой результат тоже уходит сюда, не сразу в `no_data`)
+- [x] Вердикт через `LLMGateway.generate_json` + 1 retry на невалидном JSON: `ReflectOutput { verdict: sufficient|need_more|not_in_corpus, new_queries, needs_appendix }` — структура ближе к задуманной, чем казалось (`missing` не завели — не понадобилось), модель НЕ из `[llm_summary]` (основная, не дешёвая — пересмотреть, если качество/цена станут проблемой)
+- [x] Жёсткий потолок `state.reflect_rounds >= 1` → fast-path без LLM, `not_in_corpus` → `no_data_node`, `need_more` → повторный `execute_subtasks_node` по `new_queries` (в одной `search_docs`-подзадаче, см. §5.2 `AGENT_GRAPH_CURRENT.md`)
+- [x] 2026-08-06: `retrieval_data` между кругами накапливается (не перезаписывается), `reflect_prompt` видит уже пробованные формулировки и их скор (`tried_queries`) — не было в исходном плане, добавлено по итогам живого разбора (см. `AGENT_GRAPH_CURRENT.md` §6.1/§2.6)
+- DoD не выполнен: eval `with_reflection` vs `hybrid_rerank` не прогонялся — тот же блокер, что 3.3/Фаза 4
 
-### Фаза 6 — Personal (поиск по заметкам и задачам)
+### Фаза 6 — Personal (поиск по заметкам и задачам) — план актуален, роутер-часть устарела
 - [ ] Postgres FTS: `to_tsvector('russian', title || ' ' || content)` + GIN-индекс (миграция Alembic); `pg_trgm` + триграмный индекс
-- [ ] Инструменты `search_notes(query)`, `search_tasks(query)`
-- [ ] Identity Scope: `user_id` строго из auth-контекста сервиса, у LLM этого параметра в схеме вызова нет вообще
-- [ ] Роутер: класс `personal`, +50-100 примеров в `ml_router/data/dataset.csv`, переобучение
-- [ ] Ветка в графе: `personal → tool → build_prompt`
-- DoD: тесты изоляции данных (пользователь A не находит заметки пользователя B ни при каких условиях); приемлемая confusion-матрица роутера на новом классе
-- ⚠️ **Блокер `search_tasks`**: бэкенда Задач на день (Фича 6 в корневом `TODO.md`) пока нет вообще — «новый домен, бэкенда нет». `search_notes` можно делать независимо, `search_tasks` ждёт
+- [x] Инструменты `search_notes(query)`/`search_tasks(query)` УЖЕ зарегистрированы в `tool_registry.py` (2026-08-05) — `args_schema` готовы (`SearchNotesArgs`/`SearchTasksArgs`), `fn` — `NotImplementedError`-заглушка (не молча пустой успех). Осталось реализовать сам `fn` (HTTP-клиент к backend), схему трогать не нужно
+- [ ] Identity Scope: `user_id` строго из auth-контекста сервиса, у LLM этого параметра в схеме вызова нет вообще — актуально как было
+- [ ] ~~Роутер: класс `personal`, +50-100 примеров в `ml_router/data/dataset.csv`, переобучение~~ — НЕ АКТУАЛЬНО, ML-роутер отключён от графа (см. секцию выше). `plan_node` сам решает вызывать ли `search_notes`/`search_tasks` через `plan_prompt` — нужно дописать эти два тула в текст промпта (`ai_config.toml`), не переобучать классификатор
+- [ ] Ветка в графе: ~~`personal → tool → build_prompt`~~ — не нужна отдельная ветка, `execute_subtasks_node` уже универсально диспетчерит любой read-тул из реестра, включая будущие `search_notes`/`search_tasks`
+- DoD: тесты изоляции данных (пользователь A не находит заметки пользователя B ни при каких условиях)
+- ⚠️ **Блокер `search_tasks`** не снят: бэкенда Задач на день (Фича 6 в корневом `TODO.md`) по-прежнему нет. `search_notes` можно делать независимо
 
-### Фаза 7 — Actions (write-инструменты с подтверждением)
-- [ ] Нода `post_actions` после `extract_sources` — дешёвая модель определяет намерение («сохрани как задачу») → `proposed_action` в `AgentResponse` (title из вопроса, body = ответ + sources). Сам инструмент НЕ исполняется на этом шаге
-- [ ] Исполнение только по явному подтверждению с фронта: `POST /actions/execute`
+### Фаза 7 — Actions (write-инструменты с подтверждением) — нода-заглушка уже в графе, планировавшийся intent-детект не сделан
+- [x] Нода `post_actions_node` (`application/agent/generation_nodes.py`) уже в графе после `extract_sources_node`, достижима по code-гейту `_ACTION_MARKERS_RE` (regex по маркерам в `state.query`: "сохрани"/"закинь"/"создай задачу" и т.п., см. `AGENT_GRAPH_CURRENT.md` §2.12) — дешевле, чем "дешёвая модель определяет намерение" из исходного плана, LLM вообще не вызывается на этом шаге
+- [ ] Сама нода — настоящий no-op: `return {"proposed_action": None}`, не строит `proposed_action` вообще. Ни один write-тул (`create_task`/`create_note`/`update_note`) не реализован (`NotImplementedError` в `tool_registry.py`) — вот это и есть непосредственно оставшаяся работа Фазы 7
+- [ ] Исполнение только по явному подтверждению с фронта: `POST /actions/execute` — как и планировалось, не начато
 - [ ] Идемпотентный ключ: `hash(message_id + action_type + action_title)` — повторный клик/ретрай не дублирует запись
 - DoD: E2E — «и закинь задачей» → интерактивный чип на фронте → клик → задача с цитатами глав; повторный клик не дублирует
 
 ### Фаза 8 — AI-аудит опросных листов (= Фича 1 в корневом `TODO.md`)
-Предусловие: Фазы 1-4 закрыты. Отдельный Celery-конвейер, переиспользует `RetrievalService`/`llm_provider`, НЕ ветка графа агента.
+Предусловие: Фазы 1-4 закрыты. Фаза 4 (rerank) реализована (см. выше) — предусловие по ней
+формально выполнено, но калибровка порогов (eval, тот же блокер, что в 3.3/Фазе 4/Фазе 5)
+всё ещё не сделана, так что реальная готовность к Фазе 8 не выше, чем была. Отдельный
+Celery-конвейер, переиспользует `RetrievalService`/`llm_provider`, НЕ ветка графа агента.
 
 - [ ] **8.1 Ingestion & Payload** — нормализация обозначений документов при инжесте (СП 62.13330.2011 + вариации → канонический вид), поле `document_code` (+редакция) в Payload, Payload-индекс в Qdrant, `search_in_document`
 - [ ] **8.2 JSON-промпт инспектора** — статусы `OK|WARNING|VIOLATION|NO_DATA` (`NO_DATA` обязателен, если норматив не найден), дословная цитата + nullable-ссылка на пункт, пересчёт единиц (давление/температура) — детерминированно кодом (`pint`), не LLM
