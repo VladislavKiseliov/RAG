@@ -37,7 +37,7 @@ class PromptsConfig(BaseModel):
 class GatewayConfig(BaseModel):
     """Пороги плана/сравнения документов/реранка, см. ARCHITECTURE.md §3/§10 (шаги 1c/4/5b)."""
     max_docs_interactive: int = 4
-    max_subtasks: int = 12
+    max_subtasks: int = 4
     router_knn_threshold: float = 0.15
     router_confidence_threshold: float = 0.7
     # Стартовые оценки (не откалиброваны eval'ом - см. ARCHITECTURE.md §1 п.3, второе

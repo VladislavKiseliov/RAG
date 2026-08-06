@@ -123,8 +123,6 @@ class LeanAgentState(BaseModel):
     plan: PlanOutput | None = None
     subtask_results: list[dict[str, Any]] = Field(default_factory=list)
 
-    # reflect/no_data - гейты захардкожены never-fire в этом заходе (см.
-    # lean_rag_agent.py::_NO_DATA_GATE_ENABLED), поля тем не менее заведены.
     reflect_rounds: int = 0
     reflect_verdict: Literal["sufficient", "need_more", "not_in_corpus"] | None = None
     retrieval_empty: bool = False
@@ -140,3 +138,8 @@ class LeanAgentState(BaseModel):
     appendix_context: str = ""
 
     response_model:str = ""
+    # True только когда generate_node дописал служебную ноту поверх/вместо реального
+    # ответа (обрыв стрима, полный сбой LLM) - НЕ выставляется в no_data_node (тот
+    # отдаёт честный, полноценный ответ "нет информации", не деградацию). Сигнал для
+    # backend: не подмешивать такое сообщение в историю/саммари следующих ходов.
+    response_degraded: bool = False

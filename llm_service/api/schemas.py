@@ -36,13 +36,19 @@ class AskResponse(BaseModel):
     sources: list[SourceItem]
     context: str | None = None
     total: int
-    # Аддитивные поля под целевую архитектуру (ARCHITECTURE.md) - всегда route/False/None
-    # сегодня, так как производящие их ноды недостижимы живым трафиком или заглушки
-    # (см. lean_rag_agent.py). backend/services/ai/llm_client.py читает ответ через
-    # data.get(...), новые поля не ломают существующий разбор.
+    # Аддитивные поля (route/retrieval_empty с 2026-08-05, degraded с 2026-08-06 реально
+    # заполняются живыми нодами - plan_node/no_data_node/generate_node; proposed_action
+    # пока всегда None, post_actions_node - настоящая заглушка).
+    # backend/services/ai/llm_client.py читает ответ через data.get(...), новые поля не
+    # ломают существующий разбор.
     route: str | None = None
     retrieval_empty: bool = False
     proposed_action: dict[str, Any] | None = None
+    # True, если generate_node дописал служебную ноту об обрыве/сбое поверх или вместо
+    # ответа (не выставляется для честного no_data-ответа - тот полноценный). Backend
+    # использует это, чтобы не подмешивать такие сообщения в историю/саммари следующих
+    # ходов (см. conversation_service.py).
+    degraded: bool = False
 
 
 class SummaryRequest(BaseModel):

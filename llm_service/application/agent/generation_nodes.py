@@ -33,12 +33,32 @@ class GenerationNodesMixin:
     async def build_prompt_node(self, state: LeanAgentState) -> dict[str, Any]:
         started = time.perf_counter()
 
-        context_str = "\n\n".join(format_retrieval_item_for_prompt(item) for item in state.retrieval_data)
+        formatted_items = [format_retrieval_item_for_prompt(item) for item in state.retrieval_data]
+        context_str = "\n\n".join(formatted_items)
 
         appendix_context = state.appendix_context
-        mentions_appendix = _APPENDIX_MENTION_RE.search(state.query) or _APPENDIX_MENTION_RE.search(context_str)
-        if not appendix_context and state.retrieval_data and mentions_appendix:
-            doc_id = state.retrieval_data[0].metadata.doc_id
+        mentions_in_query = bool(_APPENDIX_MENTION_RE.search(state.query))
+        mentions_in_context = bool(_APPENDIX_MENTION_RE.search(context_str))
+        if not appendix_context and state.retrieval_data and (mentions_in_query or mentions_in_context):
+            # B6: раньше doc_id брался из топ-1 результата безусловно - в нормативке
+            # "см. приложение А" встречается в каждом втором чанке, значит гейт
+            # регулярно подтягивал приложение НЕ того документа, к которому
+            # относился топ-чанк (тот же баг, что §6.4, только с более широким
+            # триггером). Если упоминание в самом вопросе - пользователь явно
+            # спрашивает про приложение, топ-результат разумная догадка. Если
+            # упоминание нашлось только в контексте - резолвим doc_id именно из
+            # того чанка, где оно встретилось, а не из первого по скору.
+            if mentions_in_query:
+                doc_id = state.retrieval_data[0].metadata.doc_id
+            else:
+                doc_id = next(
+                    (
+                        item.metadata.doc_id
+                        for item, text in zip(state.retrieval_data, formatted_items)
+                        if _APPENDIX_MENTION_RE.search(text)
+                    ),
+                    state.retrieval_data[0].metadata.doc_id,
+                )
             appendix_text = await self.retrieval_service.get_appendix(doc_id)
             if appendix_text:
                 appendix_context = appendix_text[:_MAX_APPENDIX_CONTEXT_CHARS]
@@ -63,7 +83,7 @@ class GenerationNodesMixin:
 
         return {"final_context": final_context}
 
-    async def generate_node(self, state: LeanAgentState) -> dict[str, str]:
+    async def generate_node(self, state: LeanAgentState) -> dict[str, Any]:
         """Генерирует финальный ответ с учётом route, контекста и истории диалога.
 
         Стримит через generate_stream() + custom stream writer вместо generate() -
@@ -86,6 +106,7 @@ class GenerationNodesMixin:
         writer = get_safe_stream_writer()
 
         answer_parts: list[str] = []
+        degraded = False
         try:
             async for delta in self.llm_provider.generate_stream(
                 current_query=state.query, data_prompt=state.final_context
@@ -97,6 +118,7 @@ class GenerationNodesMixin:
                 logger.warning("LLM stream interrupted mid-generation: %s", exc)
                 note = "\n\n_[ответ прерван: обрыв соединения с LLM]_"
                 answer_parts.append(note)
+                degraded = True
                 writer({"event": "token", "data": {"text": note}})
             else:
                 logger.warning(
@@ -106,12 +128,15 @@ class GenerationNodesMixin:
                     answer = await self.llm_provider.generate(
                         current_query=state.query, data_prompt=state.final_context
                     )
-                except Exception as fallback_exc:
+                except Exception:
                     logger.exception("Non-streaming fallback also failed")
-                    note = f"_Не удалось получить ответ: {fallback_exc}_"
+                    note = "_Не удалось получить ответ: сбой при обращении к LLM._"
                     answer_parts.append(note)
+                    degraded = True
                     writer({"event": "token", "data": {"text": note}})
                 else:
+                    # Фолбэк реально сработал - настоящий, полный ответ, просто
+                    # нестримящим путём. Не деградация, нечего помечать.
                     answer_parts.append(answer)
                     writer({"event": "token", "data": {"text": answer}})
 
@@ -123,11 +148,12 @@ class GenerationNodesMixin:
                 "route": state.route,
                 "query": state.query,
                 "answer_len": len(answer or ""),
+                "degraded": degraded,
                 "duration_ms": int((time.perf_counter() - started) * 1000),
             },
         )
 
-        return {"response_model": answer}
+        return {"response_model": answer, "response_degraded": degraded}
 
     async def extract_sources_node(self, state: LeanAgentState) -> dict[str, Any]:
         """РЕАЛЬНАЯ нода: тот же build_sources_payload, что раньше вызывался инлайново в

@@ -7,6 +7,7 @@ import pytest
 
 from llm_service.application.lean_rag_agent import LeanRagAgent
 from llm_service.application.agent import formatters
+from llm_service.application.agent import planning_nodes
 from llm_service.application.agent import routing_decisions as decisions
 from llm_service.application.lean_rag_models import (
     ChildChunk,
@@ -25,7 +26,7 @@ from llm_service.application.lean_rag_models import (
 # ---------------------------------------------------------------------------
 
 _DEFAULT_PLAN_RESPONSE = (
-    '{"subtasks": [{"tool": "search_docs", "args": {"query": "search query", "doc_filter": null}}], '
+    '{"subtasks": [{"tool": "search_docs", "args": {"queries": ["search query"], "doc_filter": null}}], '
     '"synthesis": ""}'
 )
 _EMPTY_PLAN_RESPONSE = '{"subtasks": [], "synthesis": "smalltalk, поиск не нужен"}'
@@ -406,6 +407,40 @@ class TestBuildPromptNode:
         assert "[Приложения документа]" not in result["final_context"].context
         agent.retrieval_service.get_appendix.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_context_mention_resolves_doc_id_from_matching_chunk_not_top_result(self):
+        # B6: раньше doc_id брался из топ-1 результата безусловно - в нормативке "см.
+        # приложение А" встречается в каждом втором чанке, значит гейт регулярно
+        # подтягивал приложение НЕ того документа. Топ-результат (item_top) не
+        # упоминает приложение вообще; только второй чанк (item_with_mention) - из
+        # ДРУГОГО документа - его ссылается. Должен резолвиться doc-2, не doc-1.
+        agent = make_agent()
+        agent.retrieval_service.get_appendix = AsyncMock(return_value="текст приложения А")
+        item_top = make_retrieve_item(parent_chunk="требования к пусконаладочным работам", source="ГОСТ 1.pdf")
+        item_with_mention = make_retrieve_item(
+            parent_chunk="подробности см. приложение А", source="СП 1.13130.pdf",
+        )
+        item_with_mention = item_with_mention.model_copy(
+            update={"metadata": item_with_mention.metadata.model_copy(update={"doc_id": "doc-2"})}
+        )
+        result = await agent.nodes.build_prompt_node(
+            make_state(query="какие требования?", retrieval_data=[item_top, item_with_mention])
+        )
+        assert "[Приложения документа]" in result["final_context"].context
+        agent.retrieval_service.get_appendix.assert_awaited_once_with("doc-2")
+
+    @pytest.mark.asyncio
+    async def test_query_mention_still_resolves_doc_id_from_top_result(self):
+        # Когда упоминание в самом вопросе пользователя (не только в найденном
+        # контексте) - top-1 остаётся разумной догадкой, поведение не меняется.
+        agent = make_agent()
+        agent.retrieval_service.get_appendix = AsyncMock(return_value="текст приложения А")
+        item = make_retrieve_item(parent_chunk="без упоминания вообще")
+        result = await agent.nodes.build_prompt_node(
+            make_state(query="что в приложении А?", retrieval_data=[item])
+        )
+        agent.retrieval_service.get_appendix.assert_awaited_once_with(item.metadata.doc_id)
+
 
 # ---------------------------------------------------------------------------
 # generate_node
@@ -420,7 +455,7 @@ class TestGenerateNode:
             summary="резюме", current_query="вопрос",
         )
         result = await agent.nodes.generate_node(make_state(query="вопрос", final_context=final_ctx))
-        assert result == {"response_model": "готовый ответ"}
+        assert result == {"response_model": "готовый ответ", "response_degraded": False}
 
     @pytest.mark.asyncio
     async def test_calls_llm_generate_stream_with_correct_args(self):
@@ -492,6 +527,9 @@ class TestRunStream:
         final_answer = events[-1]["data"]["answer"]
         assert final_answer.startswith("частичный ответ")
         assert "прерван" in final_answer
+        # degraded=True - backend не должен подмешивать это сообщение в историю/саммари
+        # следующих ходов (не настоящий полный ответ, а обрыв с пометкой).
+        assert events[-1]["data"]["degraded"] is True
 
     @pytest.mark.asyncio
     async def test_pause_between_deltas_does_not_break_generation(self):
@@ -534,6 +572,8 @@ class TestRunStream:
         assert events[2]["data"]["text"] == "ответ из фолбэка"
         assert events[-1]["data"]["answer"] == "ответ из фолбэка"
         agent.llm_provider.generate.assert_awaited_once()
+        # Фолбэк реально сработал - настоящий полный ответ, не деградация.
+        assert events[-1]["data"]["degraded"] is False
 
     @pytest.mark.asyncio
     async def test_slow_fallback_still_returns_answer(self):
@@ -576,6 +616,7 @@ class TestRunStream:
 
         assert [e["event"] for e in events] == ["status", "status", "token", "sources", "done"]
         assert "Не удалось получить ответ" in events[-1]["data"]["answer"]
+        assert events[-1]["data"]["degraded"] is True
 
     @pytest.mark.asyncio
     async def test_does_not_fall_back_if_some_tokens_already_shown(self):
@@ -661,7 +702,7 @@ class TestRerankNode:
         # сравнивать с тем же текстом, каким реально искали, а не с сырым вопросом.
         item = make_retrieve_item()
         plan = PlanOutput(subtasks=[
-            PlanSubtask(tool="search_docs", args={"query": "расшифрованный запрос"}),
+            PlanSubtask(tool="search_docs", args={"queries": ["расшифрованный запрос"]}),
         ])
         agent = make_agent()
         await agent.nodes.rerank_node(
@@ -681,14 +722,14 @@ class TestRerankNode:
     @pytest.mark.asyncio
     async def test_reranks_against_search_docs_query_when_get_appendix_is_first_subtask(self):
         # B5: subtasks[0].args.get("query", ...) слепо брало первую подзадачу - если это
-        # get_appendix (args: {"document_code"}, без "query"), rerank_query тихо
+        # get_appendix (args: {"document_code"}, без "queries"), rerank_query тихо
         # откатывался на сырой state.query, воспроизводя баг из
         # test_reranks_against_plan_query_not_raw_state_query заново для планов вида
         # [get_appendix, search_docs].
         item = make_retrieve_item()
         plan = PlanOutput(subtasks=[
             PlanSubtask(tool="get_appendix", args={"document_code": "СП 1.13130"}),
-            PlanSubtask(tool="search_docs", args={"query": "расшифрованный запрос"}),
+            PlanSubtask(tool="search_docs", args={"queries": ["расшифрованный запрос"]}),
         ])
         agent = make_agent()
         await agent.nodes.rerank_node(
@@ -696,6 +737,40 @@ class TestRerankNode:
         )
         call_kwargs = agent.reranker_service.rerank.call_args.kwargs
         assert call_kwargs["query"] == "расшифрованный запрос"
+
+    @pytest.mark.asyncio
+    async def test_reranks_against_concatenated_queries_in_one_search_docs_subtask(self):
+        # 2026-08-06: search_docs теперь принимает СПИСОК формулировок в одной
+        # подзадаче (rag_service батчит их одним вызовом - RetrieveService.batch_search),
+        # не отдельную подзадачу на каждую формулировку. Реранк должен сравнивать со
+        # всеми формулировками сразу, не только с первой.
+        item = make_retrieve_item()
+        plan = PlanOutput(subtasks=[
+            PlanSubtask(tool="search_docs", args={"queries": ["запрос один", "запрос два"]}),
+        ])
+        agent = make_agent()
+        await agent.nodes.rerank_node(
+            make_state(query="сырой вопрос", retrieval_data=[item], plan=plan)
+        )
+        call_kwargs = agent.reranker_service.rerank.call_args.kwargs
+        assert call_kwargs["query"] == "запрос один запрос два"
+
+    @pytest.mark.asyncio
+    async def test_reranks_against_concatenated_queries_across_multiple_subtasks(self):
+        # Защитный случай: даже если формулировки почему-то оказались в РАЗНЫХ
+        # search_docs-подзадачах (не одна подзадача со списком), rerank_query всё
+        # равно должен собрать их все, а не только из первой подзадачи.
+        item = make_retrieve_item()
+        plan = PlanOutput(subtasks=[
+            PlanSubtask(tool="search_docs", args={"queries": ["запрос один"]}),
+            PlanSubtask(tool="search_docs", args={"queries": ["запрос два"]}),
+        ])
+        agent = make_agent()
+        await agent.nodes.rerank_node(
+            make_state(query="сырой вопрос", retrieval_data=[item], plan=plan)
+        )
+        call_kwargs = agent.reranker_service.rerank.call_args.kwargs
+        assert call_kwargs["query"] == "запрос один запрос два"
 
 
 class TestDecideAfterRerank:
@@ -775,15 +850,16 @@ class TestPlanNode:
 
     @pytest.mark.asyncio
     async def test_truncates_to_max_subtasks(self):
-        # gateway.max_subtasks = 12 в ai_config.toml - если LLM предложит больше,
-        # обрезаем, а не исполняем всё подряд.
+        # gateway.max_subtasks = 4 в ai_config.toml - если LLM предложит больше,
+        # обрезаем, а не исполняем всё подряд (execute_subtasks последовательный,
+        # не asyncio.gather - см. AGENT_GRAPH_CURRENT.md §6.5).
         many_subtasks = ", ".join(
-            '{"tool": "search_docs", "args": {"query": "q%d", "doc_filter": null}}' % i
+            '{"tool": "search_docs", "args": {"queries": ["q%d"], "doc_filter": null}}' % i
             for i in range(15)
         )
         agent = make_agent(plan_response='{"subtasks": [%s], "synthesis": ""}' % many_subtasks)
         result = await agent.nodes.plan_node(make_state())
-        assert len(result["plan"].subtasks) == 12
+        assert len(result["plan"].subtasks) == 4
 
     @pytest.mark.asyncio
     async def test_history_formatted_as_role_content_not_raw_list_repr(self):
@@ -797,6 +873,25 @@ class TestPlanNode:
         assert "Пользователь: привет" in prompt_arg
         assert "Ассистент: здравствуй" in prompt_arg
         assert "{'role'" not in prompt_arg
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_default_search_plan_on_llm_failure(self):
+        # plan_node - точка входа 100% живого трафика (включая "привет"/"спасибо",
+        # которые вообще не требовали бы LLM). Раньше невалидный JSON/таймаут/5xx
+        # апстрима здесь означал голый 500 даже на светскую беседу - деградируем до
+        # обычного search_docs по сырому вопросу вместо того, чтобы ронять весь ответ.
+        agent = make_agent()
+        agent.llm_provider.generate_json_raw = AsyncMock(side_effect=RuntimeError("upstream 500"))
+        before = planning_nodes.PLAN_FALLBACK_COUNT._value.get()
+
+        result = await agent.nodes.plan_node(make_state(query="сырой вопрос пользователя"))
+
+        plan = result["plan"]
+        assert len(plan.subtasks) == 1
+        assert plan.subtasks[0].tool == "search_docs"
+        assert plan.subtasks[0].args["queries"] == ["сырой вопрос пользователя"]
+        assert result["route"] == "domain_rag"
+        assert planning_nodes.PLAN_FALLBACK_COUNT._value.get() == before + 1
 
     @pytest.mark.asyncio
     async def test_query_included_in_prompt(self):
@@ -859,8 +954,10 @@ class TestReflectNode:
         result = await agent.nodes.reflect_node(make_state(retrieval_data=[], reflect_rounds=0))
         assert result["reflect_verdict"] == "need_more"
         new_plan = result["plan"]
-        assert [st.tool for st in new_plan.subtasks] == ["search_docs", "search_docs"]
-        assert [st.args["query"] for st in new_plan.subtasks] == ["запрос1", "запрос2"]
+        # Одна подзадача со списком формулировок (не подзадача на каждую) - rag_service
+        # батчит их одним вызовом, см. tool_registry.py::SearchDocsArgs.
+        assert [st.tool for st in new_plan.subtasks] == ["search_docs"]
+        assert new_plan.subtasks[0].args["queries"] == ["запрос1", "запрос2"]
 
     @pytest.mark.asyncio
     async def test_need_more_without_new_queries_falls_back_to_sufficient_if_something_found(self):
@@ -908,6 +1005,31 @@ class TestReflectNode:
         await agent.nodes.reflect_node(make_state(retrieval_data=[]))
         prompt_arg = agent.llm_provider.generate_json_raw.call_args.kwargs["query"]
         assert "ничего не найдено" in prompt_arg
+
+    @pytest.mark.asyncio
+    async def test_prompt_includes_tried_queries_and_their_score(self):
+        # RL-фрейминг: reflect должен видеть не только НАЙДЕННОЕ, но и КАКИМИ
+        # ЗАПРОСАМИ уже искали - иначе не отличит "первая формулировка была почти
+        # правильной" от "нужен принципиально другой заход" и предложит new_queries,
+        # близкие по смыслу к уже провалившимся.
+        agent = make_agent(reflect_response='{"verdict": "need_more", "new_queries": ["другой заход"]}')
+        item = make_retrieve_item()
+        item.metadata.score = 0.42
+        plan = PlanOutput(subtasks=[
+            PlanSubtask(tool="search_docs", args={"queries": ["первая формулировка", "вторая формулировка"]}),
+        ])
+        await agent.nodes.reflect_node(make_state(retrieval_data=[item], plan=plan))
+        prompt_arg = agent.llm_provider.generate_json_raw.call_args.kwargs["query"]
+        assert "первая формулировка" in prompt_arg
+        assert "вторая формулировка" in prompt_arg
+        assert "0.42" in prompt_arg
+
+    @pytest.mark.asyncio
+    async def test_prompt_marks_no_queries_tried_when_no_plan(self):
+        agent = make_agent(reflect_response='{"verdict": "not_in_corpus", "new_queries": []}')
+        await agent.nodes.reflect_node(make_state(retrieval_data=[], plan=None))
+        prompt_arg = agent.llm_provider.generate_json_raw.call_args.kwargs["query"]
+        assert "поиск ещё не выполнялся" in prompt_arg
 
     # A21 (rag_service/ISSUES.md): приложения не проиндексированы, reflect подтягивает
     # их текст напрямую через RetrievalService.get_appendix, когда LLM выставляет
@@ -988,7 +1110,7 @@ class TestExecuteSubtasksNode:
     async def test_dispatches_read_tool_and_collects_result(self):
         item = make_retrieve_item()
         agent = make_agent(retrieval_items=[item])
-        plan = PlanOutput(subtasks=[PlanSubtask(tool="search_docs", args={"query": "test"})])
+        plan = PlanOutput(subtasks=[PlanSubtask(tool="search_docs", args={"queries": ["test"]})])
         result = await agent.nodes.execute_subtasks_node(make_state(plan=plan))
         assert len(result["subtask_results"]) == 1
         assert result["subtask_results"][0]["tool"] == "search_docs"
@@ -1023,9 +1145,27 @@ class TestExecuteSubtasksNode:
         # отключения ML-роутера, поэтому не был пойман раньше).
         item = make_retrieve_item()
         agent = make_agent(retrieval_items=[item])
-        plan = PlanOutput(subtasks=[PlanSubtask(tool="search_docs", args={"query": "test"})])
+        plan = PlanOutput(subtasks=[PlanSubtask(tool="search_docs", args={"queries": ["test"]})])
         result = await agent.nodes.execute_subtasks_node(make_state(plan=plan))
         assert result["retrieval_data"] == [item]
+
+    @pytest.mark.asyncio
+    async def test_multiple_queries_in_one_search_docs_subtask_go_in_a_single_retrieve_call(self):
+        # 2026-08-06: search_docs.queries - список, rag_service уже умеет батчить
+        # несколько формулировок одним вызовом эмбеддера + одним batch-запросом в
+        # Qdrant (RetrieveService.batch_search) - та же труба, что раньше использовал
+        # legacy retrieve_multi_node. До этой правки каждая формулировка была отдельной
+        # search_docs-подзадачей, execute_subtasks_node звал tool.fn N раз
+        # последовательно (N HTTP round-trip'ов) вместо одного батч-вызова.
+        item = make_retrieve_item()
+        agent = make_agent(retrieval_items=[item])
+        plan = PlanOutput(subtasks=[
+            PlanSubtask(tool="search_docs", args={"queries": ["формулировка 1", "формулировка 2"]}),
+        ])
+
+        await agent.nodes.execute_subtasks_node(make_state(plan=plan))
+
+        agent.retrieval_service.retrieve.assert_awaited_once_with(["формулировка 1", "формулировка 2"])
 
     @pytest.mark.asyncio
     async def test_multiple_search_docs_subtasks_deduplicated_by_parent_id(self):
@@ -1044,13 +1184,48 @@ class TestExecuteSubtasksNode:
         agent.retrieval_service.retrieve = AsyncMock(side_effect=call_results)
 
         plan = PlanOutput(subtasks=[
-            PlanSubtask(tool="search_docs", args={"query": "q1"}),
-            PlanSubtask(tool="search_docs", args={"query": "q2"}),
+            PlanSubtask(tool="search_docs", args={"queries": ["q1"]}),
+            PlanSubtask(tool="search_docs", args={"queries": ["q2"]}),
         ])
         result = await agent.nodes.execute_subtasks_node(make_state(plan=plan))
 
         assert len(result["retrieval_data"]) == 1
         assert result["retrieval_data"][0].metadata.score == 0.9
+
+    @pytest.mark.asyncio
+    async def test_accumulates_with_previous_round_retrieval_data(self):
+        # RL-фрейминг: агент не должен терять то, что нашёл на предыдущем круге
+        # (reflect need_more -> execute_subtasks_node вызывается снова) - копим и
+        # выбираем лучшее из всего, а не подменяем целиком последним кругом.
+        prior_item = make_retrieve_item(parent_chunk="из первого круга")
+        prior_item = prior_item.model_copy(
+            update={"metadata": prior_item.metadata.model_copy(update={"parent_id": "parent-old"})}
+        )
+        new_item = make_retrieve_item(parent_chunk="из второго круга")  # parent_id="parent-1" по умолчанию
+        agent = make_agent(retrieval_items=[new_item])
+        plan = PlanOutput(subtasks=[PlanSubtask(tool="search_docs", args={"queries": ["уточнённый запрос"]})])
+
+        result = await agent.nodes.execute_subtasks_node(make_state(plan=plan, retrieval_data=[prior_item]))
+
+        parent_ids = {item.metadata.parent_id for item in result["retrieval_data"]}
+        assert parent_ids == {"parent-old", "parent-1"}
+
+    @pytest.mark.asyncio
+    async def test_accumulation_deduplicates_by_parent_id_keeping_higher_score(self):
+        # Тот же parent_id найден и в первом, и во втором круге - остаётся версия с
+        # более высоким score, не механически "последний круг побеждает".
+        prior_item = make_retrieve_item(parent_chunk="старая версия, низкий скор")
+        prior_item.metadata.score = 0.2
+        new_item = make_retrieve_item(parent_chunk="новая версия, высокий скор")  # тот же parent_id
+        new_item.metadata.score = 0.9
+        agent = make_agent(retrieval_items=[new_item])
+        plan = PlanOutput(subtasks=[PlanSubtask(tool="search_docs", args={"queries": ["q"]})])
+
+        result = await agent.nodes.execute_subtasks_node(make_state(plan=plan, retrieval_data=[prior_item]))
+
+        assert len(result["retrieval_data"]) == 1
+        assert result["retrieval_data"][0].metadata.score == 0.9
+        assert result["retrieval_data"][0].parent_chunk == "новая версия, высокий скор"
 
     # get_appendix - реальный тул с 2026-08-05 (см. tool_registry.py), но его результат
     # не "search-результат" (нет score, не чанк) - идёт в отдельное поле appendix_context,

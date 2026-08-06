@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 import httpx
@@ -9,6 +10,12 @@ from llm_service.exceptions import RagResponseError, RagUnavailableError
 from llm_service.utils.logger_config import setup_logger
 
 logger = setup_logger("llm_service.retrieval_service")
+
+# Между "вебхук-инвалидация" (отменена, см. AGENT_GRAPH_CURRENT.md §6.8) и "никогда
+# не обновляется" - TTL: документ, добавленный в rag_service после сборки реестра,
+# станет виден get_appendix/list_documents не позже чем через это время, без
+# межсервисных контрактов.
+_DOCUMENT_REGISTRY_TTL_S = 300.0
 
 class RetrievalService:
     def __init__(
@@ -29,6 +36,7 @@ class RetrievalService:
         # rag_service: filename/s3key/status/chunk_count/size/has_summary/created_at) -
         # см. _get_document_registry().
         self._document_registry: dict[str, dict[str, Any]] | None = None
+        self._document_registry_built_at: float = 0.0
         self._document_registry_lock = asyncio.Lock()
 
     async def aclose(self) -> None:
@@ -84,33 +92,41 @@ class RetrievalService:
         return response.json().get("text")
 
     async def _get_document_registry(self) -> dict[str, dict[str, Any]]:
-        """Реестр всех документов корпуса, строится один раз лениво при первом реальном
+        """Реестр всех документов корпуса, строится лениво при первом реальном
         обращении (find_document_id_by_code/list_documents) - НЕ при старте сервиса.
         Сетевой вызов к rag_service на старте добавил бы ещё одну точку отказа запуска
         (тот же урок, что уже стоил падения старта на мёртвом ML-роутере, см. B4 в
-        ISSUES.md) ради данных, которые нужны не каждому запросу. In-memory, без
-        авто-обновления в течение жизни процесса - тот же паттерн, что
-        AbbreviationExpander в rag_service (ручная перезагрузка, если корпус изменился
-        после старта). Хранит только то, что отдаёт список (GET /documents) - filename,
-        s3key, status, chunk_count, size, has_summary, created_at. Главы/детали документа
-        (GET /documents/{doc_id}) сюда не входят - отдельный, более тяжёлый вызов на
-        документ, которым сегодня никто не пользуется (get_chapter - всё ещё
-        NotImplementedError-заглушка в tool_registry.py).
+        ISSUES.md) ради данных, которые нужны не каждому запросу. Хранит только то,
+        что отдаёт список (GET /documents) - filename, s3key, status, chunk_count,
+        size, has_summary, created_at. Главы/детали документа (GET /documents/{doc_id})
+        сюда не входят - отдельный, более тяжёлый вызов на документ, которым сегодня
+        никто не пользуется (get_chapter - всё ещё NotImplementedError-заглушка в
+        tool_registry.py).
 
-        Сбой запроса не кэшируется как пустой реестр - следующий вызов повторит попытку
-        (в отличие от ML-роутера, здесь нет причины сдаваться навсегда: rag_service может
-        просто ещё не подняться при старте llm_service)."""
-        if self._document_registry is not None:
+        TTL (_DOCUMENT_REGISTRY_TTL_S), не вебхук-инвалидация (обсуждалась и была
+        осознанно отклонена - см. AGENT_GRAPH_CURRENT.md §6.8): документ, добавленный/
+        удалённый в rag_service после сборки реестра, станет виден не позже чем через
+        TTL, без межсервисного контракта. Сбой обновления (в т.ч. по истечении TTL) не
+        затирает уже имеющийся реестр - отдаём протухшие, но валидные данные и повторяем
+        попытку на следующий вызов (в отличие от ML-роутера, здесь нет причины сдаваться
+        навсегда: rag_service может быть временно недоступен)."""
+        now = time.monotonic()
+        if self._document_registry is not None and (now - self._document_registry_built_at) < _DOCUMENT_REGISTRY_TTL_S:
             return self._document_registry
         async with self._document_registry_lock:
-            if self._document_registry is None:
+            now = time.monotonic()
+            if self._document_registry is None or (now - self._document_registry_built_at) >= _DOCUMENT_REGISTRY_TTL_S:
                 try:
                     response = await self._client.get(f"{self._base_url}/documents", params={"limit": 500})
                     response.raise_for_status()
                 except httpx.HTTPError as exc:
-                    logger.warning("Document registry build failed, will retry on next call", extra={"error": str(exc)})
-                    return {}
+                    logger.warning(
+                        "Document registry (re)build failed, serving stale/empty registry, will retry on next call",
+                        extra={"error": str(exc), "had_stale": self._document_registry is not None},
+                    )
+                    return self._document_registry or {}
                 self._document_registry = {doc["doc_id"]: doc for doc in response.json()}
+                self._document_registry_built_at = time.monotonic()
         return self._document_registry
 
     async def find_document_id_by_code(self, document_code: str) -> str | None:

@@ -6,14 +6,23 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from prometheus_client import Counter
+
 from llm_service.ai_config import get_live_config
 from llm_service.application.agent.formatters import format_chat_history, merge_appendix_result, merge_search_docs_results
 from llm_service.application.agent.retrieval_nodes import _MAX_APPENDIX_CONTEXT_CHARS
-from llm_service.application.lean_rag_models import LeanAgentState, PlanOutput
+from llm_service.application.lean_rag_models import LeanAgentState, PlanOutput, PlanSubtask, RetrieveItem
 from llm_service.utils.logger_config import setup_logger
 from llm_service.utils.stream_writer import get_safe_stream_writer
 
 logger = setup_logger("llm_service.lean_rag_agent")
+
+# plan_node - точка входа 100% живого трафика (см. её докстринг) - частота этого
+# счётчика прямой индикатор здоровья JSON-контракта плана и дешёвой модели.
+PLAN_FALLBACK_COUNT = Counter(
+    "llm_plan_fallback_total",
+    "plan_node fell back to a default search_docs(query) plan after an LLM/JSON contract failure",
+)
 
 
 class PlanningNodesMixin:
@@ -23,15 +32,33 @@ class PlanningNodesMixin:
         чтобы можно было легко вернуть). Смотрит на историю диалога и текущий вопрос,
         через LLM решает, нужен ли поиск по базе и какими формулировками - вплоть до
         пустого плана для smalltalk/оффтопика (тогда decide_after_execute_subtasks
-        уйдёт сразу в build_prompt, без похода в Qdrant). Не оборачиваем LLM-вызов в
-        try/except - тот же принцип, что и у expand_queries_node: сбой уходит в общий
-        except в agent_routers.py, без тихого фолбэка."""
+        уйдёт сразу в build_prompt, без похода в Qdrant).
+
+        plan_node - точка входа, через которую проходит 100% трафика (включая
+        светскую беседу, которая вообще не требовала бы LLM) - в отличие от
+        generate_node ниже по графу (ретраи/TTFT/фолбэк на нестримящий вызов) сбой
+        JSON-контракта здесь раньше означал голый 500 даже на "привет". Деградируем
+        до дефолтного плана - обычный search_docs по сырому вопросу пользователя,
+        почти всегда осмысленная реакция на невалидный JSON/таймаут/5xx апстрима -
+        вместо того, чтобы ронять весь ответ. PLAN_FALLBACK_COUNT - частота этого
+        события, прямой индикатор здоровья JSON-контракта и качества дешёвой модели."""
         started = time.perf_counter()
         plan_prompt = get_live_config().prompts.plan_prompt
         recent_history_str = format_chat_history(state.messages)
         prompt = plan_prompt.format(summary=state.summary, recent_history=recent_history_str, query=state.query)
 
-        plan = await self.llm_gateway.generate_json(schema=PlanOutput, prompt=prompt)
+        try:
+            plan = await self.llm_gateway.generate_json(schema=PlanOutput, prompt=prompt)
+        except Exception:
+            PLAN_FALLBACK_COUNT.inc()
+            logger.exception(
+                "plan_node: LLM/JSON contract failed, falling back to default search plan",
+                extra={"event": "plan_fallback_used", "query": state.query},
+            )
+            plan = PlanOutput(
+                subtasks=[PlanSubtask(tool="search_docs", args={"queries": [state.query], "doc_filter": None})],
+                synthesis="plan_fallback_used",
+            )
 
         max_subtasks = get_live_config().gateway.max_subtasks
         if len(plan.subtasks) > max_subtasks:
@@ -91,7 +118,27 @@ class PlanningNodesMixin:
                 continue
             results.append({"tool": subtask.tool, "result": result})
 
-        update: dict[str, Any] = {"subtask_results": results, "retrieval_data": merge_search_docs_results(results)}
+        # Накопление между кругами (reflect need_more -> сюда же снова, см.
+        # retrieval_nodes.py::reflect_node): раньше retrieval_data перезаписывался
+        # целиком результатами только текущего круга - агент терял то, что нашёл на
+        # предыдущем круге, даже если это было релевантно, просто под другой
+        # формулировкой ("искал так - нашёл это, искал иначе - нашёл то" должно
+        # складываться, а не подменяться). Мёржим свежие находки с уже накопленным
+        # state.retrieval_data, дедуп по parent_id (глобально уникальный PK), оставляем
+        # версию с большим score - тот же принцип, что merge_search_docs_results уже
+        # применяет внутри одного круга. Объединённый пул уходит дальше в rerank
+        # (decide_after_execute_subtasks), который единообразно пересчитает score для
+        # всех элементов сразу против актуальной формулировки - "выбрать лучшее из
+        # всего", а не только из последнего круга.
+        new_items = merge_search_docs_results(results)
+        merged: dict[str, RetrieveItem] = {item.metadata.parent_id: item for item in state.retrieval_data}
+        for item in new_items:
+            existing = merged.get(item.metadata.parent_id)
+            if existing is None or item.metadata.score > existing.metadata.score:
+                merged[item.metadata.parent_id] = item
+        retrieval_data = sorted(merged.values(), key=lambda item: item.metadata.score, reverse=True)
+
+        update: dict[str, Any] = {"subtask_results": results, "retrieval_data": retrieval_data}
         # get_appendix (в отличие от search_docs) не идёт в retrieval_data - это сырой
         # текст приложения, не оценённый rerank'ом чанк. Пишем только если реально что-то
         # нашли: пустой/отсутствующий результат не должен затирать appendix_context,

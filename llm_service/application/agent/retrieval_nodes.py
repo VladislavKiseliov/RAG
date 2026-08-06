@@ -44,16 +44,17 @@ class RetrievalNodesMixin:
         # реранка, а не сырой исходный вопрос. Живой пример бага: один и тот же кусок
         # (акт приостановки ПНР) получал 0.004 против сырого запроса и 0.85 против
         # переписанного - реранкер и retrieval сравнивали с разными формулировками.
-        # Ищем первую search_docs-подзадачу по наличию ключа "query" в args, а не берём
-        # subtasks[0] вслепую - с тех пор как get_appendix стал вторым тулом (args:
-        # {"document_code"}, без "query"), план вида [get_appendix, search_docs] тихо
-        # откатывал бы rerank_query на сырой state.query, воспроизводя тот же баг заново.
-        rerank_query = state.query
-        if state.plan:
-            for subtask in state.plan.subtasks:
-                if "query" in subtask.args:
-                    rerank_query = subtask.args["query"]
-                    break
+        # Собираем ВСЕ формулировки из search_docs-подзадач (ключ "queries" - список, не
+        # одна строка, см. tool_registry.py::SearchDocsArgs) и склеиваем в один
+        # rerank_query - если несколько формулировок искали кандидатов, в сравнении при
+        # реранке должны участвовать все, не только первая. get_appendix - второй тул
+        # (args: {"document_code"}, без "queries") - пропускаем его подзадачи тем же
+        # фильтром по ключу, чтобы план вида [get_appendix, search_docs] не откатывал
+        # rerank_query на сырой state.query.
+        query_parts = [
+            q for subtask in state.plan.subtasks if "queries" in subtask.args for q in subtask.args["queries"]
+        ] if state.plan else []
+        rerank_query = " ".join(query_parts) if query_parts else state.query
 
         texts = [
             max(item.child_chunks, key=lambda c: c.score).text if item.child_chunks else item.parent_chunk
@@ -89,7 +90,25 @@ class RetrievalNodesMixin:
         found_content = "\n\n".join(
             format_retrieval_item_for_prompt(item) for item in state.retrieval_data
         ) or "(ничего не найдено)"
-        prompt = reflect_prompt.format(query=state.query, found_content=found_content)
+        # reflect раньше видел только НАЙДЕННОЕ, не то, КАКИМИ ЗАПРОСАМИ искали - не мог
+        # отличить "первая попытка не сработала, надо честно другой заход" от "первая
+        # формулировка была почти правильной, дожать бы синонимом" - в обоих случаях
+        # получал одну и ту же картину и мог предложить new_queries, близкие по смыслу к
+        # уже пробованным (тот же провал заново). Скор - общий по всем найденным
+        # фрагментам круга, не по отдельным queries (rerank_node скорит чанки, не
+        # исходные формулировки, которые их нашли).
+        tried_queries_list = [
+            q for subtask in state.plan.subtasks if "queries" in subtask.args for q in subtask.args["queries"]
+        ] if state.plan else []
+        if tried_queries_list:
+            top_score = state.retrieval_data[0].metadata.score if state.retrieval_data else 0.0
+            tried_queries = (
+                "\n".join(f'- "{q}"' for q in tried_queries_list)
+                + f"\nЛучший итоговый скор релевантности среди всего найденного этими запросами: {top_score:.2f}"
+            )
+        else:
+            tried_queries = "(поиск ещё не выполнялся)"
+        prompt = reflect_prompt.format(query=state.query, found_content=found_content, tried_queries=tried_queries)
 
         result: ReflectOutput = await self.llm_gateway.generate_json(schema=ReflectOutput, prompt=prompt)
 
@@ -100,9 +119,7 @@ class RetrievalNodesMixin:
             max_subtasks = get_live_config().gateway.max_subtasks
             queries = result.new_queries[:max_subtasks]
             update["plan"] = PlanOutput(
-                subtasks=[
-                    PlanSubtask(tool="search_docs", args={"query": q, "doc_filter": None}) for q in queries
-                ],
+                subtasks=[PlanSubtask(tool="search_docs", args={"queries": queries, "doc_filter": None})],
                 synthesis=f"reflect: уточняющий поиск ({len(queries)} запрос(ов))",
             )
         elif verdict == "need_more":

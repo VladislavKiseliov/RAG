@@ -40,11 +40,23 @@ async def test_search_docs_is_real_and_wraps_retrieval_service():
     )
     registry, retrieval_service = make_registry(RetrievalResult(items=[item], total=1))
 
-    result = await registry["search_docs"].fn(query="test query")
+    result = await registry["search_docs"].fn(queries=["test query"])
 
     retrieval_service.retrieve.assert_awaited_once_with(["test query"])
     assert result["total"] == 1
     assert result["items"][0]["metadata"]["doc_id"] == "d1"
+
+
+@pytest.mark.asyncio
+async def test_search_docs_forwards_multiple_queries_in_one_call():
+    # rag_service уже умеет батчить несколько формулировок в один вызов
+    # (RetrieveService.batch_search) - search_docs должен передавать весь список
+    # разом, не по одному запросу за вызов.
+    registry, retrieval_service = make_registry()
+
+    await registry["search_docs"].fn(queries=["запрос один", "запрос два"])
+
+    retrieval_service.retrieve.assert_awaited_once_with(["запрос один", "запрос два"])
 
 
 @pytest.mark.asyncio
@@ -102,5 +114,5 @@ def test_write_tools_are_marked_write_access():
 
 def test_search_docs_args_schema_validates():
     registry, _ = make_registry()
-    args = registry["search_docs"].args_schema(query="hello", doc_filter=None)
-    assert args.query == "hello"
+    args = registry["search_docs"].args_schema(queries=["hello"], doc_filter=None)
+    assert args.queries == ["hello"]

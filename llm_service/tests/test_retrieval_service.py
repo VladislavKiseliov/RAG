@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import httpx
@@ -235,4 +235,51 @@ class TestDocumentRegistry:
 
         assert first is None
         assert second == "d1"
+        assert service._client.get.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_registry_rebuilds_after_ttl_expires(self):
+        # Между "вебхук-инвалидация" (отменена, см. AGENT_GRAPH_CURRENT.md §6.8) и
+        # "никогда не обновляется" - TTL: документ, добавленный после сборки реестра,
+        # должен стать виден не позже чем через _DOCUMENT_REGISTRY_TTL_S.
+        service = make_service()
+        docs_v1 = [{"doc_id": "d1", "filename": "СП 1.13130.pdf"}]
+        docs_v2 = [
+            {"doc_id": "d1", "filename": "СП 1.13130.pdf"},
+            {"doc_id": "d2", "filename": "новый документ.pdf"},
+        ]
+        service._client.get = AsyncMock(
+            side_effect=[_mock_get_response(docs_v1), _mock_get_response(docs_v2)]
+        )
+
+        with patch(
+            "llm_service.application.services.retrieval_service.time.monotonic",
+            side_effect=[0.0] * 3 + [400.0] * 10,
+        ):
+            first = await service.list_documents()
+            second = await service.list_documents()
+
+        assert len(first) == 1
+        assert len(second) == 2
+        assert service._client.get.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_registry_serves_stale_data_when_ttl_refresh_fails(self):
+        # Сбой обновления по истечении TTL не должен затирать уже имеющийся реестр -
+        # отдаём протухшие, но валидные данные и повторяем попытку на следующий вызов.
+        service = make_service()
+        docs_v1 = [{"doc_id": "d1", "filename": "СП 1.13130.pdf"}]
+        service._client.get = AsyncMock(
+            side_effect=[_mock_get_response(docs_v1), httpx.RequestError("connection refused")]
+        )
+
+        with patch(
+            "llm_service.application.services.retrieval_service.time.monotonic",
+            side_effect=[0.0] * 3 + [400.0] * 10,
+        ):
+            first = await service.list_documents()
+            second = await service.list_documents()
+
+        assert len(first) == 1
+        assert len(second) == 1
         assert service._client.get.await_count == 2

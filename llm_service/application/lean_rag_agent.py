@@ -125,9 +125,10 @@ class LeanRagAgent:
 
         answer = final_state.get("response_model", "")
         sources = self.build_sources(final_state.get("retrieval_data", []))
+        degraded = final_state.get("response_degraded", False)
 
         yield {"event": "sources", "data": {"sources": sources}}
-        yield {"event": "done", "data": {"answer": answer}}
+        yield {"event": "done", "data": {"answer": answer, "degraded": degraded}}
 
         logger.info(
             "Lean agent run_stream finished",

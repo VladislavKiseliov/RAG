@@ -28,7 +28,16 @@ class Tool:
 
 
 class SearchDocsArgs(BaseModel):
-    query: str
+    """queries - список формулировок (не одна строка): rag_service уже умеет батчить
+    несколько запросов в один вызов эмбеддера + один batch-запрос в Qdrant
+    (RetrieveService.batch_search), эта труба list-native сверху донизу. До 2026-08-06
+    schema принимала одну query: str - plan_node возвращал по отдельной search_docs-
+    подзадаче на каждую формулировку, execute_subtasks_node звал этот тул N раз
+    последовательно (см. §6.5) вместо одного батч-вызова - тот же паттерн, что уже
+    работал в legacy retrieve_multi_node (retrieval_service.retrieve(expanded_queries)),
+    но потерялся при переходе на planner-first (не осознанное решение, побочный эффект
+    смены абстракции "нода со списком" -> "тул с одной строкой в схеме")."""
+    queries: list[str]
     doc_filter: str | None = None
 
 
@@ -98,8 +107,8 @@ def build_tool_registry(*, retrieval_service: RetrievalService) -> dict[str, Too
     документу на стороне rag_service.
     """
 
-    async def _search_docs(*, query: str, doc_filter: str | None = None) -> dict[str, Any]:
-        result = await retrieval_service.retrieve([query])
+    async def _search_docs(*, queries: list[str], doc_filter: str | None = None) -> dict[str, Any]:
+        result = await retrieval_service.retrieve(queries)
         return {"items": [item.model_dump() for item in result.items], "total": result.total}
 
     async def _get_appendix(*, document_code: str) -> dict[str, Any]:

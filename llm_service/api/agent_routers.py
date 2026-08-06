@@ -76,6 +76,7 @@ async def answer_question(
         "route": final_state.get("route"),
         "retrieval_empty": final_state.get("retrieval_empty", False),
         "proposed_action": proposed_action.model_dump() if proposed_action else None,
+        "degraded": final_state.get("response_degraded", False),
     }
 
     return AskResponse(**result)

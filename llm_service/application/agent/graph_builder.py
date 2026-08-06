@@ -47,10 +47,6 @@ def build_agent_graph(nodes: AgentNodes):
     workflow.add_conditional_edges(
         "rerank",
         decisions.decide_after_rerank,
-        # empty (ничего не нашли) и grey_zone (нашли, но слабо) - обе ветки теперь
-        # идут в reflect, а не сразу в no_data: LLM смотрит на вопрос + найденное (или
-        # "ничего") и сама решает, стоит ли попробовать другими словами, прежде чем
-        # честно сдаваться. reflect_node капает попытки одним кругом (см. её докстринг).
         {"sufficient": "build_prompt", "grey_zone": "reflect", "empty": "reflect"},
     )
     workflow.add_conditional_edges(

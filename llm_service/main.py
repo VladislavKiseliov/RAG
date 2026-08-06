@@ -32,9 +32,12 @@ REQUEST_DURATION = Histogram(
 async def lifespan(app: FastAPI):
     app.state.container = build_container()
     yield
-    await app.state.container.agent.retrieval_service.aclose()
-    await app.state.container.agent.reranker_service.aclose()
-    await app.state.container.agent.llm_provider.aclose()
+    agent = app.state.container.agent
+    for closeable in (agent.retrieval_service, agent.reranker_service, agent.llm_provider):
+        try:
+            await closeable.aclose()
+        except Exception:
+            logger.exception("Failed to close %s during shutdown", closeable.__class__.__name__)
 
 
 app = FastAPI(lifespan=lifespan)

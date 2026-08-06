@@ -56,7 +56,9 @@ def _strip_markdown_fence(raw: str) -> str:
     типовую markdown-обёртку перед парсингом."""
     text = raw.strip()
     if text.startswith("```"):
-        text = text.split("\n", 1)[-1]
+        text = text[3:]
+        if text.startswith("json"):
+            text = text[4:]
         if text.endswith("```"):
             text = text[: -len("```")]
     return text.strip()
