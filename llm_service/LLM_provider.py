@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from typing import AsyncIterator, Callable, Coroutine, Protocol
 
 from llm_service.ai_config import get_live_config
@@ -109,11 +109,32 @@ NOTE_USER_TEMPLATE = """Сегодняшняя дата: {today}
 {raw_text}"""
 
 
+def _format_history_timestamp(raw: str | None) -> str | None:
+    """created_at приходит от backend ISO-строкой (Messages.created_at). Старые/чужие
+    записи истории могут быть без неё - тогда просто не добавляем метку, не падаем."""
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw).strftime("%d.%m %H:%M")
+    except ValueError:
+        return None
+
+
 def _history_to_messages(chat_history: list[dict[str, str]]) -> list[dict[str, str]]:
-    """[{"role": ..., "content": ...}, ...] из state.messages как есть -> role-сообщения
-    для LLM API. role по умолчанию "user" (тот же дефолт, что и в agent/formatters.py
-    ::format_chat_history, для консистентности при отсутствующем/пустом role)."""
-    return [{"role": m.get("role") or "user", "content": m.get("content", "")} for m in chat_history]
+    """[{"role": ..., "content": ..., "created_at": ...}, ...] из state.messages -> role-
+    сообщения для LLM API. role по умолчанию "user" (тот же дефолт, что и в
+    agent/formatters.py::format_chat_history, для консистентности при отсутствующем/
+    пустом role). created_at (если есть) - префиксом в content: нативный chat-формат не
+    даёт отдельного поля метаданных, а модели он нужен, чтобы отличать "вчера" от
+    "сегодня" при вопросах вроде "что я вчера спрашивал"."""
+    messages = []
+    for m in chat_history:
+        content = m.get("content", "")
+        timestamp = _format_history_timestamp(m.get("created_at"))
+        if timestamp:
+            content = f"[{timestamp}] {content}"
+        messages.append({"role": m.get("role") or "user", "content": content})
+    return messages
 
 
 def _build_answer_messages(current_query: str, data_prompt: FinalPromptData) -> list[dict]:

@@ -115,7 +115,10 @@ class ConversationService:
             if chat is None:
                 raise ChatNotFoundError()
             short_messages = await MessageRepository(session).get_recent(chat.id, limit=HISTORY_WINDOW)
-            short_messages = [{"role": m.role, "content": m.content} for m in short_messages]
+            short_messages = [
+                {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
+                for m in short_messages
+            ]
 
         summary_link = chat.summary_link
         summary_chat = chat.summary
@@ -183,7 +186,10 @@ class ConversationService:
             if chat is None:
                 raise ChatNotFoundError()
             short_messages = await MessageRepository(session).get_recent(chat.id, limit=HISTORY_WINDOW)
-            short_messages = [{"role": m.role, "content": m.content} for m in short_messages]
+            short_messages = [
+                {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
+                for m in short_messages
+            ]
 
         summary_link = chat.summary_link
         summary_chat = chat.summary
