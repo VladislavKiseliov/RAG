@@ -42,7 +42,7 @@ async def answer_question(
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> AskResponse:
     try:
-        logger.info("LLM request", extra={"query": json.dumps(request.query), "doc_id": request.doc_id})
+        logger.info("LLM request", extra={"query": json.dumps(request.query)})
         final_state = await agent.run(
             query=request.query,
             history_messages_db=request.history_messages,
@@ -56,11 +56,11 @@ async def answer_question(
         # "LLM pipeline failed", хотя main.py::llm_error_handler для этого и существует.
         # Пробрасываем дальше нетронутыми - FastAPI найдёт зарегистрированный хендлер.
         raise
-    except Exception as exc:
+    except Exception:
         # CancelledError (BaseException, не Exception) сюда не попадёт - при дисконнекте
         # клиента (см. with_cancellation) отвечать всё равно уже некому.
         logger.exception("LLM pipeline failed")
-        raise HTTPException(status_code=502, detail=f"LLM pipeline failed: {exc}")
+        raise HTTPException(status_code=502, detail="LLM pipeline failed")
 
     answer_text = final_state["response_model"]
     retrieval_data = final_state.get("retrieval_data", [])
@@ -97,7 +97,7 @@ async def answer_question_stream(
     см. fastapi/routing.py: producer/keepalive-inserter таски поверх anyio.fail_after,
     не отменяет то, что ждём, на таймауте) - run_stream() больше сам ничего не пингует.
     """
-    logger.info("LLM stream request", extra={"query": json.dumps(request.query), "doc_id": request.doc_id})
+    logger.info("LLM stream request", extra={"query": json.dumps(request.query)})
 
     try:
         async for event in agent.run_stream(
@@ -106,9 +106,9 @@ async def answer_question_stream(
             summary=request.summary,
         ):
             yield ServerSentEvent(event=event["event"], data=event["data"])
-    except Exception as exc:
+    except Exception:
         logger.exception("LLM stream pipeline failed")
-        yield ServerSentEvent(event="error", data={"message": str(exc)})
+        yield ServerSentEvent(event="error", data={"message": "LLM stream pipeline failed"})
 
 
 @router.post("/summary", response_model=SummaryResponse)
@@ -121,9 +121,9 @@ async def summarize_messages(
             messages=request.messages,
             existing_summary=request.existing_summary,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Summary generation failed")
-        raise HTTPException(status_code=502, detail=f"Summary generation failed: {exc}")
+        raise HTTPException(status_code=502, detail="Summary generation failed")
 
     return SummaryResponse(summary=summary)
 
@@ -144,9 +144,9 @@ async def generate_note(
 ) -> NoteGenerateResponse:
     try:
         raw = await agent.llm_provider.generate_note(raw_text=request.raw_text)
-    except Exception as exc:
+    except Exception:
         logger.exception("Note generation failed")
-        raise HTTPException(status_code=502, detail=f"Note generation failed: {exc}")
+        raise HTTPException(status_code=502, detail="Note generation failed")
 
     try:
         parsed = json.loads(raw)
@@ -180,9 +180,9 @@ async def generate_chapter_summary(
 ) -> ChapterSummaryResponse:
     try:
         summary = await agent.llm_provider.generate_chapter_summary(chapter_text=request.chapter_text)
-    except Exception as exc:
+    except Exception:
         logger.exception("Chapter summary generation failed")
-        raise HTTPException(status_code=502, detail=f"Chapter summary generation failed: {exc}")
+        raise HTTPException(status_code=502, detail="Chapter summary generation failed")
 
     return ChapterSummaryResponse(summary=summary.strip())
 
@@ -196,9 +196,9 @@ async def generate_document_summary(
 ) -> DocumentSummaryResponse:
     try:
         summary = await agent.llm_provider.generate_document_summary(chapter_summaries=request.chapter_summaries)
-    except Exception as exc:
+    except Exception:
         logger.exception("Document summary generation failed")
-        raise HTTPException(status_code=502, detail=f"Document summary generation failed: {exc}")
+        raise HTTPException(status_code=502, detail="Document summary generation failed")
 
     return DocumentSummaryResponse(summary=summary.strip())
 
@@ -213,8 +213,8 @@ async def generate_table_summary(
 ) -> TableSummaryResponse:
     try:
         summary = await agent.llm_provider.generate_table_summary(table_text=request.table_text)
-    except Exception as exc:
+    except Exception:
         logger.exception("Table summary generation failed")
-        raise HTTPException(status_code=502, detail=f"Table summary generation failed: {exc}")
+        raise HTTPException(status_code=502, detail="Table summary generation failed")
 
     return TableSummaryResponse(summary=summary.strip())
