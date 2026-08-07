@@ -25,7 +25,7 @@ backend/
   services/
     project_service.py             # UnitOfWork, как chat_service.py
   api/
-    project_routes.py              # заменяет projects_router из stub_routes.py
+    project_routes.py              # заменяет projects_router из projects_stub_routes.py
   schemas/
     schemas.py                     # + ProjectSummarySchema, ProjectDetailSchema, TaskSchema...
 ```
@@ -52,7 +52,7 @@ backend/
   services/rag/
     rag_client.py          # httpx-клиент к rag_service, аналог LLMClient
   api/
-    knowledge_routes.py    # заменяет knowledge_router из stub_routes.py
+    knowledge_routes.py    # уже выделен из бывшего stub_routes.py (2026-08-07); RagClient ниже - ещё нет
 ```
 
 - `RagClient.list_documents(category, owner_user_id) -> list[DocumentSummary]`

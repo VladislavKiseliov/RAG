@@ -22,7 +22,8 @@ from backend.api.chats_routes import router as chats_router
 from backend.api.admin_routes import router as admin_router
 from backend.api.websocket_router import websocket_router
 from backend.api.messenger_routes import router as messenger_router
-from backend.api.stub_routes import knowledge_router, projects_router
+from backend.api.knowledge_routes import knowledge_router
+from backend.api.projects_stub_routes import projects_router
 from backend.api.notes_routes import router as notes_router, internal_router as notes_internal_router
 from fastapi.responses import Response
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST

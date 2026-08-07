@@ -39,7 +39,7 @@
 
 ### Фаза 2 — Достроить то, что фронт уже показывает как готовое
 - [x] Админ-панель: мониторинг/отмена Celery-задач ✅ 2026-07-21 — proxy к Flower REST (`GET /admin/tasks`, revoke). Массовые операции (bulk-reindex/bulk-summarize) + просмотр исходника PDF ✅ 2026-07-22 — см. раздел «Просмотр PDF + массовые операции» ниже. Legacy `admin-panel/` (отдельное React-приложение, порт 5174/81) снесена той же датой — функционально устарела и была хуже встроенной (Tasks/Dashboard там на моках). Осталось: health-поллинг, реальные `scope`/`ownerId` документов, персист rename/role/block, confirm-диалоги
-- [ ] База знаний: upload/patch документа — снять с in-memory `_DOCUMENTS` в `stub_routes.py`
+- [ ] База знаний: upload/patch документа — снять с in-memory `_DOCUMENTS` в `knowledge_routes.py`
 - [x] Заметки ✅ полностью готово 2026-07-21 — бэкенд (2026-07-20) + фронт (`useNotes.js`) переключён на реальные `/api/notes/*` + LLM-генерация подключена (`POST /api/notes/{guid}/generate`). См. раздел «Заметки» ниже
 - [ ] Проекты — полный DDD-бэкенд (см. Фичу 5 ниже) — `toggleTask`/`addFile` сейчас не переживают reload
 - [ ] Задачи на день — новый домен, бэкенда нет вообще (см. Фичу 6 ниже); зависит от Проектов (дедлайны) и Заметок (напоминания) для «авто»-задач
@@ -260,10 +260,10 @@ per-connection кэша (падали на «Chat does not exist» для тол
 - [ ] `category: str | None` на `documents` (нужно и для Фичи 1)
 - [ ] `owner_user_id` на `documents` — для личных документов
 - [ ] `summary`/`sections[]` по главам — упирается в A10 (`rag_service/ISSUES.md`)
-- [ ] Выделить `RagClient`/`backend/api/knowledge_routes.py` из `stub_routes.py` (`knowledge_router`)
+- [x] `knowledge_routes.py` выделен из бывшего `stub_routes.py` (2026-08-07, `knowledge_router`) — [ ] `RagClient`-обёртка вместо голого `rag_client` ещё не сделана
 
 **Проекты — новый домен, backend владеет им целиком** (по образцу Chats: models → repository →
-service через `UnitOfWork` → routes), сейчас `_PROJECTS` в `stub_routes.py` — hardcoded заглушка:
+service через `UnitOfWork` → routes), сейчас `_PROJECTS` в `projects_stub_routes.py` — hardcoded заглушка:
 - [ ] Схема `projects_schema`: `projects` (name/desc/status/deadline/chat_id/created_by_id),
       `project_members` (M2M), `project_tasks` (title/done/assignee/position),
       `project_files` (rag_doc_id nullable — либо реальный RAG-документ, либо просто вложение в
@@ -277,9 +277,9 @@ service через `UnitOfWork` → routes), сейчас `_PROJECTS` в `stub_r
 - [ ] Личные файлы в Базе знаний — полный ingestion-пайплайн (webhook+Celery) или упрощённый синхронный путь для мелких файлов?
 - [ ] Файлы проекта не для RAG (просто вложения) — нужен ли backend свой S3-клиент, или всё через rag_service?
 
-**Порядок работ:** 1) `category`/`owner_user_id` в rag_service → 2) `RagClient`+`knowledge_routes.py`
-в backend → 3) миграция `projects_schema` → 4) `ProjectRepository`→`ProjectService`→`project_routes.py`
-→ 5) удалить `stub_routes.py` целиком.
+**Порядок работ:** 1) `category`/`owner_user_id` в rag_service → 2) `RagClient`-обёртка в backend
+(`knowledge_routes.py` уже выделен, 2026-08-07) → 3) миграция `projects_schema` →
+4) `ProjectRepository`→`ProjectService`→`project_routes.py` → 5) удалить `projects_stub_routes.py`.
 
 ---
 
