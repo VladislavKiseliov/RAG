@@ -11,7 +11,7 @@ services:
       PGDATA: ${PGDATA:-/var/lib/postgresql/data/pgdata}
       POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS:---encoding=UTF8}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./ServiceDataBase/init-scripts:/docker-entrypoint-initdb.d
@@ -28,7 +28,7 @@ services:
     image: redis:7
     container_name: rag_redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - ragprogramm_redis_data:/data
     restart: unless-stopped
@@ -48,8 +48,8 @@ services:
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_1: ${MINIO_NOTIFY_WEBHOOK_ENDPOINT_1:-http://rag_service:8001/documents/ingest/webhook}
       MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1: ${MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1:-my_token}
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     restart: unless-stopped
@@ -84,8 +84,8 @@ services:
     image: qdrant/qdrant:latest
     container_name: rag_qdrant
     ports:
-      - "${QDRANT_HTTP_PORT:-6333}:6333"
-      - "${QDRANT_GRPC_PORT:-6334}:6334"
+      - "127.0.0.1:${QDRANT_HTTP_PORT:-6333}:6333"
+      - "127.0.0.1:${QDRANT_GRPC_PORT:-6334}:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
@@ -102,7 +102,7 @@ services:
     volumes:
       - hf_cache:/data
     ports:
-      - "${TEI_PORT:-8085}:80"
+      - "127.0.0.1:${TEI_PORT:-8085}:80"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:80/health" ]
@@ -147,7 +147,7 @@ services:
     volumes:
       - hf_cache:/data
     ports:
-      - "${RERANKER_PORT:-8086}:80"
+      - "127.0.0.1:${RERANKER_PORT:-8086}:80"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:80/health" ]
@@ -285,7 +285,7 @@ services:
       FLOWER_UNAUTHENTICATED_API: "true"
     command: celery --broker=${REDIS_URL:-redis://redis:6379/0} flower --port=5555
     ports:
-      - "${FLOWER_PORT:-5555}:5555"
+      - "127.0.0.1:${FLOWER_PORT:-5555}:5555"
     depends_on:
       redis:
         condition: service_started
