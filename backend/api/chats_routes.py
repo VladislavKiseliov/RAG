@@ -10,6 +10,7 @@ from backend.models.database_models import ChatType
 from backend.schemas.schemas import Message, ChatUpdate
 from backend.dependencies import CurrentUserDep, ChatServiceDep, ConversationServiceDep
 from backend.settings import settings
+from backend.utils.rate_limit import enforce_chat_rate_limit
 
 router = APIRouter(prefix="/api/chats", tags=["chats"])
 
@@ -44,7 +45,7 @@ async def get_conversation_history(
     return {"history": history}
 
 
-@router.post("/{chat_guid}/messages")
+@router.post("/{chat_guid}/messages", dependencies=[Depends(enforce_chat_rate_limit)])
 async def chat_endpoint(
         chat_guid: uuid.UUID,
         message: Message,
@@ -73,7 +74,7 @@ async def _validate_stream_chat_exists(
 @router.post(
     "/{chat_guid}/messages/stream",
     response_class=EventSourceResponse,
-    dependencies=[Depends(_validate_stream_chat_exists)],
+    dependencies=[Depends(enforce_chat_rate_limit), Depends(_validate_stream_chat_exists)],
 )
 async def chat_endpoint_stream(
         chat_guid: uuid.UUID,
