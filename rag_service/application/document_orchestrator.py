@@ -4,8 +4,8 @@ import logging
 import uuid
 from typing import Any
 
-from rag_service.api.schemas import UploadFileResponse
 from rag_service.application.document_service import DataBaseDocumentService
+from rag_service.application.models import UploadLinkResult
 from rag_service.domain.document import IngestionDocument
 from rag_service.domain.errors.postgres import DocumentNotFound
 from rag_service.domain.errors.storage import StorageNotFoundError
@@ -25,7 +25,7 @@ class DocumentOrchestrator:
         self.vector_storage = vector_storage
         self.database = database
 
-    async def get_upload_link(self, filename: str, file_size: int) -> UploadFileResponse:
+    async def get_upload_link(self, filename: str, file_size: int) -> UploadLinkResult:
         doc = IngestionDocument.create_new(filename=filename, file_size=file_size)
 
         await self.database.create_doc(
@@ -37,7 +37,7 @@ class DocumentOrchestrator:
 
         presigned_url = await self.s3_storage.generate_presigned_url(doc.s3key)
 
-        return UploadFileResponse(
+        return UploadLinkResult(
             doc_id=str(doc.id),
             presigned_url=presigned_url,
         )

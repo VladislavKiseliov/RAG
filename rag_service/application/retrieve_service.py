@@ -7,8 +7,8 @@ import re
 import uuid
 from typing import Any
 
-from rag_service.api.schemas import RetrieveResponse, RetrieveItem
 from rag_service.application.abbreviation_expander import AbbreviationExpander
+from rag_service.application.models import RetrieveItemDict, RetrieveResultDict
 from rag_service.application.document_service import DocumentQueryService
 from rag_service.application.vector_indexing_service import VectorIndexingService
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
@@ -328,14 +328,14 @@ def build_retrieved_items(
         *,
         group_hits: dict[str, dict[str, Any]],
         parent_chunks:  list[ParentChunks],
-) -> RetrieveResponse:
+) -> RetrieveResultDict:
     """
     Merges grouped vector hits with full text content from the database.
     """
     # Создаем мапу для быстрого поиска строк из БД
     parent_key = {str(parent.id): parent for parent in parent_chunks}
 
-    items: list[RetrieveItem] = []
+    items: list[RetrieveItemDict] = []
     for key, group in group_hits.items():
         row = parent_key.get(key)
         if row is None:
