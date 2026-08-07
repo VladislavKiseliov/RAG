@@ -1,13 +1,19 @@
 from typing import Any, Dict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from backend.dependencies import  AuthServiceDep
 from backend.schemas.schemas import LoginRequest, RegisterRequest, RefreshRequest, LogoutRequest
+from backend.utils.rate_limit import enforce_login_rate_limit, enforce_register_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", status_code=201, response_model=Dict[str, Any])
+@router.post(
+    "/register",
+    status_code=201,
+    response_model=Dict[str, Any],
+    dependencies=[Depends(enforce_register_rate_limit)],
+)
 async def register(
         user_data: RegisterRequest,
         auth_service: AuthServiceDep,
@@ -26,7 +32,7 @@ async def register(
     )
 
 
-@router.post("/login", response_model=Dict[str, Any])
+@router.post("/login", response_model=Dict[str, Any], dependencies=[Depends(enforce_login_rate_limit)])
 async def login(
         user_data: LoginRequest,
         auth_service: AuthServiceDep,

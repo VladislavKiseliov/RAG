@@ -35,7 +35,7 @@
 
 | # | Описание | Файл | Строка |
 |---|---|---|---|
-| A1 | Нет rate-limiting на `/auth/login` и `/auth/register` — `fastapi_limiter`/`pyrate_limiter` подключены только к websocket-эндпоинту. Неограниченный подбор пароля против `/auth/login`, неограниченное массовое создание фейковых аккаунтов через `/auth/register` | `api/auth_routes.py`, `main.py` | — |
+| A1 | ✅ Исправлено 2026-08-07: `enforce_login_rate_limit`/`enforce_register_rate_limit` (`utils/rate_limit.py`) — per-IP лимит через `pyrate_limiter` (ключ — `X-Real-IP` от nginx, не `request.client.host`, который был бы IP самого nginx). Заодно тем же пакетом добавлен per-пользователь лимит на `/api/chats/{id}/messages`(`/stream`) — эти эндпоинты раньше тоже не были ограничены | `api/auth_routes.py`, `api/chats_routes.py`, `utils/rate_limit.py` | — |
 | A2 | Per-request `httpx.AsyncClient` вместо переиспользуемого пула — каждый проксирующий admin/knowledge-base вызов открывает новое соединение с нуля. Под конкурентным поллингом админ-дашборда (`/admin/system/health` даёт 6 исходящих соединений на один вызов) — лишний churn соединений/задержка, под нагрузкой может исчерпать эфемерные порты. Уже фиксировалось в code-review punchlist 2026-07-21, не починено | `api/admin_routes.py` (`_proxy_request`, `_measure_http`), `api/chats_routes.py:97`, `api/stub_routes.py`, `services/note_service.py` | — |
 
 ---
