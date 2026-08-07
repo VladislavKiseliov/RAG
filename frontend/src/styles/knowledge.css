@@ -355,21 +355,17 @@
 
 .kb-reader-source-btn:hover { border-color: var(--accent-soft-border); color: var(--strong); }
 
-.kb-source-overlay {
-    position: fixed;
-    inset: 0;
+/* Плавающее окно (react-rnd) - не блокирует остальной .kb-reader, в отличие от
+   прежнего полноэкранного затемняющего оверлея. bounds="parent" в DocumentReader.jsx
+   держит окно в пределах .kb-reader (тот уже position:fixed, задаёт систему координат -
+   тот же паттерн, что у .assistant-chat-panel). */
+.kb-source-window {
     z-index: 45;
-    background: rgba(0, 0, 0, .6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 30px;
     animation: kbFadeIn .14s ease;
 }
 
 .kb-source-viewer {
     width: 100%;
-    max-width: 980px;
     height: 100%;
     background: var(--sidebar, var(--surface));
     border: 1px solid var(--border);
@@ -387,6 +383,7 @@
     padding: 13px 18px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    cursor: move;
 }
 
 .kb-source-viewer-title {

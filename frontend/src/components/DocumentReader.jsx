@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Rnd } from 'react-rnd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -56,7 +57,13 @@ function DocumentReader({
             </header>
 
             {sourceViewerOpen && doc.file_url && (
-                <div className="kb-source-overlay">
+                <Rnd
+                    className="kb-source-window"
+                    default={{ x: 60, y: 50, width: 820, height: 620 }}
+                    bounds="parent"
+                    dragHandleClassName="kb-source-viewer-head"
+                    enableResizing={false}
+                >
                     <div className="kb-source-viewer">
                         <div className="kb-source-viewer-head">
                             <span className="kb-source-viewer-title">{doc.title}</span>
@@ -65,7 +72,7 @@ function DocumentReader({
                         </div>
                         <iframe src={doc.file_url} className="kb-source-viewer-frame" title={`Исходник: ${doc.title}`} />
                     </div>
-                </div>
+                </Rnd>
             )}
 
             {chatOpen && (
