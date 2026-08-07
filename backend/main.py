@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from backend.utils.exceptions import AppError
+from backend.utils.http_clients import aclose_all as aclose_http_clients
 from backend.utils.logger_config import setup_logger
 from backend.infrastructure import build_backend_infrastructure
 
@@ -79,6 +80,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Shutting down infrastructure...")
     await container.engine.dispose()
+    await aclose_http_clients()
 
 
 # Создаем приложение

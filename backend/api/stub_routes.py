@@ -11,17 +11,14 @@ from __future__ import annotations
 
 import uuid
 
-import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend.dependencies import CurrentUserDep
-from backend.settings import settings
+from backend.utils.http_clients import rag_client
 
 knowledge_router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 projects_router = APIRouter(prefix="/api/projects", tags=["projects-stub"])
-
-RAG_SERVICE_URL = settings.RAG_SERVICE_URL.rstrip("/")
 
 _TYPE_ABBR_BY_EXT = {
     "pdf": "PDF", "docx": "DOC", "doc": "DOC",
@@ -111,10 +108,9 @@ async def _fetch_documents_from_rag_service() -> list[dict]:
     главы (`sections`) грузятся лениво через GET /documents/{doc_id} только когда юзер
     реально открывает документ (см. `get_document_detail` ниже, `useKnowledgeBase.js::openDoc`).
     """
-    async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
-        list_response = await client.get("/documents")
-        list_response.raise_for_status()
-        summaries = list_response.json()
+    list_response = await rag_client.get("/documents")
+    list_response.raise_for_status()
+    summaries = list_response.json()
 
     return [_to_ui_document(summary, None) for summary in summaries]
 
@@ -279,8 +275,7 @@ async def upload_document(current_user: CurrentUserDep, file: UploadFile = File(
 async def get_document_detail(doc_id: str, current_user: CurrentUserDep):
     """Детали одного документа (главы для оглавления читалки) — грузится лениво при открытии,
     не всей библиотекой сразу (см. _fetch_documents_from_rag_service)."""
-    async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
-        response = await client.get(f"/documents/{doc_id}")
+    response = await rag_client.get(f"/documents/{doc_id}")
     if response.status_code == 404:
         raise HTTPException(status_code=404, detail="Document not found")
     response.raise_for_status()
@@ -291,8 +286,7 @@ async def get_document_detail(doc_id: str, current_user: CurrentUserDep):
 @knowledge_router.get("/documents/{doc_id}/chapters/{chapter_idx}")
 async def get_document_chapter(doc_id: str, chapter_idx: int, current_user: CurrentUserDep):
     """Полный текст главы и её таблицы — проксирует rag_service."""
-    async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
-        response = await client.get(f"/documents/{doc_id}/chapters/{chapter_idx}")
+    response = await rag_client.get(f"/documents/{doc_id}/chapters/{chapter_idx}")
     if response.status_code == 404:
         raise HTTPException(status_code=404, detail="Chapter not found")
     response.raise_for_status()

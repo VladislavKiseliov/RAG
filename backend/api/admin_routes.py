@@ -12,6 +12,7 @@ from backend.dependencies import UserServiceDep, require_admin_user
 from backend.services.auth_service import CurrentUser
 from backend.settings import settings
 from backend.utils.exceptions import UserAlreadyExistsError
+from backend.utils.http_clients import admin_proxy_client, probe_client
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_user)])
 RAG_SERVICE_URL = settings.RAG_SERVICE_URL.rstrip("/")
@@ -47,8 +48,7 @@ class BulkDocumentActionRequest(BaseModel):
 async def _measure_http(url: str, timeout_seconds: float = 3.0) -> tuple[str, int | None]:
     started = time.perf_counter()
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds, connect=timeout_seconds), trust_env=False) as client:
-            response = await client.get(url)
+        response = await probe_client.get(url, timeout=httpx.Timeout(timeout_seconds, connect=timeout_seconds))
         latency_ms = int((time.perf_counter() - started) * 1000)
         if response.status_code >= 500:
             return "offline", latency_ms
@@ -98,25 +98,24 @@ async def _proxy_request(
         unreachable.
     """
     url = f"{base_url}{path}"
-    async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
+    try:
+        response = await admin_proxy_client.request(method=method, url=url, params=params, json=json_body)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        detail: Any
         try:
-            response = await client.request(method=method, url=url, params=params, json=json_body)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            detail: Any
-            try:
-                body = exc.response.json()
-                # rag_service (exception_handlers.py) отдаёт {"status","code","message"},
-                # не FastAPI-дефолтный {"detail": ...} - без .get("message") сюда попадал
-                # весь dict целиком, и фронт (client.js: `data.detail || ...`) получал
-                # объект вместо строки -> new Error(object) -> "[object Object]" в UI
-                # вместо реального текста ошибки (например, лимита на размер файла).
-                detail = body.get("message") if isinstance(body, dict) and "message" in body else body
-            except Exception:
-                detail = exc.response.text or "Upstream service error"
-            raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
-        except httpx.RequestError as exc:
-            raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}") from exc
+            body = exc.response.json()
+            # rag_service (exception_handlers.py) отдаёт {"status","code","message"},
+            # не FastAPI-дефолтный {"detail": ...} - без .get("message") сюда попадал
+            # весь dict целиком, и фронт (client.js: `data.detail || ...`) получал
+            # объект вместо строки -> new Error(object) -> "[object Object]" в UI
+            # вместо реального текста ошибки (например, лимита на размер файла).
+            detail = body.get("message") if isinstance(body, dict) and "message" in body else body
+        except Exception:
+            detail = exc.response.text or "Upstream service error"
+        raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}") from exc
 
     if not response.content:
         return None
@@ -424,14 +423,13 @@ async def admin_document_download(doc_id: str) -> Response:
         raise HTTPException(status_code=404, detail="Document s3key not found")
 
     url = f"{RAG_SERVICE_URL}/documents/storage/files/content"
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
-        try:
-            res = await client.get(url, params={"key": s3key})
-            res.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text or "RAG download error") from exc
-        except httpx.RequestError as exc:
-            raise HTTPException(status_code=503, detail=f"RAG service unavailable: {exc}") from exc
+    try:
+        res = await admin_proxy_client.get(url, params={"key": s3key}, timeout=httpx.Timeout(30.0, connect=5.0))
+        res.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text or "RAG download error") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail=f"RAG service unavailable: {exc}") from exc
 
     headers = {}
     cd = res.headers.get("content-disposition")

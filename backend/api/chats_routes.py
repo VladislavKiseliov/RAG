@@ -1,7 +1,6 @@
 import uuid
 from collections.abc import AsyncIterable
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from starlette import status
@@ -9,12 +8,10 @@ from starlette import status
 from backend.models.database_models import ChatType
 from backend.schemas.schemas import Message, ChatUpdate
 from backend.dependencies import CurrentUserDep, ChatServiceDep, ConversationServiceDep
-from backend.settings import settings
+from backend.utils.http_clients import rag_client
 from backend.utils.rate_limit import enforce_chat_rate_limit
 
 router = APIRouter(prefix="/api/chats", tags=["chats"])
-
-RAG_SERVICE_URL = settings.RAG_SERVICE_URL.rstrip("/")
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -99,8 +96,7 @@ async def get_source_chunk_text(
     """Полный текст источника (родительского чанка) — история чата отдаёт sources без
     text/child_chunks (см. ChatService._strip_source_previews), фронт подгружает его
     по требованию при наведении на источник."""
-    async with httpx.AsyncClient(base_url=RAG_SERVICE_URL, timeout=httpx.Timeout(20.0, connect=5.0)) as client:
-        response = await client.get(f"/parent-chunks/{parent_id}")
+    response = await rag_client.get(f"/parent-chunks/{parent_id}")
     if response.status_code == 404:
         raise HTTPException(status_code=404, detail="Source chunk not found")
     response.raise_for_status()

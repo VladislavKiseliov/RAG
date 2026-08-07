@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from backend.schemas.schemas import NoteBaseSchema
 from backend.services.ai.llm_client import LLMClient
 from backend.services.unit_of_work import UnitOfWork
-from backend.settings import settings
 from backend.utils.exceptions import NoteNotFoundError
+from backend.utils.http_clients import rag_client
 
 
 class NoteService:
@@ -54,8 +54,7 @@ class NoteService:
         # владельца в чужой поиск не попадают (payload фильтруется по note_id) — не блокируем
         # удаление заметки сетевой ошибкой rag_service.
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
-                await client.delete(f"{settings.RAG_SERVICE_URL}/notes/{note_guid}/vectors")
+            await rag_client.delete(f"/notes/{note_guid}/vectors", timeout=httpx.Timeout(10.0, connect=5.0))
         except httpx.HTTPError:
             pass
         return True
@@ -70,12 +69,12 @@ class NoteService:
             await uow.commit()
 
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
-                response = await client.post(
-                    f"{settings.RAG_SERVICE_URL}/notes/{note_guid}/index",
-                    json={"user_id": str(user_id), "text": content},
-                )
-                response.raise_for_status()
+            response = await rag_client.post(
+                f"/notes/{note_guid}/index",
+                json={"user_id": str(user_id), "text": content},
+                timeout=httpx.Timeout(10.0, connect=5.0),
+            )
+            response.raise_for_status()
         except httpx.HTTPError:
             async with UnitOfWork(self._sf) as uow:
                 await uow.notes.update_note(note_guid, user_id, {"status": "error"})
