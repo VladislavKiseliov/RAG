@@ -27,6 +27,7 @@ function UsersTab({ admin }) {
                         <td>
                             <span
                                 className={`status-pill ${u.active ? 'online' : 'offline'}`}
+                                title="Демо: блокировка не сохраняется на сервере, эндпоинта пока нет"
                                 onClick={() => admin.toggleUserActiveLocal(u.id)}
                             >
                                 <span className="dot" />{u.active ? 'Активен' : 'Заблокирован'}

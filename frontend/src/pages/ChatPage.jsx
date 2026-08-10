@@ -43,7 +43,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
     const { error, showError } = useErrorToast();
     const aiChat = useAiChat(api, showError);
     const messenger = useMessenger(api, showError);
-    const currentUser = useCurrentUser(api);
+    const currentUser = useCurrentUser(api, showError);
     const isAdmin = currentUser.isAdmin;
 
     // Единая точка входа для событий из сокета — каждый подписчик сам узнаёт по data.type,

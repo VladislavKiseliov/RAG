@@ -1,5 +1,6 @@
 import React from 'react';
 import { useHomeDashboard } from '../hooks/useHomeDashboard';
+import MockBadge from '../components/MockBadge.jsx';
 
 function HomePage({ currentUser, onSelectSection }) {
     const home = useHomeDashboard();
@@ -11,7 +12,7 @@ function HomePage({ currentUser, onSelectSection }) {
         <main className="home-main">
             <div className="home-header">
                 <div>
-                    <div className="home-greet-eyebrow">{dateLabel}</div>
+                    <div className="home-greet-eyebrow">{dateLabel} <MockBadge title="Главная целиком на демо-данных — поиск, уведомления, напоминания и задачи не связаны с реальным бэкендом" /></div>
                     <div className="home-greet-title">{home.greeting}{currentUser?.name ? `, ${currentUser.name}` : ''}</div>
                 </div>
                 <div className="home-search">

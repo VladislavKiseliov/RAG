@@ -33,17 +33,26 @@ export function useMessenger(api, showError) {
     }, [messages, loadMessages]);
 
     const createDirectChat = useCallback(async (friendGuid) => {
-        const chat = await api.post(ENDPOINTS.MESSENGER_DIRECT, { friend_guid: friendGuid });
-        setChats((prev) => [chat, ...prev]);
-        openChat(String(chat.chat_guid));
-        return chat;
-    }, [api, openChat]);
+        try {
+            const chat = await api.post(ENDPOINTS.MESSENGER_DIRECT, { friend_guid: friendGuid });
+            setChats((prev) => [chat, ...prev]);
+            openChat(String(chat.chat_guid));
+            return chat;
+        } catch (e) {
+            showError(e.message);
+            return null;
+        }
+    }, [api, showError, openChat]);
 
     const deleteChat = useCallback(async (chatGuid) => {
-        await api.delete(ENDPOINTS.MESSENGER_CHAT(chatGuid));
-        setChats((prev) => prev.filter((c) => String(c.chat_guid) !== chatGuid));
-        if (String(activeChatGuid) === chatGuid) setActiveChatGuid(null);
-    }, [api, activeChatGuid]);
+        try {
+            await api.delete(ENDPOINTS.MESSENGER_CHAT(chatGuid));
+            setChats((prev) => prev.filter((c) => String(c.chat_guid) !== chatGuid));
+            if (String(activeChatGuid) === chatGuid) setActiveChatGuid(null);
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError, activeChatGuid]);
 
     // WS event handlers
     const handleWsMessage = useCallback((data) => {

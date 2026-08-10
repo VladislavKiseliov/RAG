@@ -51,14 +51,20 @@ export const useAuth = () => {
     }, []);
 
     const refreshAccessToken = async (refreshToken) => {
-        const response = await fetch(BASE_API_URL + ENDPOINTS.REFRESH, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.access_token || !data.refresh_token) return null;
-        return { accessToken: data.access_token, refreshToken: data.refresh_token };
+        try {
+            const response = await fetch(BASE_API_URL + ENDPOINTS.REFRESH, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: refreshToken }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.access_token || !data.refresh_token) return null;
+            return { accessToken: data.access_token, refreshToken: data.refresh_token };
+        } catch {
+            // Сетевая ошибка (не просто не-2xx) — трактуем как неудачный рефреш,
+            // тот же путь, что и явный отказ сервера: getAccessToken() разлогинит.
+            return null;
+        }
     };
 
     const getAccessToken = async () => {

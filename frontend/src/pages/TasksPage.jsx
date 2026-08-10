@@ -1,6 +1,7 @@
 import React from 'react';
 import DayColumn from '../components/tasks/DayColumn.jsx';
 import { useTasks } from '../hooks/useTasks';
+import MockBadge from '../components/MockBadge.jsx';
 
 function TasksPage({ onSelectSection }) {
     const tasks = useTasks();
@@ -9,7 +10,7 @@ function TasksPage({ onSelectSection }) {
         <main className="tk-main">
             <header className="tk-header">
                 <div>
-                    <div className="tk-eyebrow">Задачи на неделю</div>
+                    <div className="tk-eyebrow">Задачи на неделю <MockBadge title="Задачи целиком на демо-данных — нет ни таблицы задач, ни LLM-разбора текста на бэкенде" /></div>
                     <div className="tk-title">{tasks.weekLabel}</div>
                 </div>
                 <div className="tk-week-nav">

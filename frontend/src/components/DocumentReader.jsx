@@ -51,7 +51,7 @@ function DocumentReader({
                 )}
                 <div className="kb-reader-ask" onClick={() => setChatOpen(true)}>Спросить ассистента →</div>
                 {onReindex && (
-                    <div className="kb-reader-icon-btn" title="Переиндексировать" onClick={onReindex}>↻</div>
+                    <div className="kb-reader-icon-btn" title="Демо: переиндексация симулируется, реального запроса к rag_service нет" onClick={onReindex}>↻</div>
                 )}
                 <div className="kb-reader-icon-btn" title="Закрыть" onClick={onClose}>✕</div>
             </header>

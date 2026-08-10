@@ -1,4 +1,5 @@
 import React from 'react';
+import MockBadge from '../MockBadge.jsx';
 
 const SERVICE_LABEL = { backend: 'Backend', rag: 'RAG Service', minio: 'MinIO', qdrant: 'Qdrant', postgres: 'PostgreSQL', redis: 'Redis', flower: 'Flower' };
 const STATUS_LABEL = { online: 'В сети', degraded: 'Задержка', offline: 'Недоступен' };
@@ -20,7 +21,7 @@ function SystemStatusTab({ health, qdrant, tasks, onRevokeTask }) {
             </div>
 
             <div className="adm-card">
-                <div className="adm-card-title">Статистика Qdrant</div>
+                <div className="adm-card-title">Статистика Qdrant <MockBadge title="Демо-данные — нет реального эндпоинта статистики Qdrant" /></div>
                 <div className="adm-qdrant-grid">
                     <div>Коллекция <b className="mono">{qdrant.collection}</b></div>
                     <div>Векторов <b className="mono">{qdrant.vectors}</b></div>

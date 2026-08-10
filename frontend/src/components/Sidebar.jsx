@@ -5,7 +5,7 @@ import MessengerChatList from './MessengerChatList.jsx';
 import UserPickerModal from './UserPickerModal.jsx';
 import ProfileModal from './ProfileModal.jsx';
 import UserMenu from './UserMenu.jsx';
-import { useApi } from '../context/ApiContext';
+import { useApi, useShowError } from '../context/ApiContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 
 function SidebarSection({ title, onAdd, addTitle, children }) {
@@ -51,6 +51,7 @@ function Sidebar({
     currentUser,
 }) {
     const api = useApi();
+    const showError = useShowError();
     const [isCreatingAi, setIsCreatingAi] = useState(false);
     const [showUserPicker, setShowUserPicker] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
@@ -69,6 +70,8 @@ function Sidebar({
             const data = await api.post(ENDPOINTS.CONVERSATIONS);
             setCurrentConversationId(data.conversation_id);
             loadUserConversations?.();
+        } catch (e) {
+            showError(e.message);
         } finally {
             setIsCreatingAi(false);
         }

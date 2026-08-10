@@ -80,6 +80,12 @@ export function useKnowledgeBase() {
         }
     }, [api, showError]);
 
+    // ВНИМАНИЕ: POST /api/knowledge/documents (upload_document) — заглушка на backend
+    // (backend/api/knowledge_routes.py), пишет в in-memory _DOCUMENTS, который
+    // list_documents никогда не читает. Документ никогда не попадает в реальный rag_service,
+    // поэтому статус здесь принципиально не может быть настоящим — это не забыли поллинг
+    // прикрутить, это весь upload на этой странице пока не подключён к реальному пайплайну
+    // (реальный — presigned-URL, как в admin-panel, см. useAdmin.js::uploadDocuments).
     const upload = useCallback(async (file) => {
         const formData = new FormData();
         formData.append('file', file);

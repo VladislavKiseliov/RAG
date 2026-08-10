@@ -5,7 +5,7 @@ const EMPTY_USER = { initials: '..', name: '', login: '', role: '', isAdmin: fal
 
 // Единственное место, которое дёргает GET /api/profile — раньше это делали
 // независимо Sidebar, UserMenu и useUserRole, по 2-3 одинаковых запроса на маунт.
-export function useCurrentUser(api) {
+export function useCurrentUser(api, showError) {
     const [user, setUser] = useState(EMPTY_USER);
 
     useEffect(() => {
@@ -23,9 +23,12 @@ export function useCurrentUser(api) {
                 role: data.role || '',
                 isAdmin: data.role === 'admin',
             });
-        }).catch(() => {});
+        }).catch((e) => {
+            if (cancelled) return;
+            showError?.(e.message || 'Не удалось загрузить профиль');
+        });
         return () => { cancelled = true; };
-    }, [api]);
+    }, [api, showError]);
 
     return user;
 }

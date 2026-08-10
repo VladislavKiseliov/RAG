@@ -111,7 +111,10 @@ export function useNotes() {
             nextPinned = !n.pinned;
             return { ...n, pinned: nextPinned };
         }));
-        api.patch(ENDPOINTS.NOTE(id), { pinned: nextPinned }).catch((err) => showError(err.message));
+        api.patch(ENDPOINTS.NOTE(id), { pinned: nextPinned }).catch((err) => {
+            showError(err.message);
+            setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, pinned: !nextPinned } : n)));
+        });
     }, [api, showError]);
 
     const updateActive = useCallback((patch) => {
@@ -120,33 +123,50 @@ export function useNotes() {
 
     const toggleFollowUp = useCallback(() => {
         let nextFollowUp;
+        let prevFollowUp;
         setNotes((prev) => prev.map((n) => {
             if (n.id !== activeId) return n;
+            prevFollowUp = n.followUp;
             nextFollowUp = !n.followUp;
             return { ...n, followUp: nextFollowUp, updated: 'только что' };
         }));
-        api.patch(ENDPOINTS.NOTE(activeId), { follow_up: nextFollowUp }).catch((err) => showError(err.message));
+        api.patch(ENDPOINTS.NOTE(activeId), { follow_up: nextFollowUp }).catch((err) => {
+            showError(err.message);
+            setNotes((prev) => prev.map((n) => (n.id === activeId ? { ...n, followUp: prevFollowUp } : n)));
+        });
     }, [api, showError, activeId]);
 
     const addTag = useCallback((key) => {
         let nextTags;
+        let prevTags;
         setNotes((prev) => prev.map((n) => {
             if (n.id !== activeId || n.tags.includes(key)) return n;
+            prevTags = n.tags;
             nextTags = [...n.tags, key];
             return { ...n, tags: nextTags, updated: 'только что' };
         }));
         setTagPickerOpen(false);
-        if (nextTags) api.patch(ENDPOINTS.NOTE(activeId), { tags: nextTags }).catch((err) => showError(err.message));
+        if (nextTags) {
+            api.patch(ENDPOINTS.NOTE(activeId), { tags: nextTags }).catch((err) => {
+                showError(err.message);
+                setNotes((prev) => prev.map((n) => (n.id === activeId ? { ...n, tags: prevTags } : n)));
+            });
+        }
     }, [api, showError, activeId]);
 
     const removeTag = useCallback((key) => {
         let nextTags;
+        let prevTags;
         setNotes((prev) => prev.map((n) => {
             if (n.id !== activeId) return n;
+            prevTags = n.tags;
             nextTags = n.tags.filter((k) => k !== key);
             return { ...n, tags: nextTags, updated: 'только что' };
         }));
-        api.patch(ENDPOINTS.NOTE(activeId), { tags: nextTags }).catch((err) => showError(err.message));
+        api.patch(ENDPOINTS.NOTE(activeId), { tags: nextTags }).catch((err) => {
+            showError(err.message);
+            setNotes((prev) => prev.map((n) => (n.id === activeId ? { ...n, tags: prevTags } : n)));
+        });
     }, [api, showError, activeId]);
 
     const createNote = useCallback(async () => {

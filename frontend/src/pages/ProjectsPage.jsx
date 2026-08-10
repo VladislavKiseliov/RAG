@@ -11,6 +11,7 @@ import UploadChangesetModal from '../components/projects/UploadChangesetModal.js
 import RejectModal from '../components/projects/RejectModal.jsx';
 import NewProjectModal from '../components/projects/NewProjectModal.jsx';
 import PdfPreviewOverlay from '../components/projects/PdfPreviewOverlay.jsx';
+import MockBadge from '../components/MockBadge.jsx';
 
 function ProjectsPage() {
     const proj = useProjects();
@@ -31,6 +32,7 @@ function ProjectsPage() {
     return (
         <div className={`proj-page-shell${chatOpen ? ' chat-open' : ''}`}>
             <div className="proj-role-bar">
+                <MockBadge title="Проекты целиком на демо-данных — нет ни одного реального API-вызова" />
                 <span className="kb-muted">Роль (демо):</span>
                 <div className="proj-role-switch">
                     <span className={proj.role === 'manager' ? 'active' : ''} onClick={() => proj.setRole('manager')}>Р</span>

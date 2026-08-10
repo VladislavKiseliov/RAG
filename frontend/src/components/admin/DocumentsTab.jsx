@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import MockBadge from '../MockBadge.jsx';
 
 function DocumentsTab({ admin }) {
     const [draftTitle, setDraftTitle] = useState('');
@@ -40,6 +41,7 @@ function DocumentsTab({ admin }) {
             <div className="adm-segment">
                 <button className={!isPersonal ? 'active' : ''} onClick={() => admin.setDocScope('shared')}>Общая база знаний</button>
                 <button className={isPersonal ? 'active' : ''} onClick={() => admin.setDocScope('personal')}>Личные базы пользователей</button>
+                {isPersonal && <MockBadge title="Личные базы — демо-данные, у бэкенда пока нет понятия личного документа" />}
             </div>
 
             <div className="adm-toolbar">
@@ -122,7 +124,7 @@ function DocumentsTab({ admin }) {
                                 ) : (
                                     <span className="adm-doc-title">
                                         {d.title}
-                                        <span className="adm-edit-icon" onClick={() => startEdit(d)}>✎</span>
+                                        <span className="adm-edit-icon" title="Демо: переименование не сохраняется на сервере" onClick={() => startEdit(d)}>✎</span>
                                     </span>
                                 )}
                             </td>

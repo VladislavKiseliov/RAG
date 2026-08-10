@@ -1,16 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { useErrorToast } from '../hooks/useErrorToast';
-import { useApi } from '../context/ApiContext';
+import { useApi, useShowError } from '../context/ApiContext';
 
 function ChatList({ conversations, currentConversationId, onSelect, onRemoved, onRenamed }) {
     const api = useApi();
+    const showError = useShowError();
     const [showMenu, setShowMenu] = useState(null);
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
     const [editingTitle, setEditingTitle] = useState(null);
     const [newTitle, setNewTitle] = useState('');
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-    const { error, showError } = useErrorToast();
     const [processingChatId, setProcessingChatId] = useState(null);
 
     useClickOutside(!!showMenu, ['.chat-menu', '.chat-menu-button'], useCallback(() => {
@@ -79,8 +78,6 @@ function ChatList({ conversations, currentConversationId, onSelect, onRemoved, o
 
     return (
         <>
-            {error && <div className="error-message">{error}</div>}
-
             <div className="chat-list" id="chatList">
                 {conversations && conversations.length > 0 ? (
                     conversations.map((chat) => (

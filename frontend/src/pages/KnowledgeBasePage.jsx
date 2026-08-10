@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import DocumentCard from '../components/DocumentCard.jsx';
 import DocumentReader from '../components/DocumentReader.jsx';
 import { useKnowledgeBase } from '../hooks/useKnowledgeBase';
+import MockBadge from '../components/MockBadge.jsx';
 
 function KnowledgeBasePage() {
     const kb = useKnowledgeBase();
@@ -71,7 +72,7 @@ function KnowledgeBasePage() {
                         </div>
                     ))}
 
-                    <div className="kb-aside-group-title">Личное</div>
+                    <div className="kb-aside-group-title">Личное <MockBadge title="Демо: загрузка сюда не подключена к реальной индексации, документ пропадёт после обновления страницы" /></div>
                     <div
                         className={`kb-collection-item${isPersonal ? ' active' : ''}`}
                         onClick={() => kb.setSelectedCollection('personal')}

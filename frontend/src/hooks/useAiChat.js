@@ -62,9 +62,10 @@ export function useAiChat(api, showError) {
             setMessages(formatted.length === 0 ? [GREETING] : formatted);
         } catch (e) {
             if (e.name === 'AbortError') return;
+            showError(e.message);
             setMessages([GREETING]);
         }
-    }, [api]);
+    }, [api, showError]);
 
     const resetMessages = useCallback(() => {
         historyAbortRef.current?.abort();
