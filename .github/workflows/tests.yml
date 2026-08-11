@@ -2,7 +2,7 @@ name: tests
 on: [push, pull_request]
 
 jobs:
-  test:
+  backend-tests:
     runs-on: ubuntu-latest
     # backend/settings.py instantiates BackendSettings() at import time - some test
     # files (e.g. test_note_service.py) transitively import it via backend.utils.
@@ -32,3 +32,56 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -r backend/requirements.txt
       - run: pytest backend/tests
+
+  rag-service-tests:
+    runs-on: ubuntu-latest
+    # Light dependency set only (rag_service/requirements.txt) - test_docling.py and
+    # test_docling_conversion_repository.py need requirements-worker.txt's heavy
+    # torch/CUDA stack (rag-worker only, see requirements.txt's own header comment)
+    # and are excluded below. Everything else in the suite mocks Qdrant/TEI/
+    # embeddings - only Postgres (self-provisioned via testcontainers, same as
+    # backend-tests) and MinIO (started as a plain step below) are real.
+    env:
+      MODE: TEST
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: ci
+      DB_PASS: ci
+      DB_NAME: ci
+      QDRANT_URL: http://localhost:6333
+      EMBEDDING_MODEL_NAME: BAAI/bge-m3
+      MINIO_PRIVATE_URL: http://localhost:9000
+      MINIO_PUBLIC_URL: http://localhost:9000
+      MINIO_ACCESS_KEY: ci-minio-user
+      MINIO_SECRET_KEY: ci-minio-password
+      MINIO_SECURE: "false"
+      MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1: ci
+      MINIO_BUCKET_KNOWLEDGE_BASE: ci
+      MINIO_BUCKET_USERS: ci
+      MINIO_BUCKET_PROJECTS: ci
+      INTERNAL_WEBHOOK_TOKEN: ci
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Start MinIO
+        # Not GitHub Actions' `services:` - that can't override a container's
+        # command, and minio/minio's entrypoint needs `server /data` args to
+        # actually start serving. A plain step has no such restriction.
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=ci-minio-user \
+            -e MINIO_ROOT_PASSWORD=ci-minio-password \
+            minio/minio server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && exit 0
+            sleep 1
+          done
+          echo "MinIO did not become healthy in time" >&2
+          exit 1
+      - run: pip install -r rag_service/requirements.txt
+      - run: >-
+          pytest rag_service/tests
+          --ignore=rag_service/tests/test_docling.py
+          --ignore=rag_service/tests/test_docling_conversion_repository.py
