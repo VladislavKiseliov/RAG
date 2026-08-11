@@ -4,6 +4,28 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    # backend/settings.py instantiates BackendSettings() at import time - some test
+    # files (e.g. test_note_service.py) transitively import it via backend.utils.
+    # http_clients. No backend/.env exists in CI, so these dummy values just need to
+    # satisfy pydantic validation - the tests that import this chain mock the actual
+    # HTTP calls and never read real settings values.
+    env:
+      MODE: TEST
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: ci
+      DB_PASS: ci
+      DB_NAME: ci
+      SECRET_KEY: ci-dummy-secret
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      MINIO_URL: http://localhost:9000
+      MINIO_ACCESS_KEY: ci
+      MINIO_SECRET_KEY: ci
+      MINIO_BUCKET: ci
+      MINIO_SECURE: "false"
+      INTERNAL_WEBHOOK_TOKEN: ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
