@@ -2,22 +2,24 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import insert, delete
+from sqlalchemy import insert, delete, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.community.postgres import PostgresContainer
 
 from backend.models.database_models import (
-    ChatType, Chats, Messages, RefreshTokens, Users, chat_participant,
+    SCHEMA, ChatType, Chats, Messages, RefreshTokens, Users, chat_participant,
 )
 from backend.repository.auth_repository import AuthRepository
 from backend.repository.chat_repository import ChatRepository
 from backend.repository.messages_repository import MessageRepository
 from backend.repository.messenger_repository import MessengerRepository
+from backend.repository.note_repository import NoteRepository
 from backend.repository.user_repository import UserRepository
 
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
@@ -119,6 +121,16 @@ async def engine(pg_container, _migrated_schema):
         await session.execute(insert(Messages).values(_SEED_MESSAGES))
         await session.commit()
 
+        # Явно вставленные seed id (1,2,3...) не продвигают identity-последовательность —
+        # следующий autoincrement для fixture-based юзеров (test_user и т.п.) снова
+        # целится в занятый id и падает UniqueViolationError.
+        for table in ("users", "chats", "messages"):
+            await session.execute(text(
+                f"SELECT setval(pg_get_serial_sequence('{SCHEMA}.{table}', 'id'), "
+                f"(SELECT MAX(id) FROM {SCHEMA}.{table}))"
+            ))
+        await session.commit()
+
     try:
         yield engine
     finally:
@@ -174,6 +186,44 @@ async def message_repository(session_factory) -> MessageRepository:
 @pytest_asyncio.fixture
 async def messenger_repository(session_factory) -> MessengerRepository:
     return _IsolatedRepo(MessengerRepository, session_factory)
+
+
+@pytest_asyncio.fixture
+async def note_repository(session_factory) -> NoteRepository:
+    return _IsolatedRepo(NoteRepository, session_factory)
+
+
+# ── Fake UnitOfWork — для unit-тестов сервисов, инжектящих uow_factory ────────
+# Один и тот же экземпляр возвращается при каждом вызове фабрики, чтобы вызовы
+# `async with self._uow_factory() as uow` внутри одного сервисного метода (их может
+# быть несколько подряд) писали в один и тот же мок и были видны для assert-ов.
+
+class FakeUnitOfWork:
+    def __init__(self):
+        self.chats = AsyncMock()
+        self.messages = AsyncMock()
+        self.auth = AsyncMock()
+        self.messenger = AsyncMock()
+        self.notes = AsyncMock()
+        self.commit = AsyncMock()
+        self.rollback = AsyncMock()
+        self.refresh = AsyncMock()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, *args):
+        return False
+
+
+@pytest.fixture
+def fake_uow() -> FakeUnitOfWork:
+    return FakeUnitOfWork()
+
+
+@pytest.fixture
+def fake_uow_factory(fake_uow: FakeUnitOfWork):
+    return lambda: fake_uow
 
 
 # ── Объекты из seed-данных (быстро, без лишних запросов) ─────────────────────
