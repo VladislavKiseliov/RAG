@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
+import pytest
 import pytest_asyncio
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import insert, delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from testcontainers.community.postgres import PostgresContainer
 
-from backend.settings import settings
 from backend.models.database_models import (
-    Base, ChatType, Chats, Messages, RefreshTokens, Users, chat_participant,
+    ChatType, Chats, Messages, RefreshTokens, Users, chat_participant,
 )
-from backend.repository.user_repository import (
-    AuthRepository, ChatRepository, MessageRepository, MessengerRepository, UserRepository,
-)
+from backend.repository.auth_repository import AuthRepository
+from backend.repository.chat_repository import ChatRepository
+from backend.repository.messages_repository import MessageRepository
+from backend.repository.messenger_repository import MessengerRepository
+from backend.repository.user_repository import UserRepository
+
+ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 
 # ── Фиксированные GUIDs — детерминированные данные для тестов ────────────────
 ALICE_GUID    = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-000000000001")
@@ -77,17 +85,31 @@ _SEED_MESSAGES = [
 ]
 
 
-# ── Engine + schema (session-scoped) ─────────────────────────────────────────
+# ── Контейнер + схема (session-scoped) ────────────────────────────────────────
+# Postgres поднимается кодом (testcontainers), схему накатывают реальные Alembic-
+# миграции (ini_section="users") — не create_all/drop_all по ORM-метаданным, чтобы
+# тестовая схема не могла разойтись с тем, что реально накатывает `alembic upgrade
+# head` в проде. См. TESTING.md §3.
+
+@pytest.fixture(scope="session")
+def pg_container():
+    with PostgresContainer("postgres:18") as pg:
+        yield pg
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _migrated_schema(pg_container):
+    cfg = Config(str(ALEMBIC_INI), ini_section="users")
+    cfg.set_main_option("sqlalchemy.url", pg_container.get_connection_url())
+    command.upgrade(cfg, "head")
+
+
+# ── Engine + seed-данные (session-scoped) ─────────────────────────────────────
 
 @pytest_asyncio.fixture(scope="session")
-async def engine():
-    assert settings.MODE == "TEST", "Tests must run only with MODE=TEST"
-    assert settings.TEST_DB_NAME == "test_myapp_db", "TEST_DB_NAME must be 'test_myapp_db'"
-
-    engine = create_async_engine(settings.DATABASE_URL, future=True, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+async def engine(pg_container, _migrated_schema):
+    async_url = pg_container.get_connection_url().replace("postgresql+psycopg2", "postgresql+asyncpg")
+    engine = create_async_engine(async_url, future=True, echo=False)
 
     seed_sf = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with seed_sf() as session:
