@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from llm_service.application.lean_rag_agent import LeanRagAgent
 from llm_service.application.services.reranker_service import RerankerService
 from llm_service.application.services.retrieval_service import RetrievalService
-from llm_service.LLM_provider import GroqLLMProvider, LLMProvider, OpenAICompatLLMProvider
+from llm_service.LLM_provider import (
+    GroqLLMProvider, LLMProvider, OpenAICompatLLMProvider, OpenRouterLLMProvider,
+)
 from llm_service.settings import settings
 from llm_service.utils.logger_config import setup_logger
 
@@ -23,6 +25,10 @@ def _build_llm_provider() -> LLMProvider:
     if settings.LLM_PROVIDER == "groq":
         return GroqLLMProvider(
             api_key=settings.HF_TOKEN,
+        )
+    if settings.LLM_PROVIDER == "openrouter":
+        return OpenRouterLLMProvider(
+            api_key=settings.OPENROUTER_API_KEY,
         )
     return OpenAICompatLLMProvider(
         api_key=settings.LLM_API_KEY,

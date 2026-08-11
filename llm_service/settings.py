@@ -14,6 +14,7 @@ class LLMSettings(BaseSettings):
     LLM_BASE_URL: str
 
     HF_TOKEN: str = ""
+    OPENROUTER_API_KEY: str = ""
     LLM_PROVIDER: str = "openai_compat"
 
     RAG_SERVICE_URL: str
