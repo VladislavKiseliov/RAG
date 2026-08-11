@@ -43,3 +43,7 @@ httpx
 # Logging
 python-json-logger
 prometheus-client
+
+# Testing
+alembic==1.18.4
+testcontainers==4.15.0

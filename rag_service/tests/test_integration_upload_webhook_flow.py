@@ -18,7 +18,6 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from rag_service.api.exception_handlers import register_exception_handlers
 from rag_service.api.rag_routes import router
@@ -26,7 +25,7 @@ from rag_service.application.document_orchestrator import DocumentOrchestrator
 from rag_service.application.document_service import DataBaseDocumentService
 from rag_service.dependencies import get_document_orchestrator, get_task_dispatcher_service
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.models import Base, DocumentListItemDTO
+from rag_service.models import DocumentListItemDTO
 from rag_service.settings import settings
 
 
@@ -67,25 +66,6 @@ class _TestBucketStorage:
 
     async def list(self, prefix: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
         return await self._store.list(bucket=self._bucket, prefix=prefix, limit=limit)
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def engine():
-    """Create engine against a disposable test schema, rebuilt fresh from current ORM metadata."""
-    assert settings.MODE == "TEST", "Integration tests must run with MODE=TEST"
-    engine = create_async_engine(settings.DATABASE_URL, future=True)
-    async with engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA IF EXISTS rag_kernel CASCADE"))
-        await conn.execute(text("CREATE SCHEMA rag_kernel"))
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def session_factory(engine):
-    """Provide SQLAlchemy async session factory for DB assertions."""
-    return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")

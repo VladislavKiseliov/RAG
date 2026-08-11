@@ -23,13 +23,12 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from rag_service.application.document_orchestrator import DocumentOrchestrator
 from rag_service.application.document_service import DataBaseDocumentService
 from rag_service.domain.errors.postgres import DocumentNotFound
 from rag_service.infrastructures.repositories.s3_storage_repository import S3StorageRepository
-from rag_service.models import Base, DocumentListItemDTO
+from rag_service.models import DocumentListItemDTO
 from rag_service.settings import settings
 
 
@@ -71,25 +70,6 @@ class _TestBucketStorage:
 
     async def list(self, prefix: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
         return await self._store.list(bucket=self._bucket, prefix=prefix, limit=limit)
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def engine():
-    """Create engine against a disposable test schema, rebuilt fresh from current ORM metadata."""
-    assert settings.MODE == "TEST", "Integration tests must run with MODE=TEST"
-    engine = create_async_engine(settings.DATABASE_URL, future=True)
-    async with engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA IF EXISTS rag_kernel CASCADE"))
-        await conn.execute(text("CREATE SCHEMA rag_kernel"))
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def session_factory(engine):
-    """Provide an async SQLAlchemy session factory bound to test engine."""
-    return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
@@ -137,22 +117,19 @@ async def orchestrator(
 
 
 @pytest_asyncio.fixture(scope="function", loop_scope="module")
-async def created_doc_ids():
+async def created_doc_ids(session_factory):
     """Track created document IDs and remove them from DB in fixture teardown."""
     ids: list[uuid.UUID] = []
     yield ids
     if not ids:
         return
-    engine = create_async_engine(settings.DATABASE_URL, future=True)
-    async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with async_session() as session:
+    async with session_factory() as session:
         for doc_id in ids:
             await session.execute(
                 text("DELETE FROM rag_kernel.documents WHERE id = :doc_id"),
                 {"doc_id": doc_id},
             )
         await session.commit()
-    await engine.dispose()
 
 
 async def test_get_upload_link_persists_document_and_returns_presigned_url(

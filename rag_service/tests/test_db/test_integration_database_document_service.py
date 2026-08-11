@@ -12,11 +12,9 @@ from datetime import datetime
 import pytest
 import pytest_asyncio
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from rag_service.application.document_service import DataBaseDocumentService
-from rag_service.models import Base, DocumentChapters, DocumentListItemDTO, DocumentStatus, DocumentTables, ParentChunks
-from rag_service.settings import settings
+from rag_service.models import DocumentChapters, DocumentListItemDTO, DocumentStatus, DocumentTables, ParentChunks
 
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -50,31 +48,6 @@ SEEDED_DOCUMENTS = [
         "chunk_count": 3,
     },
 ]
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def engine():
-    """Create engine against a disposable test schema, rebuilt fresh from current ORM metadata.
-
-    The test DB accumulates schema drift across app versions (`Base.metadata.create_all`
-    only adds missing tables, never missing columns on tables that already exist) - see
-    D11 in rag_service/ISSUES.md. Dropping and recreating `rag_kernel` guarantees the
-    schema always matches the current models, instead of patching individual columns.
-    """
-    assert settings.MODE == "TEST", "Integration tests must run with MODE=TEST"
-    engine = create_async_engine(settings.DATABASE_URL, future=True)
-    async with engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA IF EXISTS rag_kernel CASCADE"))
-        await conn.execute(text("CREATE SCHEMA rag_kernel"))
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def session_factory(engine):
-    """Provide async session factory bound to real test PostgreSQL engine."""
-    return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")

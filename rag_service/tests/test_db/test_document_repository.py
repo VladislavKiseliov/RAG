@@ -9,30 +9,14 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from rag_service.api.schemas import DocumentStatus
 from rag_service.infrastructures.repositories.document_repository import DocumentRepository
-from rag_service.models import Base, DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables
-from rag_service.settings import settings
+from rag_service.models import DocumentListItemDTO, ParentChunks, DocumentChapters, DocumentTables
 
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def engine():
-    """Create engine and align schema to current models contract for repository tests."""
-    assert settings.MODE == "TEST", "Repository integration tests must run with MODE=TEST"
-    engine = create_async_engine("postgresql+asyncpg://myuser:mypassword@localhost:5432/myapp_db", future=True)
-    yield engine
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def session_factory(engine):
-    """Provide async session factory for repository tests."""
-    return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
 @pytest_asyncio.fixture(scope="function", loop_scope="module")
