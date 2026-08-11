@@ -12,6 +12,7 @@ from backend.services.note_service import NoteService
 from backend.services.messenger.messenger_service import MessengerService
 from backend.infrastructure import BackendContainer
 from backend.services.messenger.websocket_manager import WebSocketManager
+from backend.services.unit_of_work import UnitOfWork
 from starlette.requests import HTTPConnection
 
 
@@ -19,7 +20,10 @@ def get_container(conn: HTTPConnection) -> BackendContainer:
     return conn.app.state.container
 
 def get_auth_service(container: BackendContainer = Depends(get_container)) -> AuthService:
-    return AuthService(session_factory=container.session_factory, auth_handler=container.auth_handler)
+    return AuthService(
+        uow_factory=lambda: UnitOfWork(container.session_factory),
+        auth_handler=container.auth_handler,
+    )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -36,7 +40,7 @@ async def require_admin_user(current_user: CurrentUser = Depends(get_current_use
 
 
 def get_chat_service(container: BackendContainer = Depends(get_container)) -> ChatService:
-    return ChatService(session_factory=container.session_factory)
+    return ChatService(uow_factory=lambda: UnitOfWork(container.session_factory))
 
 def get_conversation_service(container: BackendContainer = Depends(get_container)) -> ConversationService:
     return ConversationService(session_factory=container.session_factory, llm_client=container.llm_client)
@@ -45,16 +49,19 @@ def get_user_service(container: BackendContainer = Depends(get_container)) -> Us
     return UserService(session_factory=container.session_factory, auth_handler=container.auth_handler)
 
 def get_note_service(container: BackendContainer = Depends(get_container)) -> NoteService:
-    return NoteService(session_factory=container.session_factory, llm_client=container.llm_client)
+    return NoteService(
+        uow_factory=lambda: UnitOfWork(container.session_factory),
+        llm_client=container.llm_client,
+    )
 
 def get_websocket_manager(container: BackendContainer = Depends(get_container)) -> WebSocketManager:
     return container.socket_manager
 
 def get_message_service(container: BackendContainer = Depends(get_container)) -> MessageService:
-    return MessageService(session_factory=container.session_factory)
+    return MessageService(uow_factory=lambda: UnitOfWork(container.session_factory))
 
 def get_messenger_service(container: BackendContainer = Depends(get_container)) -> MessengerService:
-    return MessengerService(session_factory=container.session_factory)
+    return MessengerService(uow_factory=lambda: UnitOfWork(container.session_factory))
 
 ContainerDep = Annotated[BackendContainer, Depends(get_container)]
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user_from_token)]

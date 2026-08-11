@@ -1,9 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import httpx
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from backend.schemas.schemas import NoteBaseSchema
 from backend.services.ai.llm_client import LLMClient
@@ -13,30 +12,30 @@ from backend.utils.http_clients import rag_client
 
 
 class NoteService:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], llm_client: LLMClient):
-        self._sf = session_factory
+    def __init__(self, uow_factory: Callable[[], UnitOfWork], llm_client: LLMClient):
+        self._uow_factory = uow_factory
         self._llm = llm_client
 
     async def create_note(self, user_id: int, **fields) -> NoteBaseSchema:
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             note = await uow.notes.create_note(user_id=user_id, **fields)
             await uow.commit()
         return NoteBaseSchema.model_validate(note)
 
     async def list_notes(self, user_id: int) -> List[NoteBaseSchema]:
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             notes = await uow.notes.list_notes_for_user(user_id)
             return [NoteBaseSchema.model_validate(n) for n in notes]
 
     async def get_note(self, note_guid: uuid.UUID, user_id: int) -> NoteBaseSchema:
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             note = await uow.notes.get_note_for_user(note_guid, user_id)
         if note is None:
             raise NoteNotFoundError()
         return NoteBaseSchema.model_validate(note)
 
     async def update_note(self, note_guid: uuid.UUID, user_id: int, data: dict) -> NoteBaseSchema:
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             note = await uow.notes.update_note(note_guid, user_id, data)
             if note is None:
                 raise NoteNotFoundError()
@@ -44,7 +43,7 @@ class NoteService:
         return NoteBaseSchema.model_validate(note)
 
     async def delete_note(self, note_guid: uuid.UUID, user_id: int) -> bool:
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             deleted = await uow.notes.delete_note(note_guid, user_id)
             await uow.commit()
         if not deleted:
@@ -61,7 +60,7 @@ class NoteService:
 
     async def trigger_index(self, note_guid: uuid.UUID, user_id: int) -> NoteBaseSchema:
         """Ставит статус indexing и просит rag_service векторизовать заметку через Celery."""
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             note = await uow.notes.update_note(note_guid, user_id, {"status": "indexing"})
             if note is None:
                 raise NoteNotFoundError()
@@ -76,7 +75,7 @@ class NoteService:
             )
             response.raise_for_status()
         except httpx.HTTPError:
-            async with UnitOfWork(self._sf) as uow:
+            async with self._uow_factory() as uow:
                 await uow.notes.update_note(note_guid, user_id, {"status": "error"})
                 await uow.commit()
             raise
@@ -101,7 +100,7 @@ class NoteService:
         if result.get("folder"):
             data["folder"] = result["folder"]
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             note = await uow.notes.update_note(note_guid, user_id, data)
             if note is None:
                 raise NoteNotFoundError()
@@ -117,6 +116,6 @@ class NoteService:
         data: dict = {"status": note_status}
         if chunk_count is not None:
             data["chunk_count"] = chunk_count
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             await uow.notes.update_note_by_guid(note_guid, data)
             await uow.commit()

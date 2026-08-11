@@ -2,9 +2,7 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Dict
-
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from typing import Callable, Dict
 
 from backend.services.unit_of_work import UnitOfWork
 from backend.utils.exceptions import (
@@ -40,8 +38,8 @@ class AuthService:
     the session to avoid holding a connection during a CPU-heavy operation.
     """
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], auth_handler):
-        self._sf = session_factory
+    def __init__(self, uow_factory: Callable[[], UnitOfWork], auth_handler):
+        self._uow_factory = uow_factory
         self._auth = auth_handler
 
     async def login(self, login: str, password: str) -> dict:
@@ -59,7 +57,7 @@ class AuthService:
                 Both cases return the same error to avoid user enumeration.
         """
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             user = await uow.auth.get_user(login)
 
         if user is None:
@@ -79,7 +77,7 @@ class AuthService:
         refresh_token = secrets.token_urlsafe(48)
         refresh_expires = datetime.now(timezone.utc) + timedelta(days=7)
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             await uow.auth.add_refresh_token(user_id=user.id, token=refresh_token, expires_at=refresh_expires)
             await uow.commit()
 
@@ -105,7 +103,7 @@ class AuthService:
         Raises:
             UserAlreadyExistsError: If a user with this login already exists.
         """
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             existing = await uow.auth.get_user(username)
 
         if existing:
@@ -113,7 +111,7 @@ class AuthService:
 
         hashed_password = self._auth.get_password_hash(password)
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             user = await uow.auth.create_user(login=username, hashed_password=hashed_password)
             await uow.commit()
             user_id = str(user.id)
@@ -143,7 +141,7 @@ class AuthService:
             TokenRevokedError: If the token has already been revoked.
             RefreshTokenExpiredError: If the token's expiry date has passed.
         """
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             stored = await uow.auth.get_refresh_token(refresh_token)
 
         if not stored:
@@ -153,14 +151,14 @@ class AuthService:
         if stored.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
             raise RefreshTokenExpiredError()
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             user = await uow.auth.get_user_by_id(stored.user_id)
 
         new_access = self._auth.create_access_token(str(user.guid))
         new_refresh = secrets.token_urlsafe(48)
         refresh_expires = datetime.now(timezone.utc) + timedelta(days=7)
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             await uow.auth.revoke_refresh_token(token=refresh_token)
             await uow.auth.add_refresh_token(user_id=stored.user_id,
                                              token=new_refresh,
@@ -185,13 +183,13 @@ class AuthService:
         Returns:
             Dict with status and a descriptive message.
         """
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             stored = await uow.auth.get_refresh_token(refresh_token)
 
         if not stored or stored.revoked:
             return {"status": "success", "message": "Already logged out"}
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             if revoke_all:
                 count = await uow.auth.revoke_all_user_tokens(stored.user_id)
                 message = f"Logged out from all devices. Revoked {count} tokens."
@@ -232,7 +230,7 @@ class AuthService:
             logger.warning("Invalid token: bad user_id format", extra={"sub": user_id_str})
             raise AuthenticationError("Invalid user identifier format")
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             user = await uow.auth.get_user_by_guid(user_guid)
 
         if not user:

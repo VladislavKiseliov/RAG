@@ -1,7 +1,5 @@
 import uuid
-from typing import List
-
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from typing import Callable, List
 
 from backend.models.database_models import Chats, Messages
 from backend.services.unit_of_work import UnitOfWork
@@ -14,14 +12,14 @@ class ChatNotFoundError(Exception):
 
 
 class MessageService:
-    def __init__(self, session_factory: async_sessionmaker):
-        self._sf = session_factory
+    def __init__(self, uow_factory: Callable[[], UnitOfWork]):
+        self._uow_factory = uow_factory
 
     async def resolve_chat(self, chat_guid: str, chats: dict, user_id: int) -> tuple[int, bool]:
         if chat_guid in chats:
             return chats[chat_guid], False
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             # get_chat_id_for_participant (не get_chat_id_by_guid) — иначе любой
             # аутентифицированный пользователь, знающий/угадавший chat_guid чужого
             # чата, резолвил бы его chat_id и писал/читал в этом чате.
@@ -34,11 +32,11 @@ class MessageService:
         return chat_id, True
 
     async def get_chat_member_guids(self, chat_id: int) -> List[str]:
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             return await uow.chats.get_chat_member_guids(chat_id)
 
     async def save_message(self, content: str, chat_id: int, user_id: int) -> tuple[Messages, Chats]:
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             message = await uow.messages.add_message(chat_id=chat_id, content=content, user_id=user_id)
             chat = await uow.chats.touch(chat_id)
             await uow.commit()
@@ -51,7 +49,7 @@ class MessageService:
     ) -> Messages | None:
         chat_id, _ = await self.resolve_chat(chat_guid, chats, user_id)
 
-        async with UnitOfWork(self._sf) as uow:
+        async with self._uow_factory() as uow:
             message = await uow.messenger.get_message_by_guid(uuid.UUID(message_guid))
             if not message:
                 return None
