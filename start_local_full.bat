@@ -8,7 +8,7 @@ echo ========================================================
 echo.
 
 REM --- 0. Проверка и автозапуск Docker Desktop ---
-echo [0/2] Проверка статуса Docker Engine...
+echo [0/3] Проверка статуса Docker Engine...
 docker info >nul 2>&1
 if errorlevel 1 (
     echo [ИНФО] Docker Engine не запущен. Запускаем Docker Desktop...
@@ -30,7 +30,7 @@ if errorlevel 1 (
 )
 
 REM --- 1. Поднимаем Docker-контейнеры ---
-echo [1/2] Запуск Docker Compose...
+echo [1/3] Запуск Docker Compose...
 docker compose -f docker-compose.full.yml up -d --remove-orphans
 if errorlevel 1 (
     echo.
@@ -51,8 +51,18 @@ echo.
 echo [OK] Все контейнеры успешно запущены!
 echo.
 
-REM --- 2. Поднимаем SSH-туннель в фоновом режиме ---
-echo [2/2] Запуск SSH-туннеля к VPS (195.209.218.96)...
+REM --- 2. Поднимаем мониторинг (Grafana/Prometheus/Loki) ---
+echo [2/3] Запуск мониторинга (Grafana/Prometheus/Loki)...
+docker compose -f Monitoring/docker-compose.yml up -d
+if errorlevel 1 (
+    echo [ВНИМАНИЕ] Мониторинг не поднялся — не критично, стек и туннель продолжат работу без него.
+) else (
+    echo [OK] Мониторинг поднят: Grafana http://localhost:3000, Prometheus http://localhost:9090.
+)
+echo.
+
+REM --- 3. Поднимаем SSH-туннель в фоновом режиме ---
+echo [3/3] Запуск SSH-туннеля к VPS (195.209.218.96)...
 echo.
 
 :start_tunnel
