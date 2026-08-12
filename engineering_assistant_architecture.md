@@ -1,1068 +1,398 @@
-# Engineering Assistant — Target Architecture
+# Engineering Assistant — целевая архитектура
 
-## 1. Purpose
+> **Что это за документ.** Компас, а не план работ. Описывает, куда развивается система
+> и какие принципы нельзя нарушать по дороге. Пошаговое исполнение — в ROADMAP.md,
+> текущее состояние агента — в AGENT_GRAPH_CURRENT.md.
 
-Этот документ описывает целевую архитектуру системы, которая начинается как RAG/knowledge agent для работы с документацией, а затем развивается в полноценного Engineering Assistant.
-
-Основная идея:
-
-> RAG — это не сам ассистент. RAG является одним из механизмов Knowledge Layer, которым управляет общий Orchestrator.
-
-Целевая система должна уметь:
-
-- искать и проверять информацию в технической документации;
-- работать с проектной документацией;
-- читать и заполнять опросные листы;
-- сравнивать документы и ревизии;
-- проверять требования и параметры;
-- находить противоречия;
-- выполнять инженерные расчёты;
-- формировать техническую документацию;
-- формировать отчёты и замечания;
-- сохранять evidence для каждого важного утверждения;
-- передавать неоднозначные или критические решения человеку.
+**Главный тезис:** RAG — это не ассистент. RAG — одна из способностей Knowledge-слоя,
+которой управляет общий оркестратор.
 
 ---
 
-# 2. Основная архитектура
+## 1. Что система должна уметь
 
-```mermaid
-flowchart TD
-    USER([User])
-
-    USER --> ORCH[Engineering Assistant<br/>Orchestrator]
-
-    ORCH --> CLASSIFY[Classify Request]
-    CLASSIFY --> PLAN[Plan / Decompose Task]
-    PLAN --> STATE[Task State / Context]
-
-    STATE --> EXEC[Execute Task]
-
-    EXEC --> KNOWLEDGE[Knowledge Layer]
-    EXEC --> TOOLS[Tools Layer]
-    EXEC --> MEMORY[Project Memory]
-
-    KNOWLEDGE --> REASON[Engineering Reasoning]
-    TOOLS --> REASON
-    MEMORY --> REASON
-
-    REASON --> VERIFY[Verification / Validation]
-
-    VERIFY -->|insufficient evidence| KNOWLEDGE
-    VERIFY -->|conflict| REASON
-    VERIFY -->|verified| ARTIFACTS[Artifact Generation]
-
-    ARTIFACTS --> DOCS[Technical Documentation]
-    ARTIFACTS --> QUESTIONNAIRE[Questionnaires]
-    ARTIFACTS --> REPORTS[Reports]
-    ARTIFACTS --> SPECS[Specifications]
-
-    VERIFY --> HUMAN[Human Review]
-    HUMAN --> APPROVE{Approved?}
-
-    APPROVE -->|No| STATE
-    APPROVE -->|Yes| ARTIFACTS
-
-    ARTIFACTS --> ACTIONS[Post Actions]
-    ACTIONS --> END([End])
-```
-
-## Архитектурный принцип
-
-Orchestrator не должен быть RAG-агентом.
-
-Он отвечает за:
-
-1. понимание задачи;
-2. планирование;
-3. выбор capability;
-4. управление состоянием;
-5. передачу задач специализированным компонентам;
-6. контроль результата;
-7. повторные шаги при недостатке информации;
-8. human-in-the-loop;
-9. завершение workflow.
+| Способность | Фаза |
+|---|---|
+| Искать и проверять информацию в технической документации | 1 |
+| Сохранять evidence (источник + цитата) для каждого утверждения | 1 |
+| Передавать неоднозначные и критические решения человеку | 1 |
+| Читать и заполнять опросные листы | 2 |
+| Находить противоречия между документами | 2–3 |
+| Сравнивать документы и ревизии | 3 |
+| Работать с проектной документацией | 3 |
+| Проверять требования и параметры, выполнять расчёты | 4 |
+| Формировать техническую документацию, отчёты и замечания | 5 |
 
 ---
 
-# 3. Knowledge Layer
+## 2. Ключевые принципы
 
-Knowledge Layer объединяет разные типы знаний.
+Порядок важен: верхние принципы перевешивают нижние при конфликте.
 
-Не следует превращать всё в embeddings.
+1. **Evidence first.** Каждое существенное утверждение имеет источник: документ, раздел,
+   страница, цитата. Утверждение без источника — не результат, а гипотеза.
+2. **Честность важнее полноты.** Неопределённость и конфликт ведут к review, а не
+   к выдуманному ответу. Отсутствие данных — валидный ответ.
+3. **Verification отдельно от generation.** LLM формирует текст; проверяет результат
+   отдельный механизм — по возможности детерминированный.
+4. **Максимум кода, минимум LLM.** Модель вызывается только там, где детерминированного
+   решения не существует. Расчёты, конверсия единиц, проверки диапазонов, сверка списков —
+   это код, а не промпт.
+5. **Structured data + documents.** Векторный поиск не заменяет базу данных. «Какое
+   напряжение у оборудования X» — это SQL, а не эмбеддинги.
+6. **Stateful orchestration.** Система знает, что уже сделала, что осталось, какие
+   источники использованы и какие действия разрешены.
+7. **Ограниченный agent loop.** Жёсткие бюджеты: `max_retrieval_rounds`, `max_subtasks`,
+   `max_tool_calls`, `max_latency`, `max_tokens`.
+8. **Разделение прав.** read / write / create / update / delete / approve — разные
+   разрешения, особенно для действий во внешних системах.
+9. **Измеримость.** Изменение принимается, если метрика улучшилась и ни одна страхующая
+   не просела (см. §7).
+
+---
+
+## 3. Общая схема
 
 ```mermaid
 flowchart TB
-    KNOWLEDGE[Knowledge Layer]
+    USER([Пользователь]) --> ORCH[ORCHESTRATOR<br/>план · состояние · маршрутизация]
 
-    KNOWLEDGE --> CORP[Corporate Knowledge]
-    KNOWLEDGE --> PROJECT[Project Knowledge]
-    KNOWLEDGE --> PRODUCT[Product Knowledge]
-    KNOWLEDGE --> STANDARDS[Standards & Regulations]
-    KNOWLEDGE --> STRUCTURED[Structured Engineering Data]
+    ORCH --> CAP{Capability Router}
 
-    CORP --> CORP_DOCS[Policies / Procedures<br/>Internal Documentation]
-    PROJECT --> PROJECT_DOCS[Drawings / Specs / Emails<br/>Questionnaires / Calculations]
-    PRODUCT --> PRODUCT_DOCS[Datasheets / Manuals<br/>Catalogues]
-    STANDARDS --> STANDARD_DOCS[ГОСТ / IEC / ISO / EN<br/>Other Standards]
+    CAP --> KNOW[Knowledge]
+    CAP --> DOCS[Documents]
+    CAP --> QST[Questionnaire]
+    CAP --> CALC[Calculation]
+    CAP --> GEN[Generation]
+    CAP --> ACT[Actions]
 
-    CORP_DOCS --> DOC_STORE[Document Store]
-    PROJECT_DOCS --> DOC_STORE
-    PRODUCT_DOCS --> DOC_STORE
-    STANDARD_DOCS --> DOC_STORE
+    KNOW --> EV[EVIDENCE LAYER<br/>VERIFIED · UNCERTAIN · CONFLICT · MISSING]
+    DOCS --> EV
+    CALC --> EV
 
-    DOC_STORE --> PARSER[Document Processing]
-    PARSER --> CHUNKS[Chunks + Metadata]
-    CHUNKS --> VECTOR[Vector DB]
+    EV --> VERIFY[Verification]
 
-    STRUCTURED --> SQL[(SQL / Relational DB)]
-    STRUCTURED --> GRAPH[(Knowledge Graph)]
-    STRUCTURED --> PARAMS[Engineering Parameters]
+    VERIFY -->|verified| OUT[Инженерный результат<br/>ответ · отчёт · заполненный ОЛ]
+    VERIFY -->|uncertain / conflict| HUMAN[Human Review]
+    VERIFY -->|missing| ORCH
 
-    VECTOR --> RETRIEVAL[Semantic Retrieval]
-    SQL --> RETRIEVAL
-    GRAPH --> RETRIEVAL
-    PARAMS --> RETRIEVAL
-
-    RETRIEVAL --> EVIDENCE[Evidence Layer]
+    HUMAN --> OUT
+    OUT --> ACT
 ```
 
-## Основные источники
+**Роль оркестратора:** понять задачу → спланировать → выбрать capability → управлять
+состоянием → проверить результат → при нехватке данных повторить → при неопределённости
+позвать человека → завершить.
 
-### Corporate Knowledge
-
-- внутренние инструкции;
-- регламенты;
-- процедуры;
-- шаблоны;
-- корпоративная документация.
-
-### Project Knowledge
-
-- чертежи;
-- спецификации;
-- BOM;
-- опросные листы;
-- расчёты;
-- проектные документы;
-- переписка;
-- решения по проекту.
-
-### Product Knowledge
-
-- datasheets;
-- manuals;
-- catalogues;
-- manufacturer documentation.
-
-### Standards
-
-- ГОСТ;
-- IEC;
-- ISO;
-- EN;
-- внутренние стандарты;
-- нормативные документы.
-
-### Structured Engineering Data
-
-- оборудование;
-- параметры;
-- единицы измерения;
-- диапазоны;
-- ограничения;
-- связи между объектами;
-- совместимость;
-- версии.
+Оркестратор не является RAG-агентом. Он не ищет сам — он поручает.
 
 ---
 
-# 4. Почему нужен не только Vector DB
+## 4. Knowledge Layer
 
-Некоторые запросы естественно решаются семантическим поиском:
+### 4.1 Источники знаний
 
-> Какие ограничения эксплуатации указаны производителем?
+| Тип | Содержимое | Где хранится |
+|---|---|---|
+| Нормативные документы | ГОСТ, СП, СТО, IEC, ISO, EN | Document Store + Vector DB |
+| Корпоративные знания | регламенты, инструкции, процедуры, шаблоны | Document Store + Vector DB |
+| Проектные знания | чертежи, спецификации, BOM, опросные листы, переписка, решения | Document Store + Vector DB + SQL |
+| Продуктовые знания | datasheets, руководства, каталоги | Document Store + Vector DB |
+| Структурированные данные | оборудование, параметры, единицы, диапазоны, совместимость, версии | SQL |
 
-Но другие лучше решать через структурированные данные:
+### 4.2 Почему не только векторный поиск
 
-> Какое напряжение у оборудования X?
+Разные вопросы требуют разных механизмов:
 
-Например:
+| Вопрос | Механизм |
+|---|---|
+| «Какие ограничения эксплуатации указал производитель?» | семантический поиск |
+| «Какое напряжение у оборудования X?» | SQL-запрос |
+| «Требования п. 5.4 СТО 802» | точный поиск по обозначению (BM25 / grep) |
+| «Что изменилось между ревизиями 2019 и 2024?» | сравнение версий документов |
 
-```text
-Equipment X
-├── voltage = 400 V
-├── power = 5.5 kW
-├── IP = 65
-├── temperature = -20..60 °C
-└── manufacturer = X
-```
-
-Поэтому Knowledge Layer должен поддерживать как минимум:
-
-```text
-Document Store
-Vector DB
-SQL / Relational DB
-Knowledge Graph (опционально на раннем этапе)
-Evidence Store
-```
+Отсюда состав хранилищ: **Document Store**, **Vector DB**, **SQL**, **Evidence Store**.
+Knowledge Graph — отложен, см. §8.
 
 ---
 
-# 5. Evidence Layer
+## 5. Evidence Layer
 
-Evidence должен быть центральной сущностью системы.
+Центральная сущность системы. Ассистент хранит не значение, а **значение с обоснованием**.
 
-Ассистент не должен хранить только:
-
-```json
-{
-  "field": "voltage",
-  "value": "400 V"
-}
-```
-
-Вместо этого:
+Вместо `{"field": "voltage", "value": "400 V"}`:
 
 ```json
 {
   "field": "voltage",
   "value": "400 V",
   "unit": "V",
-  "status": "verified",
+  "status": "VERIFIED",
   "evidence": [
     {
       "document_id": "manual_2026",
-      "page": 17,
+      "document_code": "СТО Газпром 2-2.3-1081-2016",
+      "revision": "2016",
       "section": "Electrical characteristics",
-      "quote": "...",
+      "page": 17,
+      "quote": "номинальное напряжение питания 400 В",
       "source_type": "manufacturer"
     }
-  ],
-  "confidence": 0.97
+  ]
 }
 ```
 
-## Evidence workflow
+Числовой `confidence` намеренно отсутствует: ни скор реранкера, ни самооценка модели
+не откалиброваны под «уверенность в факте», а число выглядит убедительнее, чем есть.
+Статус категориальный.
+
+### 5.1 Статусы
+
+| Статус | Значение | Что делает система |
+|---|---|---|
+| `VERIFIED` | достаточное подтверждение из доверенного источника | использует в ответе |
+| `UNCERTAIN` | кандидат есть, подтверждение слабое | помечает в UI, предлагает human review |
+| `CONFLICT` | разные источники дают разные значения | показывает оба с источниками, зовёт человека |
+| `MISSING` | в доступном корпусе информации нет | честный отказ, предложение доискать |
+
+### 5.2 Жизненный цикл
 
 ```mermaid
-flowchart TD
-    QUERY[Engineering Query]
+flowchart LR
+    Q[Запрос] --> R[Retrieval]
+    R --> C[Кандидаты: документы + структурированные данные]
+    C --> B[Evidence Builder]
+    B --> S{Статус}
 
-    QUERY --> RETRIEVE[Retrieve Information]
+    S -->|VERIFIED| USE[В ответ]
+    S -->|UNCERTAIN| HR[Human Review]
+    S -->|CONFLICT| HR
+    S -->|MISSING| MORE[Доп. поиск / отказ]
 
-    RETRIEVE --> CANDIDATES[Candidate Facts]
-
-    CANDIDATES --> SOURCE[Source Documents]
-    CANDIDATES --> STRUCTURED[Structured Data]
-
-    SOURCE --> EVIDENCE[Evidence Builder]
-    STRUCTURED --> EVIDENCE
-
-    EVIDENCE --> CLAIM[Engineering Claim]
-
-    CLAIM --> CONFIDENCE[Confidence Assessment]
-
-    CONFIDENCE --> STATUS{Evidence Status}
-
-    STATUS -->|Verified| VERIFIED[VERIFIED]
-    STATUS -->|Uncertain| UNCERTAIN[UNCERTAIN]
-    STATUS -->|Conflict| CONFLICT[CONFLICT]
-    STATUS -->|Missing| MISSING[MISSING]
-
-    VERIFIED --> REASON[Engineering Reasoning]
-    UNCERTAIN --> HUMAN[Human Review]
-    CONFLICT --> HUMAN
-    MISSING --> SEARCH[Additional Search]
-
-    SEARCH --> RETRIEVE
+    MORE --> R
 ```
 
-## Статусы
+### 5.3 Хранение: эфемерное против постоянного
 
-### VERIFIED
+- **Ответ в чате** — evidence живёт один запрос, отдаётся в payload ответа. Хранилище не нужно.
+- **Аудит опросного листа, отчёт о проверке** — findings должны переживать сессию,
+  быть перепроверяемыми и попадать в документ. Только здесь нужен Evidence Store как таблица.
 
-Есть достаточное подтверждение из доверенного источника.
+### 5.4 Пример вывода для поля опросного листа
 
-### UNCERTAIN
+```
+ПОЛЕ        Рабочая температура
+ЗНАЧЕНИЕ    -20…+60 °C
+СТАТУС      VERIFIED
+ИСТОЧНИК    Руководство производителя, разд. «Условия эксплуатации», с. 17
+```
 
-Есть кандидат на ответ, но недостаточно уверенности.
-
-### CONFLICT
-
-Разные источники дают разные значения.
-
-### MISSING
-
-Информация не найдена или отсутствует в доступном corpus.
-
----
-
-# 6. Specialized Agents / Capabilities
-
-Не следует создавать одного огромного агента, который умеет всё.
-
-Лучше использовать одного Orchestrator и специализированные capabilities.
-
-```mermaid
-flowchart TD
-    ORCH[Engineering Orchestrator]
-
-    ORCH --> KNOW[Knowledge Agent]
-    ORCH --> DOC[Document Agent]
-    ORCH --> QST[Questionnaire Agent]
-    ORCH --> VERIFY[Verification Agent]
-    ORCH --> CALC[Calculation Agent]
-    ORCH --> GEN[Documentation Agent]
-    ORCH --> ACTION[Action Agent]
-
-    KNOW --> SEARCH[Search / Retrieval]
-    KNOW --> EVIDENCE[Evidence Collection]
-
-    DOC --> PDF[PDF Processing]
-    DOC --> EXCEL[Excel Processing]
-    DOC --> TABLES[Table Extraction]
-    DOC --> COMPARE[Document Comparison]
-
-    QST --> PARSE[Parse Questionnaire]
-    QST --> MAP[Field Mapping]
-    QST --> FILL[Fill Fields]
-    QST --> MISSING[Find Missing Data]
-
-    VERIFY --> CONSISTENCY[Consistency Checks]
-    VERIFY --> REQUIREMENTS[Requirement Checks]
-    VERIFY --> CONFLICTS[Conflict Detection]
-    VERIFY --> CROSSDOC[Cross-document Validation]
-
-    CALC --> FORMULAS[Engineering Formulas]
-    CALC --> UNITS[Unit Conversion]
-    CALC --> NUMERIC[Numeric Validation]
-
-    GEN --> REPORT[Reports]
-    GEN --> SPEC[Specifications]
-    GEN --> TECHDOC[Technical Documentation]
-
-    ACTION --> EXPORT[Export]
-    ACTION --> CREATE[Create / Update Records]
-    ACTION --> NOTIFY[Notifications]
+```
+ПОЛЕ        Степень защиты
+ИСТОЧНИК A  IP65  (Каталог, с. 4)
+ИСТОЧНИК B  IP66  (Руководство, разд. 2.1)
+СТАТУС      CONFLICT
+ДЕЙСТВИЕ    Требуется решение инженера
 ```
 
 ---
 
-# 7. Responsibility of Agents
+## 6. Capabilities
 
-## Knowledge Agent
+> **Терминология.** Это *capabilities*, а не «агенты». Слово «агент» подразумевает LLM-цикл;
+> часть возможностей ниже реализуется чистым кодом без единого вызова модели (принцип 4).
+> Один оркестратор + набор способностей — не мультиагентная система.
 
-Отвечает за получение знаний:
+| Capability | Отвечает за | Доля LLM |
+|---|---|---|
+| **Knowledge** | семантический и точный поиск, фильтры по метаданным, lookup структурированных данных, сбор evidence, уточнение запроса | средняя |
+| **Documents** | парсинг PDF/Excel/Word, извлечение таблиц, сравнение ревизий | низкая (код + Docling) |
+| **Questionnaire** | распознавание структуры ОЛ, определение полей и обязательности, заполнение, поиск пробелов | средняя |
+| **Verification** | consistency, соответствие требованиям, диапазоны, cross-document проверки, полнота | низкая (правила + код) |
+| **Calculation** | инженерные формулы, конверсия единиц, числовые проверки | **нулевая** — только детерминированные инструменты |
+| **Generation** | технические описания, спецификации, отчёты, change logs | высокая |
+| **Actions** | экспорт, создание и обновление записей, уведомления, интеграции | нулевая; отдельные права и валидация |
 
-- semantic retrieval;
-- keyword search;
-- metadata filtering;
-- structured data lookup;
-- source prioritization;
-- evidence collection;
-- query refinement.
-
-Не должен принимать окончательное инженерное решение только на основании similarity score.
-
----
-
-## Document Agent
-
-Работает с файлами:
-
-- PDF;
-- Excel;
-- Word;
-- таблицы;
-- структурированные документы;
-- сравнение ревизий;
-- извлечение контекста.
+**Knowledge не принимает окончательное инженерное решение по similarity score** — он
+собирает evidence, решение принимает Verification или человек.
 
 ---
 
-## Questionnaire Agent
+## 7. Ключевые workflow
 
-Специализирован на опросных листах:
-
-- распознавание структуры;
-- определение полей;
-- mapping полей;
-- определение обязательности;
-- заполнение;
-- поиск отсутствующих данных;
-- подготовка результата.
-
----
-
-## Verification Agent
-
-Отвечает за проверку:
-
-- consistency;
-- requirements;
-- допустимые диапазоны;
-- cross-document consistency;
-- conflicts;
-- source validity;
-- completeness.
-
----
-
-## Calculation Agent
-
-Отвечает за вычисления:
-
-- инженерные формулы;
-- численные проверки;
-- единицы;
-- преобразования;
-- расчётные зависимости.
-
-Для критических расчётов желательно использовать deterministic tools, а не полагаться на LLM arithmetic.
-
----
-
-## Documentation Agent
-
-Формирует:
-
-- технические описания;
-- спецификации;
-- отчёты;
-- review reports;
-- change logs;
-- проектную документацию.
-
----
-
-## Action Agent
-
-Отвечает за реальные действия:
-
-- экспорт;
-- создание файлов;
-- обновление систем;
-- создание записей;
-- уведомления;
-- интеграции с внешними системами.
-
-Action Agent должен иметь отдельные permissions и validation.
-
----
-
-# 8. Agent Interaction
-
-Агенты не должны образовывать жёсткую цепочку.
-
-Лучше использовать orchestrated workflow.
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant O as Orchestrator
-    participant Q as Questionnaire Agent
-    participant K as Knowledge Agent
-    participant V as Verification Agent
-    participant D as Documentation Agent
-
-    U->>O: Check and fill questionnaire
-
-    O->>Q: Parse questionnaire
-    Q-->>O: Fields + requirements
-
-    O->>K: Find evidence for fields
-
-    K->>K: Search documents
-    K->>K: Search structured data
-    K->>K: Collect evidence
-
-    K-->>O: Candidate values + sources
-
-    O->>V: Verify values
-
-    V->>V: Check consistency
-    V->>V: Check requirements
-    V->>V: Detect conflicts
-
-    V-->>O: Verified / Uncertain / Conflict
-
-    alt Missing information
-        O->>K: Additional retrieval
-        K-->>O: Additional evidence
-        O->>V: Re-verify
-    end
-
-    O->>Q: Fill verified fields
-    Q-->>O: Completed questionnaire
-
-    O->>D: Generate review report
-    D-->>O: Report + evidence
-
-    O-->>U: Questionnaire + verification report
-```
-
----
-
-# 9. RAG / Knowledge Retrieval Loop
-
-Текущую архитектуру RAG можно сохранить как внутренний workflow Knowledge Agent.
+### 7.1 Knowledge retrieval loop
 
 ```mermaid
 flowchart TD
-    START([Knowledge Task])
+    START([Задача]) --> PLAN[Планирование поиска]
+    PLAN --> EXEC[Исполнение подзадач]
+    EXEC --> RERANK[Реранжирование]
+    RERANK --> ASSESS[Оценка достаточности]
 
-    START --> PLAN[Plan Retrieval]
+    ASSESS -->|sufficient| BUILD[Сборка промпта]
+    ASSESS -->|need more| REFINE[Уточнение запросов]
+    ASSESS -->|conflict| CMP[Сравнение источников]
+    ASSESS -->|not in corpus| NODATA[Честный отказ]
 
-    PLAN --> EXEC[Execute Subtasks]
-
-    EXEC --> HASSEARCH{Search performed?}
-
-    HASSEARCH -->|No| BUILD[Build Prompt]
-    HASSEARCH -->|Yes| RERANK[Rerank Results]
-
-    RERANK --> ASSESS[Assess Evidence]
-
-    ASSESS -->|Sufficient| BUILD
-    ASSESS -->|Need more| REFLECT[Reflect]
-
-    ASSESS -->|Conflict| CONFLICT[Analyze Conflict]
-    ASSESS -->|Not in corpus| NODATA[No Data]
-
-    REFLECT --> QUERYFIX[Refine Search Query]
-    QUERYFIX --> EXEC
-
-    CONFLICT --> COMPARE[Compare Sources]
-    COMPARE -->|Resolved| BUILD
-    COMPARE -->|Unresolved| HUMAN[Human Review]
-
+    REFINE --> EXEC
+    CMP -->|решено| BUILD
+    CMP -->|не решено| HUMAN[Human Review]
     NODATA --> HUMAN
 
-    BUILD --> GEN[Generate Answer]
-    GEN --> SOURCES[Extract Sources]
-    SOURCES --> VALIDATE[Validate Citations]
-
-    VALIDATE --> RESULT[Knowledge Result]
+    BUILD --> GEN[Генерация]
+    GEN --> SRC[Извлечение источников]
+    SRC --> VAL[Валидация цитат]
+    VAL --> RESULT([Результат + evidence])
 ```
 
-## Важное изменение относительно простого RAG
+**Оценка достаточности — не порог по одному скору.** Реранкер измеряет *релевантность*,
+а нужна *answerability*: документ может быть похож на запрос и не содержать ответа.
+Учитывать минимум: релевантность, покрытие вопроса, качество источника, непротиворечивость,
+наличие прямого ответа.
 
-Нельзя использовать только:
-
-```text
-top_score >= threshold
-```
-
-как критерий достаточности.
-
-Нужно оценивать как минимум:
-
-```text
-relevance
-coverage
-source quality
-consistency
-answerability
-```
-
-То есть:
-
-> relevance != answerability
-
-Документ может быть похож на запрос, но не содержать ответа.
-
----
-
-# 10. Retrieval Reflection
-
-`need_more` не должен означать «запусти весь pipeline заново».
-
-Лучше хранить состояние:
+**Повторный поиск не переисполняет план целиком.** Состояние между кругами:
 
 ```json
 {
-  "completed_subtasks": [
-    "find voltage",
-    "find power"
-  ],
-  "missing_information": [
-    "operating temperature"
-  ],
-  "next_subtask": "search operating temperature"
+  "completed_subtasks": ["найти напряжение", "найти мощность"],
+  "missing_information": ["рабочая температура"],
+  "next_subtask": "поиск диапазона рабочих температур",
+  "tried_queries": ["температура эксплуатации", "climatic conditions"]
 }
 ```
 
-И выполнять только отсутствующий subtask.
+Исполняется только недостающее; найденное ранее сохраняется и переранжируется вместе с новым.
+Это снижает латентность, расход токенов и число лишних вызовов инструментов.
 
-Это снижает:
-
-- latency;
-- token usage;
-- стоимость;
-- вероятность повторной работы;
-- количество лишних tool calls.
-
----
-
-# 11. Questionnaire Workflow
-
-Опросный лист — хороший первый production use case.
+### 7.2 Опросный лист — первый production-workflow
 
 ```mermaid
 flowchart TD
-    INPUT[Questionnaire<br/>Excel / PDF]
+    IN[Опросный лист<br/>Excel / PDF] --> PARSE[Разбор структуры]
+    PARSE --> FIELDS[Поля + требования]
 
-    INPUT --> PARSE[Questionnaire Agent]
+    FIELDS --> ROUTE{Тип поля}
+    ROUTE -->|известный параметр| SQL[Структурированные данные]
+    ROUTE -->|документация| KNOW[Knowledge]
+    ROUTE -->|расчёт| CALC[Calculation]
+    ROUTE -->|проектное| PROJ[Проектные знания]
 
-    PARSE --> SCHEMA[Questionnaire Schema]
+    SQL --> EV[Evidence]
+    KNOW --> EV
+    CALC --> EV
+    PROJ --> EV
 
-    SCHEMA --> FIELDS[Fields / Requirements]
+    EV --> VER[Verification]
+    VER --> ST{Статус}
 
-    FIELDS --> ROUTER{Field Type}
+    ST -->|VERIFIED| FILL[Заполнить поле]
+    ST -->|MISSING| MORE[Доп. поиск / отметить пробел]
+    ST -->|CONFLICT| REV[Human Review]
+    ST -->|UNCERTAIN| REV
 
-    ROUTER -->|Known parameter| STRUCTURED[Structured Data]
-    ROUTER -->|Documentation| RAG[Knowledge Agent]
-    ROUTER -->|Calculation| CALC[Calculation Agent]
-    ROUTER -->|Project-specific| PROJECT[Project Knowledge]
-
-    STRUCTURED --> EVIDENCE[Evidence]
-    RAG --> EVIDENCE
-    CALC --> EVIDENCE
-    PROJECT --> EVIDENCE
-
-    EVIDENCE --> VERIFY[Verification Agent]
-
-    VERIFY --> STATUS{Status}
-
-    STATUS -->|Verified| FILL[Fill Field]
-    STATUS -->|Missing| MISSING[Mark Missing]
-    STATUS -->|Conflict| CONFLICT[Mark Conflict]
-    STATUS -->|Uncertain| REVIEW[Human Review]
-
-    MISSING --> SEARCH[Additional Search]
-    SEARCH --> RAG
-
-    CONFLICT --> REVIEW
-    REVIEW --> FILL
-
-    FILL --> OUTPUT[Completed Questionnaire]
-
-    OUTPUT --> REPORT[Verification Report]
-    REPORT --> FINAL([Final Result])
+    MORE --> KNOW
+    REV --> FILL
+    FILL --> OUT[Заполненный ОЛ + отчёт о проверке]
 ```
+
+Результат — не только заполненный лист, но и **отчёт**: что подтверждено, что найдено
+с конфликтом, чего в базе нет.
 
 ---
 
-# 12. Example of Evidence for a Questionnaire Field
+## 8. Осознанные ограничения
 
-Вместо:
+Записаны явно, чтобы не воспринимались как невыполненные задачи.
 
-```text
-Operating temperature = -20..60 °C
-```
-
-система должна формировать:
-
-```text
-FIELD
-Operating temperature
-
-VALUE
--20..60 °C
-
-STATUS
-VERIFIED
-
-SOURCE
-Manufacturer Manual
-
-SECTION
-Operating Conditions
-
-PAGE
-17
-
-CONFIDENCE
-HIGH
-```
-
-При конфликте:
-
-```text
-FIELD
-Protection class
-
-SOURCE A
-IP65
-
-SOURCE B
-IP66
-
-STATUS
-CONFLICT
-
-ACTION
-Human review required
-```
-
-Это делает результат пригодным для инженерной работы и аудита.
+| Отложено | Причина | Триггер к пересмотру |
+|---|---|---|
+| Knowledge Graph | высокая стоимость поддержки, отдача на текущем корпусе не доказана | появятся запросы про связи между объектами, не решаемые SQL + retrieval |
+| Мультиагентность (агенты как отдельные LLM-циклы) | 10–15× токенов, нет верификатора, соло-разработка | появятся 2+ действительно разных домена и команда |
+| Свободный ReAct-цикл без потолка | недетерминированная латентность, нет объективного сигнала остановки | появится дешёвый программный верификатор результата |
+| Интеграции CAD / BIM / ERP | нет доступа и подтверждённого спроса | запрос от пользователей с конкретным сценарием |
+| Автоматическая память агента | риск закрепления галлюцинаций, устаревание фактов | в логах видно, что люди повторяют одно и то же между сессиями |
 
 ---
 
-# 13. Target Architecture
+## 9. Измерение качества
 
-Итоговая архитектура:
+Архитектура без измерений — это картинка. Раздел определяет, как проверяется, что изменение
+улучшило систему.
 
-```mermaid
-flowchart TB
-    USER([USER])
+| Уровень | Что меряется |
+|---|---|
+| **Retrieval** | recall на стадии кандидатов (потолок пайплайна), hit@k и MRR после реранка, anchor hit |
+| **Честность** | доля корректных отказов на вопросах вне корпуса; доля ложных отказов на вопросах внутри корпуса |
+| **Evidence** | citation validity — каждая ссылка в ответе присутствовала в контексте; grounding — числа и термины ответа встречаются в источниках |
+| **Устойчивость** | сопротивление инструкциям, внедрённым в документы |
+| **Стоимость** | латентность p50/p95 по путям отдельно, токены на запрос |
+| **Продукт** | доля вернувшихся пользователей через неделю; доля ответов, где открыли источник |
 
-    USER --> UI[Assistant UI]
-
-    UI --> ORCH[ENGINEERING ORCHESTRATOR]
-
-    ORCH --> STATE[Task State]
-    ORCH --> PLANNER[Planner]
-    ORCH --> ROUTER[Capability Router]
-
-    ROUTER --> KNOW[Knowledge Agent]
-    ROUTER --> DOC[Document Agent]
-    ROUTER --> QST[Questionnaire Agent]
-    ROUTER --> VERIFY[Verification Agent]
-    ROUTER --> CALC[Calculation Agent]
-    ROUTER --> GEN[Documentation Agent]
-    ROUTER --> ACTION[Action Agent]
-
-    subgraph KNOWLEDGE["KNOWLEDGE LAYER"]
-        VECTOR[(Vector DB)]
-        SQL[(Structured DB)]
-        GRAPH[(Knowledge Graph)]
-        DOCSTORE[(Document Store)]
-        EVIDENCE[Evidence Store]
-    end
-
-    KNOW --> VECTOR
-    KNOW --> SQL
-    KNOW --> GRAPH
-    KNOW --> DOCSTORE
-    KNOW --> EVIDENCE
-
-    DOC --> DOCSTORE
-    QST --> DOCSTORE
-    VERIFY --> EVIDENCE
-    CALC --> SQL
-    GEN --> DOCSTORE
-
-    subgraph TOOLS["TOOLS"]
-        PDF[PDF]
-        EXCEL[Excel]
-        WEB[Web]
-        CALCULATOR[Calculator]
-        CAD[CAD / BIM]
-        ERP[ERP / PLM]
-    end
-
-    DOC --> TOOLS
-    CALC --> TOOLS
-    ACTION --> TOOLS
-
-    KNOW --> REASON[ENGINEERING REASONING]
-    VERIFY --> REASON
-    CALC --> REASON
-    STATE --> REASON
-
-    REASON --> VALIDATE[Final Validation]
-
-    VALIDATE --> HUMAN[Human Review]
-    VALIDATE --> OUTPUT[Engineering Output]
-
-    OUTPUT --> REPORTS[Reports]
-    OUTPUT --> SPECS[Specifications]
-    OUTPUT --> QUESTIONNAIRES[Questionnaires]
-    OUTPUT --> DOCUMENTATION[Documentation]
-
-    ACTION --> OUTPUT
-```
+**Политика ворот:** изменение принимается, если целевая метрика выросла **и** ни одна
+страхующая (честность, устойчивость, латентность) не просела больше допуска. Решение
+принимается по списку выигранных и проигранных вопросов, не по третьему знаку в среднем.
 
 ---
 
-# 14. Core Architectural Philosophy
+## 10. Доменные объекты
 
-Целевую систему стоит мыслить следующим образом:
+Контракты между компонентами определяются заранее — это то, что переживёт смену реализации.
 
-```text
-                    Engineering Assistant
-                           │
-                    ┌──────┴──────┐
-                    │ Orchestrator│
-                    └──────┬──────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-     Knowledge          Tools             Reasoning
-        │                  │                  │
-   ┌────┴────┐       ┌────┴────┐        ┌────┴────┐
-   │          │       │         │        │         │
-  RAG      Structured PDF/Excel Calc   Verify   Compare
-   │          │       │         │        │         │
-   └──────────┴───────┴─────────┴────────┴─────────┘
-                           │
-                        Evidence
-                           │
-                    Engineering Result
+**Ядро:** `Task`, `Evidence`, `Fact`, `Requirement`, `Finding`, `Artifact`, `Action`.
+
+**Полный набор:**
+
+```
+Task · TaskState · Subtask
+Document · DocumentVersion · DocumentSection
+Fact · Requirement · Parameter
+Evidence · Claim · Finding
+Questionnaire · QuestionnaireField
+Calculation · ValidationResult
+Artifact · Action · Review
 ```
 
-## Основные принципы
-
-### 1. RAG не равен Assistant
-
-RAG — только Knowledge capability.
-
-### 2. Evidence first
-
-Каждое важное утверждение должно по возможности иметь источник.
-
-### 3. Structured data + documents
-
-Vector search не должен заменять базы данных.
-
-### 4. Verification отдельно от generation
-
-LLM может сформировать текст, но отдельный механизм должен проверять результат.
-
-### 5. Human-in-the-loop
-
-Неопределённость и конфликты должны приводить к review, а не к выдуманному ответу.
-
-### 6. Stateful orchestration
-
-Ассистент должен знать:
-
-- что уже сделал;
-- какие subtasks выполнены;
-- чего не хватает;
-- какие источники использованы;
-- какие решения приняты;
-- какие действия разрешены.
-
-### 7. Deterministic tools для критических операций
-
-Расчёты, unit conversion, проверки диапазонов и другие критические операции желательно выполнять специализированными инструментами.
-
-### 8. Ограниченный agent loop
-
-Необходимо иметь:
-
-```text
-max_retrieval_rounds
-max_subtasks
-max_tool_calls
-max_latency
-max_tokens
-```
-
-### 9. Permissions
-
-Особенно для Action Agent:
-
-```text
-read
-write
-create
-update
-delete
-approve
-```
-
-должны быть разделены.
+Два поля, о которых легко забыть и дорого добавлять потом: **редакция документа**
+(требования меняются между ревизиями норматива) и **права доступа** (кто какие документы
+может искать — часть Knowledge, а не только Actions).
 
 ---
 
-# 15. Recommended Development Path
+## 11. Путь развития
 
-Не стоит сразу пытаться реализовать полноценного автономного инженера.
+| Фаза | Содержание | Статус |
+|---|---|---|
+| **1. Knowledge Core** | парсинг → retrieval → реранк → рефлексия → evidence → ответ | **≈80%**: не хватает evidence-статусов и валидации цитат |
+| **2. Questionnaire Assistant** | разбор ОЛ → поиск → evidence → проверка → заполнение → отчёт | спроектировано, не реализовано |
+| **3. Document Intelligence** | сравнение документов и ревизий, извлечение таблиц, cross-document проверки, проектный контекст | не начато |
+| **4. Engineering Reasoning** | расчёты, требования, инженерные правила, зависимости параметров | не начато |
+| **5. Engineering Assistant** | генерация технической документации, проектные задачи, интеграции, controlled actions | не начато |
 
-## Phase 1 — Knowledge Core
-
-```text
-Documents
-   ↓
-Parsing
-   ↓
-Retrieval
-   ↓
-Reranking
-   ↓
-Reflection
-   ↓
-Evidence
-   ↓
-Answer
-```
-
-Цель: надёжно работать с документацией.
-
-## Phase 2 — Questionnaire Assistant
-
-```text
-Excel/PDF
-   ↓
-Field extraction
-   ↓
-Knowledge retrieval
-   ↓
-Evidence
-   ↓
-Verification
-   ↓
-Fill
-   ↓
-Review report
-```
-
-Цель: первый полноценный production workflow.
-
-## Phase 3 — Document Intelligence
-
-Добавить:
-
-- document comparison;
-- revision tracking;
-- table extraction;
-- cross-document verification;
-- project context.
-
-## Phase 4 — Engineering Reasoning
-
-Добавить:
-
-- расчёты;
-- requirements;
-- engineering rules;
-- consistency checks;
-- parameter dependencies.
-
-## Phase 5 — Engineering Assistant
-
-Добавить:
-
-- техническую документацию;
-- проектные задачи;
-- автоматические проверки;
-- интеграции;
-- controlled actions.
+Ценность приходит не в конце: фаза 1 + фаза 2 — это уже инструмент, экономящий инженерам
+часы еженедельно. Фазы 3–5 — расширение поверх работающего, их приоритет должны определить
+реальные пользователи, а не этот документ.
 
 ---
 
-# 16. Core Domain Objects
+## 12. Итог
 
-При дальнейшем проектировании стоит заранее определить контракты между компонентами.
+Траектория продукта — от одного вопроса к рабочему процессу:
 
-Минимальный набор:
-
-```text
-Task
-TaskState
-Subtask
-
-Document
-DocumentVersion
-DocumentSection
-
-Fact
-Requirement
-Parameter
-
-Evidence
-Claim
-Finding
-
-Questionnaire
-QuestionnaireField
-
-Calculation
-ValidationResult
-
-Artifact
-Action
-Review
+```
+«Найди информацию в документации»
+        ↓
+«Проверь этот опросный лист»
+        ↓
+«Сравни две ревизии и найди изменения»
+        ↓
+«Проверь соответствие требованиям»
+        ↓
+«Сформируй техническую документацию»
+        ↓
+«Проанализируй задачу, собери данные, проверь ограничения,
+ предложи решение и подготовь комплект для review»
 ```
 
-Особенно важны:
-
-```text
-Task
-Evidence
-Fact
-Requirement
-Finding
-Artifact
-Action
-```
-
-Именно эти сущности могут стать основой общего state и взаимодействия агентов.
-
----
-
-# 17. Final Goal
-
-Конечный продукт — не chatbot с RAG.
-
-Целевая модель:
-
-```text
-                    USER
-                      │
-                      ▼
-            ENGINEERING ASSISTANT
-                      │
-              ┌───────┴───────┐
-              │ ORCHESTRATOR │
-              └───────┬───────┘
-                      │
-       ┌──────────────┼──────────────┐
-       ▼              ▼              ▼
-   KNOWLEDGE        TOOLS         REASONING
-       │              │              │
-       └──────────────┼──────────────┘
-                      ▼
-                  EVIDENCE
-                      │
-                      ▼
-                VERIFICATION
-                      │
-             ┌────────┴────────┐
-             ▼                 ▼
-        HUMAN REVIEW       AUTOMATION
-             │                 │
-             └────────┬────────┘
-                      ▼
-             ENGINEERING OUTPUT
-```
-
-В этой модели ассистент способен постепенно перейти от:
-
-> «Найди информацию в документации»
-
-к:
-
-> «Проверь этот опросный лист»
-
-к:
-
-> «Сравни две ревизии и найди изменения»
-
-к:
-
-> «Проверь соответствие требованиям»
-
-к:
-
-> «Сформируй техническую документацию»
-
-и в конечном итоге:
-
-> «Проанализируй инженерную задачу, собери необходимые данные, проверь ограничения, предложи решение и подготовь комплект документации для review».
-
-Это и является целевой архитектурой Engineering Assistant.
+На каждом шаге неизменны три вещи: **у каждого утверждения есть источник**, **проверка
+отделена от генерации**, **неопределённость идёт к человеку, а не превращается
+в правдоподобный текст**.
