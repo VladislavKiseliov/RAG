@@ -290,6 +290,43 @@
         "sortOrder": "Descending",
         "dedupStrategy": "none"
       }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Коды ответов llm_service (429 rate-limit / 402 нет кредитов / 5xx)",
+      "description": "429/402 — провайдерские rate-limit/quota ошибки, классифицируются отдельно от реальных сбоев с 2026-08-12 (см. llm_service/exceptions.py::LLMRateLimitedError/LLMQuotaExceededError). Устойчивый 402 = у провайдера кончился баланс — проверить вручную, не ждать, что само пройдёт.",
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(llm_requests_total{status=\"429\"}[5m]))",
+          "legendFormat": "429 rate-limit",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(llm_requests_total{status=\"402\"}[5m]))",
+          "legendFormat": "402 нет кредитов",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(llm_requests_total{status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx прочие сбои",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 15 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "429 rate-limit" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "402 нет кредитов" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] },
+          { "matcher": { "id": "byName", "options": "5xx прочие сбои" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" } }
     }
   ]
 }
