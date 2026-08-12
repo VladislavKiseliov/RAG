@@ -10,14 +10,14 @@
 | Сервис | Файл | Что внутри |
 |---|---|---|
 | rag_service | `rag_service/ISSUES.md` | Баги (B-серия), архитектурный долг (A-серия), типы/стиль (T-серия), мёртвый код (D-серия) |
-| rag_service | `rag_service/PARSING_TABLES_PLAN.md` | Живой остаток по парсингу/таблицам (LLM-саммари по таблицам не сделано) — сжат 2026-07-20, историческое обоснование выбора Docling убрано, живо только в git-истории |
-| backend | `backend/ISSUES.md` | Заведён 2026-08-03 — 2 критичных бага безопасности (обход контроля доступа в мессенджере, IDOR в AI-чате) + rate-limiting/httpx-пулинг, находки агентского аудита всего проекта |
+| rag_service | `rag_service/PARSER_ARCHITECTURE.md` | Как устроен парсинг Docling, включая маркеры таблиц `[→ Таблица N]` и `_LinkingTableSerializer` |
+| backend | `backend/ISSUES.md` | Заведён 2026-08-03 — 2 критичных бага безопасности (обход контроля доступа в мессенджере, IDOR в AI-чате) + rate-limiting/httpx-пулинг, находки агентского аудита всего проекта; плюс ручные шаги регрессионной проверки мессенджера |
 | llm_service | `llm_service/ISSUES.md` | Заведён 2026-08-03 — находки того же аудита (нет обрезки контекста, зависающий стрим, prompt injection без разделителя) |
-| llm_service | `llm_service/TODO.md` | Статус ML-роутера, LangGraph-агента, оставшиеся баги/долг + финальный план развития агента (Фазы 3-8: формат/SSE/rerank/reflect/personal/actions/аудит) записан 2026-07-24 |
-| backend | `backend/MESSENGER_TODO.md` | Только ручные шаги проверки (Postman/браузер) — сжат 2026-07-20, чеклист сборки был полностью done, унесён в git-историю |
+| llm_service | `llm_service/TODO.md` | Статус LangGraph-агента, оставшиеся баги/долг + план развития (Фазы 6-8) |
+| llm_service | `llm_service/AGENT_GRAPH_CURRENT.md` | Реальный граф агента построчно сверен с кодом — источник истины по текущему состоянию, точнее ARCHITECTURE.md/TODO.md |
+| llm_service | `llm_service/EVAL_PLAN.md` | Замысел контура оценки качества (датасеты, метрики, ворота); что реально готово — см. `eval/` и `openspec/specs/eval-retrieval-metrics/spec.md` |
 | backend | `backend/DDD_PLAN_knowledge_projects.md` | Детальная схема таблиц Проектов, слои, открытые вопросы — сама фича сведена в Фичу 5 ниже, этот файл только для деталей реализации |
-| frontend | `frontend/ISSUES.md` | Заведён 2026-08-03 — JWT в query-параметре WS URL утекает в логи nginx, плюс архитектурные заметки того же аудита |
-| frontend | `frontend/TODO_HANDOFF.md` | Один незакрытый пункт (кнопка «Спросить ассистента» в читалке) — сжат 2026-07-20, остальное было done |
+| frontend | `frontend/ISSUES.md` | Заведён 2026-08-03 — JWT в query-параметре WS URL утекает в логи nginx, плюс архитектурные заметки того же аудита и незакрытые UI-хвосты |
 
 ---
 
@@ -169,7 +169,6 @@ chat.summary_link) >= SUMMARY_THRESHOLD` (20), при превышении — `
 ---
 
 ### Просмотр PDF + массовые операции в админке ✅ готово 2026-07-22
-Внедрение по `frontend/handoff_3_экрана/PDF ПРОСМОТР И МАССОВЫЕ ОПЕРАЦИИ - внедрение.md`.
 
 - Просмотр исходника: `S3StorageRepository.generate_presigned_download_url()` (presigned GET,
   `Content-Disposition: inline`, не attachment) → `DocumentOrchestrator.get_file_url()` →

@@ -43,3 +43,16 @@
 ## ✅ Проверено аудитом, проблем не найдено
 
 SQL-инъекций нет (все репозитории — SQLAlchemy Core/ORM с bound-параметрами). Секретов в коде нет (всё через `pydantic-settings`). CORS — explicit origin allow-list, не wildcard. Внутренний вебхук (`notes_routes.py:89-98`) корректно проверяется `hmac.compare_digest`. Admin-роуты корректно гейтятся на уровне роутера (`Depends(require_admin_user)`, `admin_routes.py:16`) — ни одного роута без гварда не найдено. `profile_routes.py` не даёт mass-assignment (схема обновления явно исключает `login`/`role`). JWT (`auth_handler.py`) — корректные проверки expiry/алгоритма.
+
+---
+
+## Мессенджер — ручная регрессионная проверка
+
+Бэкенд полностью реализован (WS, чаты, участники, поиск пользователей). Итоговый план фичи —
+`TODO.md` (Фича 3, Фаза 2 приоритетного плана). Здесь — только ручные шаги проверки:
+
+```
+Postman: POST /messenger/chats/direct, GET /messenger/chats/
+Postman: GET /api/users/search?q=иван
+Браузер: два окна — один пишет, второй получает по WS
+```
