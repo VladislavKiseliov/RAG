@@ -26,9 +26,11 @@
 
 ### ✅ Готово
 
-- **AI-чат с гибридным RAG-поиском** — LangGraph-агент, ML-роутер (RAG / просто диалог),
-  расширение запроса в 5 перефразировок, dense + BM25 поиск с DBSF-fusion по Qdrant, ответ со
-  ссылкой на источник (документ / глава / таблица)
+- **AI-чат с гибридным RAG-поиском** — LangGraph-агент (planner-first: LLM сама решает по
+  вопросу, нужен ли поиск по базе и как его сформулировать), dense + BM25 поиск с
+  DBSF-fusion по Qdrant, реранк кросс-энкодером, контролируемая рефлексия при слабом
+  результате (до 1 доп. круга поиска), честный отказ вместо выдумки, если в базе ничего
+  не нашлось, ответ со ссылкой на источник (документ / глава / таблица)
 - **База знаний** — загрузка документов (PDF/DOCX/MD), парсинг через Docling с сохранением
   структуры (главы, таблицы), полноэкранная читалка
 - **Заметки с AI-генерацией** — сырой поток мыслей → структурированный Markdown одним запросом к
@@ -140,22 +142,32 @@ sequenceDiagram
 sequenceDiagram
     participant FE as Frontend
     participant BE as Backend
-    participant LLM as LLM Service
+    participant LLM as LLM Service (граф агента)
     participant RAG as RAG Service
     participant Q as Qdrant
 
-    FE->>BE: POST /api/conversations/{id}/messages
-    BE->>LLM: POST /llm/answer {query, history, summary}
-    LLM->>LLM: ML-роутер (RAG vs conversational)
-    LLM->>LLM: expand_queries (5 перефразировок)
-    LLM->>RAG: POST /documents/retrieve {queries[]}
-    RAG->>Q: batch hybrid search (dense + BM25, DBSF fusion)
-    Q-->>RAG: top chunks
-    RAG-->>LLM: context + sources
-    LLM->>LLM: generate answer
-    LLM-->>BE: answer + sources
-    BE-->>FE: answer + sources
+    FE->>BE: POST /api/chats/{id}/messages/stream
+    BE->>LLM: POST /llm/answer/stream {query, history, summary}
+    LLM->>LLM: plan — LLM решает: нужен ли поиск, какими формулировками
+    alt поиск нужен (route=domain_rag)
+        LLM->>RAG: POST /documents/retrieve {queries[]} (тул search_docs)
+        RAG->>Q: batch hybrid search (dense + BM25, DBSF fusion)
+        Q-->>RAG: top chunks
+        RAG-->>LLM: parent chunks + sources
+        LLM->>LLM: rerank — кросс-энкодер пересортировывает
+        opt слабый/пустой результат
+            LLM->>LLM: reflect — уточнить запрос и повторить поиск (до 1 раза) либо честный отказ
+        end
+    else поиск не нужен (route=smalltalk)
+        Note over LLM: сразу к generate с диалоговым промптом
+    end
+    LLM->>LLM: generate — потоковый ответ (SSE) либо no_data
+    LLM-->>BE: answer + sources (потоком)
+    BE-->>FE: answer + sources (потоком)
 ```
+
+Полная схема графа (все ноды, промпты, статус каждого инструмента) — построчно сверена с
+кодом в [`llm_service/AGENT_GRAPH_CURRENT.md`](llm_service/AGENT_GRAPH_CURRENT.md).
 
 ### Поток генерации и индексации заметки
 
@@ -186,14 +198,17 @@ sequenceDiagram
 
 ## Поиск (Hybrid RAG)
 
-Retrieval работает в два этапа:
-
-1. **Query expansion** — LLM генерирует 5 перефразировок запроса
-2. **Batch hybrid search** — для каждого запроса параллельный prefetch:
+1. **Формулировка запроса** — не отдельный LLM-шаг «расширения»: `plan`-нода агента сама
+   решает, какими 1-3 формулировками искать (часть JSON-ответа планировщика), исходя из
+   вопроса и истории диалога
+2. **Batch hybrid search** — для каждой формулировки параллельный prefetch:
    - Dense: `dense_vector` (multilingual-e5-large, cosine)
    - Sparse: `bm25_sparse_vector` (серверный `qdrant/bm25`)
    - Fusion: **DBSF** (Distribution-Based Score Fusion)
 3. **Parent chunk retrieval** — по найденным дочерним чанкам достаём родительский контекст из Postgres
+4. **Rerank** — кросс-энкодер (`bge-reranker-v2-m3`, отдельный TEI-контейнер) пересортировывает
+   пул по лучшему child-чанку каждого родителя, калиброванный score определяет, хватает ли
+   контекста для ответа или нужен ещё один круг поиска (`reflect`)
 
 Документы и заметки индексируются в отдельные коллекции Qdrant через общий переиспользуемый
 клиент (`QdrantVectorStorage`), но одной и той же гибридной схемой поиска.
@@ -202,16 +217,29 @@ Retrieval работает в два этапа:
 
 ## LLM Pipeline (LangGraph)
 
-`llm_service` использует LangGraph-агент (`LeanRagAgent`) с нодами:
+`llm_service` использует LangGraph-агент (`LeanRagAgent`), planner-first — без ML-роутера
+и без отдельного шага расширения запроса, один путь для всех вопросов:
 
-1. `route_node` — ML-роутер (e5-small + LogReg): RAG или conversational
-2. `expand_queries_node` — расширение запроса через LLM
-3. `retrieve_node` — batch-запрос в rag_service
-4. `build_context_node` — сборка контекста из чанков
-5. `generate_node` — финальный ответ
+1. `plan` — LLM (JSON-контракт) решает по вопросу+истории: искать ли по базе (`search_docs`
+   с 1-3 формулировками), запросить ли приложение конкретного документа (`get_appendix`),
+   или ответить сразу из истории без похода в базу
+2. `execute_subtasks` — код-диспетчер вызывает выбранные `plan`-ом инструменты из реестра
+3. `rerank` — кросс-энкодер пересортировывает найденные чанки (только если был `search_docs`)
+4. `reflect` — при слабом/пустом результате LLM решает: уточнить запрос и повторить поиск
+   (максимум 1 доп. круг) или честно отказаться, не выдумывая ответ
+5. `no_data` — терминальный честный отказ (не дошло до `generate`)
+6. `build_prompt` — сборка финального контекста
+7. `generate` — потоковый ответ (SSE)
+8. `extract_sources` — источники для фронта (документ / глава / таблица)
+9. `post_actions` — если в вопросе есть маркер действия («сохрани», «создай задачу») —
+   пока заглушка, см. [`TODO.md`](TODO.md) Фаза 7
 
 Отдельно, вне графа — точечный эндпоинт `POST /llm/note` для генерации заметок: не требует
 поиска по базе знаний, просто структурирует сырой текст в строгий JSON одним вызовом.
+
+Полная построчная сверка с кодом (промпты, реестр инструментов, что реально работает vs
+заглушка) — [`llm_service/AGENT_GRAPH_CURRENT.md`](llm_service/AGENT_GRAPH_CURRENT.md).
+Целевая (пока не полностью реализованная) архитектура — [`llm_service/ARCHITECTURE.md`](llm_service/ARCHITECTURE.md).
 
 ---
 
@@ -221,6 +249,7 @@ Retrieval работает в два этапа:
 cp .env.example .env
 # Заполнить обязательные поля (помечены # ⬅ заполнить):
 # POSTGRES_PASSWORD, MINIO_ACCESS_KEY, MINIO_SECRET_KEY,
+# MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_1, INTERNAL_WEBHOOK_TOKEN (любые строки, совпадают между сервисами),
 # SECRET_KEY, HF_TOKEN, LLM_API_KEY, LLM_BASE_URL
 
 docker compose -f docker-compose.full.yml up -d --build
@@ -246,9 +275,11 @@ docker compose -f docker-compose.full.yml logs -f backend
 - `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
 
 **AI-чаты**
-- `POST /api/conversations`, `GET /api/conversations`, `GET /api/conversations/{id}`
-- `POST /api/conversations/{id}/messages`
-- `PATCH /api/chats/{id}/rename`, `DELETE /api/chats/{id}`
+- `POST /api/chats`, `GET /api/chats`, `GET /api/chats/{chat_guid}`
+- `POST /api/chats/{chat_guid}/messages` — обычный (не потоковый) ответ
+- `POST /api/chats/{chat_guid}/messages/stream` — SSE-стриминг ответа (реальный живой путь фронта)
+- `GET /api/chats/sources/{parent_id}` — полный текст источника по требованию (история отдаёт sources урезанными)
+- `PATCH /api/chats/{chat_guid}/rename`, `DELETE /api/chats/{chat_guid}`
 
 **Мессенджер** (REST для чатов и истории, отправка/typing/read-receipts — только через WebSocket)
 - `GET /messenger/chats/`, `POST /messenger/chats/direct`, `DELETE /messenger/chats/{guid}`
@@ -262,29 +293,44 @@ docker compose -f docker-compose.full.yml logs -f backend
 - `POST /api/notes/{guid}/generate` — сгенерировать title/content/tags/folder/reminder через LLM
 - `POST /api/notes/{guid}/index` — векторизовать в rag_service
 
-**База знаний** (proxy в rag_service)
+**База знаний** (proxy в rag_service — кроме отмеченного ниже)
 - `GET /api/knowledge/documents`, `GET /api/knowledge/documents/{id}`
 - `GET /api/knowledge/documents/{id}/chapters/{n}`
+- `POST /api/knowledge/documents`, `PATCH /api/knowledge/documents/{id}` — ⚠️ пока in-memory
+  заглушка, не реальный ingestion (см. [`TODO.md`](TODO.md) Фаза 2)
 
 **Admin** (весь роутер гейтится `require_admin_user`, 403 без `is_superuser`)
-- `GET /admin/users/repo`, `POST /admin/users/repo`, `PUT /admin/users/repo/{id}`
+- `GET /admin/users/repo`, `GET /admin/users/repo/{id}`, `POST /admin/users/repo`
 - `PATCH /admin/users/repo/{id}/role`, `DELETE /admin/users/repo/{id}`
-- `GET /admin/documents`, `GET /admin/documents/{id}`, `POST /admin/documents/upload-link`
-- `POST /admin/documents/{id}/reindex`, `DELETE /admin/documents/{id}`, `POST /admin/documents/batch-delete`
+- `GET /admin/documents`, `GET /admin/documents/{id}`, `GET /admin/documents/{id}/status`
+- `POST /admin/documents/upload-link`, `POST /admin/documents/batch-delete`
+- `DELETE /admin/documents/{id}`, `POST /admin/documents/{id}/reindex`, `POST /admin/documents/{id}/summarize`
+- `POST /admin/documents/bulk-reindex`, `POST /admin/documents/bulk-summarize` — массовые операции по отфильтрованному списку
+- `GET /admin/documents/{id}/download`
 - `GET /admin/tasks`, `POST /admin/tasks/{task_id}/revoke` — мониторинг/отмена задач Celery (proxy в Flower)
-- `GET /admin/system/health`
+- `GET /admin/system/health` — статус всех сервисов (rag_service через `/openapi.json`, остальные — свои probes)
 
 ### RAG Service (`:8001`)
-- `POST /documents/retrieve`, `POST /documents/ingest/upload-link`, `POST /documents/ingest/webhook`
-- `POST /documents/batch-delete`, `GET /documents/{doc_id}`
+- `POST /documents/retrieve` — batch hybrid search (вызывается тулом `search_docs` агента)
+- `POST /documents/ingest/upload-link`, `POST /documents/ingest/webhook` — presigned upload + MinIO webhook
+- `GET /documents`, `GET /documents/{doc_id}`, `DELETE /documents/{doc_id}`, `POST /documents/batch-delete`
+- `POST /documents/{doc_id}/reindex`, `POST /documents/{doc_id}/summarize`
 - `GET /documents/{doc_id}/chapters/{chapter_idx}` — текст главы + связанные таблицы (для читалки)
+- `GET /documents/{doc_id}/appendices` — приложения документа (тул `get_appendix` агента)
+- `GET /parent-chunks/{parent_id}` — полный текст источника по требованию
 - `POST /notes/{note_id}/index`, `DELETE /notes/{note_id}/vectors`
-- `GET /health`
+
+Отдельного `/health` у rag_service нет — админка проверяет живость через `/openapi.json`
+(`backend/api/admin_routes.py`).
 
 ### LLM Service (`:8002`)
-- `POST /llm/answer`, `POST /llm/summary`
+- `POST /llm/answer` — обычный (не потоковый) ответ
+- `POST /llm/answer/stream` — SSE-стриминг (реальный живой путь, вызывается backend'ом)
+- `POST /llm/summary` — саммари переписки по счётчику сообщений
 - `POST /llm/note` — генерация заметки (строгий JSON: title/content/tags/folder/reminder)
-- `GET /health`
+- `POST /llm/chapter-summary`, `POST /llm/document-summary`, `POST /llm/table-summary` —
+  саммари главы/документа/таблицы (используются rag_service'ом при инжесте)
+- `GET /llm/health`
 
 ---
 
@@ -301,8 +347,12 @@ alembic -n rag upgrade head
 
 ```bash
 pytest rag_service/tests -q
-pytest rag_service/tests/test_integration_upload_webhook_flow.py -s -vv
+pytest backend/tests -q
+pytest llm_service/tests -q
 ```
+
+Архитектура тестов (пирамида unit/integration/e2e, testcontainers, что проверять всегда) —
+[`TESTING.md`](TESTING.md).
 
 ---
 
@@ -311,7 +361,7 @@ pytest rag_service/tests/test_integration_upload_webhook_flow.py -s -vv
 ```
 backend/          — FastAPI: auth, чаты, мессенджер, заметки, admin proxy
 rag_service/      — ingestion, retrieval, Qdrant, MinIO webhook
-llm_service/      — LangGraph RAG agent, ML router, генерация заметок
+llm_service/      — LangGraph RAG agent (planner-first), генерация заметок
 frontend/         — React UI: чат, мессенджер, база знаний, заметки, проекты, админка
 migrations/       — Alembic (users, rag)
 docker-compose.full.yml
