@@ -226,6 +226,78 @@ def fake_uow_factory(fake_uow: FakeUnitOfWork):
     return lambda: fake_uow
 
 
+# ── E2E: реальное FastAPI-приложение поверх testcontainers-БД ────────────────
+# Импорты внутри тел фикстур (не на уровне модуля) - чтобы unit-тесты, не
+# запрашивающие эти фикстуры, не платили за импорт всего backend.main/роутеров.
+
+@pytest_asyncio.fixture
+async def backend_container(pg_container):
+    """BackendContainer вручную, не через build_backend_infrastructure() - та
+    читает settings.DATABASE_URL (реальная БД из .env), а не testcontainers.
+
+    Собственный engine, НЕ общая сессионная фикстура engine/session_factory:
+    TestClient гоняет приложение в своём фоновом треде/event loop - asyncpg-
+    соединения из общего engine к этому моменту уже loop-bound на обычный
+    pytest-asyncio loop (им уже попользовались другие тесты в сессии), и падают
+    с "attached to a different loop" при вызове из TestClient-потока. Этот
+    engine не делает ни одного запроса до того, как TestClient примет управление,
+    поэтому первый реальный чекаут соединения происходит уже в его loop'е."""
+    from backend.infrastructure import BackendContainer
+    from backend.services.ai.llm_client import LLMClient
+    from backend.services.auth_handler import AuthHandler
+    from backend.services.messenger.websocket_handlers import register_handlers
+    from backend.services.messenger.websocket_manager import WebSocketManager
+
+    async_url = pg_container.get_connection_url().replace("postgresql+psycopg2", "postgresql+asyncpg")
+    dedicated_engine = create_async_engine(async_url, future=True, echo=False)
+    dedicated_session_factory = async_sessionmaker(dedicated_engine, expire_on_commit=False, class_=AsyncSession)
+
+    socket_manager = WebSocketManager()
+    register_handlers(socket_manager)  # main.py::lifespan делает это на СВОЁМ контейнере, не на этом
+
+    try:
+        yield BackendContainer(
+            engine=dedicated_engine,
+            session_factory=dedicated_session_factory,
+            auth_handler=AuthHandler(
+                secret_key="test-secret-key-at-least-32-bytes-long",
+                algorithm="HS256",
+                expire_minutes=15,
+                refresh_expire_days=7,
+            ),
+            llm_client=LLMClient(service_url="http://unreachable.invalid"),
+            socket_manager=socket_manager,
+        )
+    finally:
+        await dedicated_engine.dispose()
+
+
+@pytest.fixture
+def api_client(backend_container):
+    """TestClient (не ASGITransport - тот не гоняет lifespan) с get_container,
+    переопределённым на testcontainers-based backend_container."""
+    from starlette.testclient import TestClient
+
+    from backend.dependencies import get_container
+    from backend.main import app
+
+    app.dependency_overrides[get_container] = lambda: backend_container
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_container, None)
+
+
+@pytest.fixture
+def make_token(backend_container):
+    """Токен через AuthHandler напрямую, не через /auth/login - test_user/
+    test_user_bob хранят пароль как plaintext, verify_password с ним не пройдёт."""
+    def _make(user: Users) -> str:
+        return backend_container.auth_handler.create_access_token(str(user.guid))
+    return _make
+
+
 # ── Объекты из seed-данных (быстро, без лишних запросов) ─────────────────────
 
 @pytest_asyncio.fixture
