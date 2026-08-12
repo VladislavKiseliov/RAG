@@ -35,6 +35,18 @@ class RerankerResponseError(NetworkError):
         super().__init__(message, status.HTTP_502_BAD_GATEWAY)
 
 
+# --- LLM provider errors ---
+
+class LLMRateLimitedError(LLMServiceError):
+    def __init__(self, message: str = "LLM provider rate limit exceeded"):
+        super().__init__(message, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+class LLMQuotaExceededError(LLMServiceError):
+    def __init__(self, message: str = "LLM provider balance/quota exhausted"):
+        super().__init__(message, status.HTTP_402_PAYMENT_REQUIRED)
+
+
 # --- Processing errors ---
 
 class ProcessingError(LLMServiceError):

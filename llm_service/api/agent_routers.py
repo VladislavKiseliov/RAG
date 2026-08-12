@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterable
 
+from typing import Awaitable, TypeVar
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
-from openai import RateLimitError
+from openai import APIStatusError, RateLimitError
 
-from llm_service.exceptions import LLMServiceError
+from llm_service.exceptions import LLMQuotaExceededError, LLMRateLimitedError, LLMServiceError
 from llm_service.utils.cancellation import with_cancellation
 from llm_service.api.schemas import (
     AskRequest,
@@ -30,6 +32,30 @@ from llm_service.utils.logger_config import setup_logger
 logger = setup_logger("llm_service.api")
 
 router = APIRouter(prefix="/llm", tags=["llm"])
+
+_T = TypeVar("_T")
+
+
+async def _call_llm_provider(coro: Awaitable[_T], *, log_label: str) -> _T:
+    """Общая обёртка над non-streaming вызовами llm_provider.generate_*: провайдерские
+    rate-limit/quota-ошибки превращаются в типизированные LLMServiceError (обрабатываются
+    глобальным llm_error_handler в main.py, отдают клиенту правильный код вместо
+    одинакового 502 на всё подряд - тот скрывал реальную причину сбоя (429/402)."""
+    try:
+        return await coro
+    except RateLimitError as exc:
+        logger.exception("%s: provider rate-limited", log_label)
+        raise LLMRateLimitedError() from exc
+    except APIStatusError as exc:
+        if exc.status_code == 402:
+            logger.exception("%s: provider balance/quota exhausted", log_label)
+            raise LLMQuotaExceededError() from exc
+        logger.exception("%s failed", log_label)
+        raise LLMServiceError(f"{log_label} failed", status_code=502) from exc
+    except Exception as exc:
+        logger.exception("%s failed", log_label)
+        raise LLMServiceError(f"{log_label} failed", status_code=502) from exc
+
 
 @router.get("/health")
 async def health_check():
@@ -117,15 +143,13 @@ async def summarize_messages(
     request: SummaryRequest,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> SummaryResponse:
-    try:
-        summary = await agent.llm_provider.generate_summary(
+    summary = await _call_llm_provider(
+        agent.llm_provider.generate_summary(
             messages=request.messages,
             existing_summary=request.existing_summary,
-        )
-    except Exception:
-        logger.exception("Summary generation failed")
-        raise HTTPException(status_code=502, detail="Summary generation failed")
-
+        ),
+        log_label="Summary generation",
+    )
     return SummaryResponse(summary=summary)
 
 
@@ -143,11 +167,9 @@ async def generate_note(
     request: NoteGenerateRequest,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> NoteGenerateResponse:
-    try:
-        raw = await agent.llm_provider.generate_note(raw_text=request.raw_text)
-    except Exception:
-        logger.exception("Note generation failed")
-        raise HTTPException(status_code=502, detail="Note generation failed")
+    raw = await _call_llm_provider(
+        agent.llm_provider.generate_note(raw_text=request.raw_text), log_label="Note generation",
+    )
 
     try:
         parsed = json.loads(raw)
@@ -179,15 +201,10 @@ async def generate_chapter_summary(
     request: ChapterSummaryRequest,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> ChapterSummaryResponse:
-    try:
-        summary = await agent.llm_provider.generate_chapter_summary(chapter_text=request.chapter_text)
-    except RateLimitError:
-        logger.exception("Chapter summary generation rate-limited")
-        raise HTTPException(status_code=429, detail="Chapter summary generation rate-limited")
-    except Exception:
-        logger.exception("Chapter summary generation failed")
-        raise HTTPException(status_code=502, detail="Chapter summary generation failed")
-
+    summary = await _call_llm_provider(
+        agent.llm_provider.generate_chapter_summary(chapter_text=request.chapter_text),
+        log_label="Chapter summary generation",
+    )
     return ChapterSummaryResponse(summary=summary.strip())
 
 
@@ -198,15 +215,10 @@ async def generate_document_summary(
     request: DocumentSummaryRequest,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> DocumentSummaryResponse:
-    try:
-        summary = await agent.llm_provider.generate_document_summary(chapter_summaries=request.chapter_summaries)
-    except RateLimitError:
-        logger.exception("Document summary generation rate-limited")
-        raise HTTPException(status_code=429, detail="Document summary generation rate-limited")
-    except Exception:
-        logger.exception("Document summary generation failed")
-        raise HTTPException(status_code=502, detail="Document summary generation failed")
-
+    summary = await _call_llm_provider(
+        agent.llm_provider.generate_document_summary(chapter_summaries=request.chapter_summaries),
+        log_label="Document summary generation",
+    )
     return DocumentSummaryResponse(summary=summary.strip())
 
 
@@ -218,13 +230,8 @@ async def generate_table_summary(
     request: TableSummaryRequest,
     agent: LeanRagAgent = Depends(get_lean_rag_agent),
 ) -> TableSummaryResponse:
-    try:
-        summary = await agent.llm_provider.generate_table_summary(table_text=request.table_text)
-    except RateLimitError:
-        logger.exception("Table summary generation rate-limited")
-        raise HTTPException(status_code=429, detail="Table summary generation rate-limited")
-    except Exception:
-        logger.exception("Table summary generation failed")
-        raise HTTPException(status_code=502, detail="Table summary generation failed")
-
+    summary = await _call_llm_provider(
+        agent.llm_provider.generate_table_summary(table_text=request.table_text),
+        log_label="Table summary generation",
+    )
     return TableSummaryResponse(summary=summary.strip())
