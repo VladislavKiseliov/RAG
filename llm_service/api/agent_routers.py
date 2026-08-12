@@ -5,6 +5,7 @@ from collections.abc import AsyncIterable
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
+from openai import RateLimitError
 
 from llm_service.exceptions import LLMServiceError
 from llm_service.utils.cancellation import with_cancellation
@@ -180,6 +181,9 @@ async def generate_chapter_summary(
 ) -> ChapterSummaryResponse:
     try:
         summary = await agent.llm_provider.generate_chapter_summary(chapter_text=request.chapter_text)
+    except RateLimitError:
+        logger.exception("Chapter summary generation rate-limited")
+        raise HTTPException(status_code=429, detail="Chapter summary generation rate-limited")
     except Exception:
         logger.exception("Chapter summary generation failed")
         raise HTTPException(status_code=502, detail="Chapter summary generation failed")
@@ -196,6 +200,9 @@ async def generate_document_summary(
 ) -> DocumentSummaryResponse:
     try:
         summary = await agent.llm_provider.generate_document_summary(chapter_summaries=request.chapter_summaries)
+    except RateLimitError:
+        logger.exception("Document summary generation rate-limited")
+        raise HTTPException(status_code=429, detail="Document summary generation rate-limited")
     except Exception:
         logger.exception("Document summary generation failed")
         raise HTTPException(status_code=502, detail="Document summary generation failed")
@@ -213,6 +220,9 @@ async def generate_table_summary(
 ) -> TableSummaryResponse:
     try:
         summary = await agent.llm_provider.generate_table_summary(table_text=request.table_text)
+    except RateLimitError:
+        logger.exception("Table summary generation rate-limited")
+        raise HTTPException(status_code=429, detail="Table summary generation rate-limited")
     except Exception:
         logger.exception("Table summary generation failed")
         raise HTTPException(status_code=502, detail="Table summary generation failed")
