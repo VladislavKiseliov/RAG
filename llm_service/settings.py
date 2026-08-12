@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +17,7 @@ class LLMSettings(BaseSettings):
 
     HF_TOKEN: str = ""
     OPENROUTER_API_KEY: str = ""
-    LLM_PROVIDER: str = "openrouter"
+    LLM_PROVIDER: Literal["openai_compat", "groq", "openrouter"] = "openrouter"
 
     RAG_SERVICE_URL: str
     LLM_RAG_TIMEOUT: float
