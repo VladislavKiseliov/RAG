@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from llm_service import infrastructure
-from llm_service.LLM_provider import GroqLLMProvider, OpenAICompatLLMProvider, OpenRouterLLMProvider
+from llm_service.LLM_provider import OpenAICompatLLMProvider
 
 
 def test_selects_openrouter_provider(monkeypatch):
@@ -10,7 +10,8 @@ def test_selects_openrouter_provider(monkeypatch):
 
     provider = infrastructure._build_llm_provider()
 
-    assert isinstance(provider, OpenRouterLLMProvider)
+    assert isinstance(provider, OpenAICompatLLMProvider)
+    assert provider._client.base_url == "https://openrouter.ai/api/v1/"
 
 
 def test_selects_groq_provider(monkeypatch):
@@ -19,7 +20,8 @@ def test_selects_groq_provider(monkeypatch):
 
     provider = infrastructure._build_llm_provider()
 
-    assert isinstance(provider, GroqLLMProvider)
+    assert isinstance(provider, OpenAICompatLLMProvider)
+    assert provider._client.base_url == "https://router.huggingface.co/v1/"
 
 
 def test_selects_openai_compat_provider_by_default(monkeypatch):
@@ -30,3 +32,4 @@ def test_selects_openai_compat_provider_by_default(monkeypatch):
     provider = infrastructure._build_llm_provider()
 
     assert isinstance(provider, OpenAICompatLLMProvider)
+    assert provider._client.base_url == "https://example.test/v1/"

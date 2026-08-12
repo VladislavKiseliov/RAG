@@ -6,9 +6,7 @@ from dataclasses import dataclass
 from llm_service.application.lean_rag_agent import LeanRagAgent
 from llm_service.application.services.reranker_service import RerankerService
 from llm_service.application.services.retrieval_service import RetrievalService
-from llm_service.LLM_provider import (
-    GroqLLMProvider, LLMProvider, OpenAICompatLLMProvider, OpenRouterLLMProvider,
-)
+from llm_service.LLM_provider import LLMProvider, OpenAICompatLLMProvider
 from llm_service.settings import settings
 from llm_service.utils.logger_config import setup_logger
 
@@ -20,20 +18,26 @@ class LLMContainer:
     agent: LeanRagAgent
 
 
-def _build_llm_provider() -> LLMProvider:
+@dataclass(frozen=True)
+class _ProviderConfig:
+    base_url: str
+    api_key: str
+    key_name: str  # for the error message only
 
+
+def _resolve_provider_config() -> _ProviderConfig:
     if settings.LLM_PROVIDER == "groq":
-        return GroqLLMProvider(
-            api_key=settings.HF_TOKEN,
-        )
+        return _ProviderConfig("https://router.huggingface.co/v1", settings.HF_TOKEN, "HF_TOKEN")
     if settings.LLM_PROVIDER == "openrouter":
-        return OpenRouterLLMProvider(
-            api_key=settings.OPENROUTER_API_KEY,
-        )
-    return OpenAICompatLLMProvider(
-        api_key=settings.LLM_API_KEY,
-        base_url=settings.LLM_BASE_URL,
-    )
+        return _ProviderConfig("https://openrouter.ai/api/v1", settings.OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
+    return _ProviderConfig(settings.LLM_BASE_URL, settings.LLM_API_KEY, "LLM_API_KEY")
+
+
+def _build_llm_provider() -> LLMProvider:
+    config = _resolve_provider_config()
+    if not config.api_key:
+        raise ValueError(f"{config.key_name} is not set")
+    return OpenAICompatLLMProvider(api_key=config.api_key, base_url=config.base_url)
 
 
 def build_rag_client() -> RetrievalService:

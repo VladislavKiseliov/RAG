@@ -15,7 +15,7 @@ class LLMSettings(BaseSettings):
 
     HF_TOKEN: str = ""
     OPENROUTER_API_KEY: str = ""
-    LLM_PROVIDER: str = "openai_compat"
+    LLM_PROVIDER: str = "openrouter"
 
     RAG_SERVICE_URL: str
     LLM_RAG_TIMEOUT: float
