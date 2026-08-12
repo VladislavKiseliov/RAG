@@ -439,7 +439,7 @@ Qdrant-коллекцию `notes_collection_with_sparse_vector` (`rag_service/ap
 | 12 | Structured logging во всех сервисах (backend, llm_service) | backend, llm | Средний | ⬜ Не начато |
 | 13 | Тесты — покрыть retrieve, ingestion, chat, LLM pipeline | все | Средний | ⬜ Не начато |
 | 14 | Merge `mvp` → `main` | — | — | ⬜ Не начато |
-| 15 | Grafana — логи не доходят (Loki driver настроен в docker-compose, но записи не поступают) | все | Средний | ⬜ Не начато |
+| 15 | Grafana — логи не доходят | все | Средний | ✅ Готово |
 | 16 | `GET /documents/{doc_id}/chapters/{n}` — текст главы + таблицы (для читалки) | rag, backend, frontend | Средний | ✅ Готово |
 
 ---
