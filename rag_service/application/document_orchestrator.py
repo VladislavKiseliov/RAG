@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import uuid
 from typing import Any
 
@@ -11,8 +10,9 @@ from rag_service.domain.errors.postgres import DocumentNotFound
 from rag_service.domain.errors.storage import StorageNotFoundError
 from rag_service.infrastructures.providers.bucket_storage_provider import BucketStorageProvider
 from rag_service.infrastructures.providers.vector_storage_provider import VectorStorageProvider
+from rag_service.utils.logger_config import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class DocumentOrchestrator:

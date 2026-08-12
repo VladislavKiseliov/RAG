@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import re
 from io import BytesIO
 from pathlib import Path
@@ -23,8 +22,9 @@ from docling_core.types.doc.document import DocItemLabel, DoclingDocument, Secti
 from docling_core.types.doc.page import SegmentedPdfPage
 
 from rag_service.domain.chunking.docling_models import ConversionOutput, SavedTable
+from rag_service.utils.logger_config import setup_logger
 
-_log = logging.getLogger(__name__)
+_log = setup_logger(__name__)
 
 
 def _is_bold_heading(item: SectionHeaderItem, parsed_pages: dict[int, SegmentedPdfPage]) -> bool | None:

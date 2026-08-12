@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, asdict
@@ -14,8 +13,9 @@ from rag_service.domain.errors.base import DuplicateFileError, InvalidIngestionS
 from rag_service.domain.errors.storage import StorageDeleteError, StorageReadError, StorageWriteError
 from rag_service.domain.errors.vector import VectorUpsertError, VectorDeleteError
 from rag_service.domain.models.vector_point import VectorPoint
+from rag_service.utils.logger_config import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 from rag_service.application.docling_pipeline import DocumentConversionPipeline
 from rag_service.application.document_service import DataBaseDocumentService

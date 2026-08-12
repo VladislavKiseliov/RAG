@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import uuid
 
 import httpx
@@ -8,9 +7,10 @@ from rag_service.celery_app import celery_app
 from rag_service.domain.chunking.chunk_builder import ParentChunk
 from rag_service.domain.models.vector_point import VectorPoint
 from rag_service.settings import settings
+from rag_service.utils.logger_config import setup_logger
 from rag_service.worker_container import build_worker_infrastructure, WorkerContainer
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 @celery_app.task(name="ingest_document", bind=True, max_retries=3)
