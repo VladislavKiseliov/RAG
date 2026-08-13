@@ -19,6 +19,18 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { formatUserName } from '../utils/formatUserName';
 import { ApiContext } from '../context/ApiContext';
 
+// crypto.randomUUID() существует только в secure context (https/localhost) - на публичном
+// домене по чистому http (текущий тоннель к my-rag-project.ru) его нет, и без фолбэка
+// отправка любого сообщения в мессенджере падала с TypeError ещё до похода в сеть.
+function generateClientMsgId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+}
+
 function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, theme, onToggleTheme }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const messagesEndRef = useRef(null);
@@ -98,7 +110,7 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
 
     const handleSendMessage = useCallback(async (text) => {
         if (messenger.activeChatGuid) {
-            const clientMsgId = crypto.randomUUID();
+            const clientMsgId = generateClientMsgId();
             messenger.addPendingMessage(messenger.activeChatGuid, {
                 clientMsgId, content: text, userGuid: currentUserGuid,
             });
