@@ -36,6 +36,7 @@ export const ENDPOINTS = {
     ADMIN_DOCUMENTS_BULK_SUMMARIZE: "/admin/documents/bulk-summarize",
     ADMIN_DOCUMENT_DELETE: (id) => `/admin/documents/${id}`,
     ADMIN_USERS: "/admin/users/repo",
+    ADMIN_USER: (id) => `/admin/users/repo/${id}`,
     ADMIN_USER_ROLE: (id) => `/admin/users/repo/${id}/role`,
     ADMIN_TASKS: "/admin/tasks",
     ADMIN_TASK_REVOKE: (id) => `/admin/tasks/${id}/revoke`,

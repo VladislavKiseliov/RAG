@@ -279,6 +279,15 @@ export function useAdmin() {
         setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, active: !u.active } : u)));
     }, []);
 
+    const deleteUser = useCallback(async (userId) => {
+        try {
+            await api.delete(ENDPOINTS.ADMIN_USER(userId));
+            setUsers((prev) => prev.filter((u) => u.id !== userId));
+        } catch (e) {
+            showError(e.message);
+        }
+    }, [api, showError]);
+
     return {
         tab, setTab,
         docScope, setDocScope,
@@ -309,6 +318,7 @@ export function useAdmin() {
         renameDocumentLocal,
         toggleUserRole,
         toggleUserActiveLocal,
+        deleteUser,
         revokeTask,
     };
 }
