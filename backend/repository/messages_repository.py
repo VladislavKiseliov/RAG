@@ -1,3 +1,4 @@
+import uuid
 from typing import List
 
 from sqlalchemy import select, func
@@ -17,11 +18,24 @@ class MessageRepository(BaseRepository):
         role: str | None = None,
         user_id: int | None = None,
         sources: list | None = None,
+        client_msg_id: uuid.UUID | None = None,
     ) -> Messages:
-        message = Messages(chat_id=chat_id, content=content, role=role, user_id=user_id, sources=sources)
+        message = Messages(
+            chat_id=chat_id, content=content, role=role, user_id=user_id, sources=sources,
+            client_msg_id=client_msg_id,
+        )
         self._session.add(message)
         await self._session.flush()
         return message
+
+    async def get_by_client_msg_id(self, chat_id: int, client_msg_id: uuid.UUID) -> Messages | None:
+        stmt = (
+            select(Messages)
+            .where(Messages.chat_id == chat_id, Messages.client_msg_id == client_msg_id)
+            .options(selectinload(Messages.user))
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_history(self, chat_id: int, limit: int = 50) -> List[Messages]:
         # ASC + LIMIT брал первые N сообщений (самые старые), а не последние N -

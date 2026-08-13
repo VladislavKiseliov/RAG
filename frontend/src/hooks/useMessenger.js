@@ -54,13 +54,40 @@ export function useMessenger(api, showError) {
         }
     }, [api, showError, activeChatGuid]);
 
+    // Optimistic UI: показываем сообщение сразу после отправки, не дожидаясь ответа сервера.
+    // Подтверждение (case 'new' ниже) находит эту запись по client_msg_id и заменяет её на
+    // реальную - той же клавишей client_msg_id, чтобы React не перерисовывал элемент заново.
+    const addPendingMessage = useCallback((chatGuid, { clientMsgId, content, userGuid }) => {
+        setMessages((prev) => {
+            const existing = prev[chatGuid] ?? [];
+            return {
+                ...prev,
+                [chatGuid]: [...existing, {
+                    client_msg_id: clientMsgId,
+                    content,
+                    user_guid: userGuid,
+                    created_at: new Date().toISOString(),
+                    pending: true,
+                }],
+            };
+        });
+    }, []);
+
     // WS event handlers
     const handleWsMessage = useCallback((data) => {
         switch (data.type) {
             case 'new': {
                 setMessages((prev) => {
                     const existing = prev[data.chat_guid] ?? [];
-                    return { ...prev, [data.chat_guid]: [...existing, data] };
+                    // Подтверждение своего же optimistic-сообщения (см. addPendingMessage) -
+                    // заменяем pending-запись подтверждённой, а не добавляем дубль.
+                    const pendingIdx = data.client_msg_id
+                        ? existing.findIndex((m) => m.pending && m.client_msg_id === data.client_msg_id)
+                        : -1;
+                    const next = pendingIdx === -1
+                        ? [...existing, data]
+                        : existing.map((m, i) => (i === pendingIdx ? data : m));
+                    return { ...prev, [data.chat_guid]: next };
                 });
                 setChats((prev) => prev.map((c) =>
                     c.chat_guid === data.chat_guid
@@ -124,6 +151,7 @@ export function useMessenger(api, showError) {
         openChat,
         createDirectChat,
         deleteChat,
+        addPendingMessage,
         handleWsMessage,
     };
 }

@@ -8,6 +8,19 @@ export function useMessengerSocket({ getAccessToken, onMessage, enabled = true }
     const onMessageRef = useRef(onMessage);
     useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
 
+    // Outbox - только для new_message (реальных сообщений пользователя). typing/message_read
+    // намеренно не очередятся - это одноразовые события, повторять их после реконнекта не нужно
+    // (устаревшая typing-метка или пропущенный read-receipt не несут смысла спустя время).
+    const outboxRef = useRef([]);
+
+    const flushOutbox = useCallback(() => {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const pending = outboxRef.current;
+        outboxRef.current = [];
+        pending.forEach((payload) => ws.send(JSON.stringify(payload)));
+    }, []);
+
     const connect = useCallback(async () => {
         const token = await getAccessToken?.();
         if (!token || !enabled) return;
@@ -21,6 +34,7 @@ export function useMessengerSocket({ getAccessToken, onMessage, enabled = true }
             // Токен больше не в URL (утекал в access-логи nginx) - первое сообщение
             // после подключения обязано быть auth, иначе backend закрывает сокет.
             ws.send(JSON.stringify({ type: 'auth', token }));
+            flushOutbox();
         };
 
         ws.onmessage = (event) => {
@@ -41,7 +55,7 @@ export function useMessengerSocket({ getAccessToken, onMessage, enabled = true }
         };
 
         ws.onerror = () => ws.close();
-    }, [getAccessToken, enabled]);
+    }, [getAccessToken, enabled, flushOutbox]);
 
     useEffect(() => {
         if (enabled) connect();
@@ -57,8 +71,14 @@ export function useMessengerSocket({ getAccessToken, onMessage, enabled = true }
         }
     }, []);
 
-    const sendMessage = useCallback((chatGuid, content) => {
-        send({ type: 'new_message', chat_guid: chatGuid, content });
+    const sendMessage = useCallback((chatGuid, content, clientMsgId) => {
+        const payload = { type: 'new_message', chat_guid: chatGuid, content, client_msg_id: clientMsgId };
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            send(payload);
+        } else {
+            // Сокет переподключается - складываем в очередь, flushOutbox отправит при onopen.
+            outboxRef.current.push(payload);
+        }
     }, [send]);
 
     const sendTyping = useCallback((chatGuid, userGuid) => {

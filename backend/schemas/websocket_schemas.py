@@ -12,6 +12,7 @@ class ReceiveMessageSchema(BaseModel):
     user_guid: uuid.UUID
     chat_guid: uuid.UUID
     content: str
+    client_msg_id: uuid.UUID | None = None
 
 
 class SendMessageSchema(BaseModel):
@@ -23,6 +24,7 @@ class SendMessageSchema(BaseModel):
     created_at: datetime
     is_read: bool | None = False
     is_new: bool = False
+    client_msg_id: uuid.UUID | None = None
 
 
 class MessageReadSchema(BaseModel):

@@ -41,6 +41,7 @@ async def new_message_handler(
             content=message_schema.content,
             chat_id=chat_id,
             user_id=current_user.id,
+            client_msg_id=message_schema.client_msg_id,
         )
     except Exception:
         logger.exception("[new_message] Failed to save message")
@@ -56,6 +57,7 @@ async def new_message_handler(
         created_at=message.created_at,
         is_read=False,
         is_new=True,
+        client_msg_id=message_schema.client_msg_id,
     ).model_dump_json()
 
     await socket_manager.broadcast_to_users(member_guids, outgoing)

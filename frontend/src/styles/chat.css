@@ -651,6 +651,10 @@
     font-weight: 500;
 }
 
+.message-pending .message-bubble {
+    opacity: 0.55;
+}
+
 .assistant-message .message-bubble {
     background: var(--bubble-bg);
     border: 1px solid var(--bubble-border);

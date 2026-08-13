@@ -171,13 +171,13 @@ function SourcesBlock({ sources }) {
     );
 }
 
-function Message({ content, role, sources, isTyping, typingLabel, senderName }) {
+function Message({ content, role, sources, isTyping, typingLabel, senderName, pending }) {
     if (isTyping) return <TypingIndicator label={typingLabel} />;
 
     const isUser = role === 'user';
 
     return (
-        <div className={`message ${isUser ? 'user-message' : 'assistant-message'}`}>
+        <div className={`message ${isUser ? 'user-message' : 'assistant-message'} ${pending ? 'message-pending' : ''}`}>
             {!isUser && (
                 <div className="avatar assistant-avatar">
                     {senderName ? (

@@ -35,9 +35,23 @@ class MessageService:
         async with self._uow_factory() as uow:
             return await uow.chats.get_chat_member_guids(chat_id)
 
-    async def save_message(self, content: str, chat_id: int, user_id: int) -> tuple[Messages, Chats]:
+    async def save_message(
+        self, content: str, chat_id: int, user_id: int, client_msg_id: uuid.UUID | None = None,
+    ) -> tuple[Messages, Chats]:
         async with self._uow_factory() as uow:
-            message = await uow.messages.add_message(chat_id=chat_id, content=content, user_id=user_id)
+            # Идемпотентность: outbox-очередь на фронте может повторить отправку того же
+            # client_msg_id после реконнекта — не создаём дубль, отдаём уже сохранённое.
+            if client_msg_id is not None:
+                existing = await uow.messages.get_by_client_msg_id(chat_id, client_msg_id)
+                if existing is not None:
+                    chat = await uow.chats.touch(chat_id)
+                    await uow.commit()
+                    await uow.refresh(chat, ["users"])
+                    return existing, chat
+
+            message = await uow.messages.add_message(
+                chat_id=chat_id, content=content, user_id=user_id, client_msg_id=client_msg_id,
+            )
             chat = await uow.chats.touch(chat_id)
             await uow.commit()
             await uow.refresh(message, ["user", "chat"])

@@ -134,6 +134,7 @@ class Messages(Base):
         Index("idx_message_on_chat_id", "chat_id"),
         Index("idx_message_on_user_id", "user_id"),
         Index("idx_message_on_chat_user", "chat_id", "user_id"),
+        Index("idx_message_on_chat_client_msg_id", "chat_id", "client_msg_id", unique=True),
         {"schema": SCHEMA},
     )
 
@@ -157,6 +158,11 @@ class Messages(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+    # Идентификатор, сгенерированный клиентом мессенджера при отправке — идемпотентность
+    # для outbox-очереди на фронте (см. B2 в frontend/ISSUES.md): повторная отправка того
+    # же client_msg_id (после реконнекта) не создаёт дубль сообщения.
+    client_msg_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     # RAG-поля: заполняются только для AI_DIRECT сообщений от ассистента
     sources: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)

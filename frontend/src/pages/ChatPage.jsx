@@ -98,11 +98,18 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
 
     const handleSendMessage = useCallback(async (text) => {
         if (messenger.activeChatGuid) {
-            wsSendMessage(messenger.activeChatGuid, text);
+            const clientMsgId = crypto.randomUUID();
+            messenger.addPendingMessage(messenger.activeChatGuid, {
+                clientMsgId, content: text, userGuid: currentUserGuid,
+            });
+            wsSendMessage(messenger.activeChatGuid, text, clientMsgId);
             return;
         }
         await aiChat.sendAiMessage(text, aiChat.currentConversationId);
-    }, [messenger.activeChatGuid, wsSendMessage, aiChat.sendAiMessage, aiChat.currentConversationId]);
+    }, [
+        messenger.activeChatGuid, messenger.addPendingMessage, wsSendMessage, currentUserGuid,
+        aiChat.sendAiMessage, aiChat.currentConversationId,
+    ]);
 
     const selectAiChat = useCallback((id) => {
         messenger.openChat(null);
@@ -124,12 +131,20 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
         && [...(messenger.typingUsers[messenger.activeChatGuid] ?? [])].some((g) => g !== currentUserGuid);
 
     // Отмечаем последнее сообщение прочитанным при открытии чата и при приходе новых сообщений,
-    // пока чат открыт — backend upsert идемпотентен, повторные вызовы безвредны.
+    // пока чат открыт. Серверное эхо message_read (в т.ч. себе же) пересоздаёт messengerMessages,
+    // из-за чего этот эффект без guard'а перезапускался бы на собственное эхо бесконечно и заливал
+    // WS rate-limit (см. B2 в ISSUES.md) — lastMarkedReadRef пропускает повтор для уже
+    // отмеченного guid, а не полагается на идемпотентность backend upsert.
+    const lastMarkedReadRef = useRef({});
     useEffect(() => {
         if (!isMessengerMode || messengerMessages.length === 0) return;
         const last = messengerMessages[messengerMessages.length - 1];
         const lastGuid = last.guid ?? last.message_guid;
-        if (lastGuid) markRead(messenger.activeChatGuid, lastGuid);
+        if (!lastGuid) return;
+        const chatGuid = messenger.activeChatGuid;
+        if (lastMarkedReadRef.current[chatGuid] === lastGuid) return;
+        lastMarkedReadRef.current[chatGuid] = lastGuid;
+        markRead(chatGuid, lastGuid);
     }, [isMessengerMode, messengerMessages, messenger.activeChatGuid, markRead]);
 
     const chatHeader = isMessengerMode
@@ -199,10 +214,11 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                                                 const isOwn = String(msg.user_guid) === currentUserGuid;
                                                 return (
                                                     <Message
-                                                        key={msg.guid ?? msg.message_guid}
+                                                        key={msg.guid ?? msg.message_guid ?? msg.client_msg_id}
                                                         content={msg.content}
                                                         role={isOwn ? 'user' : 'assistant'}
                                                         senderName={isOwn ? undefined : friendName}
+                                                        pending={msg.pending}
                                                     />
                                                 );
                                             })

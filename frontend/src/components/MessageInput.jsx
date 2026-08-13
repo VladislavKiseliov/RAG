@@ -23,8 +23,8 @@ function MessageInput({ onSendMessage, disabled, onTyping }) {
         e?.preventDefault();
         const trimmed = message.trim();
         if (trimmed && !disabled) {
-            onSendMessage(trimmed);
             setMessage('');
+            onSendMessage(trimmed);
         }
     };
 
