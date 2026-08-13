@@ -57,6 +57,15 @@ export function useMessenger(api, showError) {
     // Optimistic UI: показываем сообщение сразу после отправки, не дожидаясь ответа сервера.
     // Подтверждение (case 'new' ниже) находит эту запись по client_msg_id и заменяет её на
     // реальную - той же клавишей client_msg_id, чтобы React не перерисовывал элемент заново.
+    //
+    // Эхо "new" может не долететь обратно этому же клиенту (обрыв WS на нестабильном
+    // соединении, напр. через SSH-туннель) - сообщение при этом уже сохранено на сервере,
+    // просто подтверждение потерялось. Без recovery запись осталась бы pending навсегда.
+    // pendingTimersRef на таймауте перечитывает чат через REST (источник истины) - если
+    // сообщение и правда сохранилось, оно появится в ответе; если реально не дошло - тоже
+    // корректно отражается (просто не появится), лучше, чем вечный "тёмный" призрак.
+    const pendingTimersRef = useRef({});
+
     const addPendingMessage = useCallback((chatGuid, { clientMsgId, content, userGuid }) => {
         setMessages((prev) => {
             const existing = prev[chatGuid] ?? [];
@@ -71,12 +80,27 @@ export function useMessenger(api, showError) {
                 }],
             };
         });
-    }, []);
+
+        pendingTimersRef.current[clientMsgId] = setTimeout(() => {
+            delete pendingTimersRef.current[clientMsgId];
+            setMessages((prev) => {
+                const stillPending = (prev[chatGuid] ?? []).some(
+                    (m) => m.pending && m.client_msg_id === clientMsgId
+                );
+                if (stillPending) loadMessages(chatGuid);
+                return prev;
+            });
+        }, TIMEOUTS.MESSAGE_PENDING_RECONCILE);
+    }, [loadMessages]);
 
     // WS event handlers
     const handleWsMessage = useCallback((data) => {
         switch (data.type) {
             case 'new': {
+                if (data.client_msg_id && pendingTimersRef.current[data.client_msg_id]) {
+                    clearTimeout(pendingTimersRef.current[data.client_msg_id]);
+                    delete pendingTimersRef.current[data.client_msg_id];
+                }
                 setMessages((prev) => {
                     const existing = prev[data.chat_guid] ?? [];
                     // Подтверждение своего же optimistic-сообщения (см. addPendingMessage) -
