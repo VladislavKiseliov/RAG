@@ -31,12 +31,12 @@ if errorlevel 1 (
 
 REM --- 1. Поднимаем Docker-контейнеры ---
 echo [1/3] Запуск Docker Compose...
-docker compose -f docker-compose.full.yml up -d --remove-orphans
+docker compose -f "D:\Laboratoria\Rag OVER\RagProgramm\docker-compose.full.yml" up -d --remove-orphans
 if errorlevel 1 (
     echo.
     echo [ВНИМАНИЕ] Первая попытка запуска не удалась. Повторный запуск через 3 секунды...
     timeout /t 3 /nobreak >nul
-    docker compose -f docker-compose.full.yml up -d --remove-orphans
+    docker compose -f "D:\Laboratoria\Rag OVER\RagProgramm\docker-compose.full.yml" up -d --remove-orphans
 )
 
 if errorlevel 1 (
@@ -53,7 +53,7 @@ echo.
 
 REM --- 2. Поднимаем мониторинг (Grafana/Prometheus/Loki) ---
 echo [2/3] Запуск мониторинга (Grafana/Prometheus/Loki)...
-docker compose -f Monitoring/docker-compose.yml up -d
+docker compose -f "D:\Laboratoria\Rag OVER\RagProgramm\Monitoring\docker-compose.yml" up -d
 if errorlevel 1 (
     echo [ВНИМАНИЕ] Мониторинг не поднялся — не критично, стек и туннель продолжат работу без него.
 ) else (
