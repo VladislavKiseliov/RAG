@@ -170,13 +170,9 @@ function ChatPage({ accessToken, currentUserGuid, getAccessToken, onLogout, them
                             onSelectMessengerChat={selectMessengerChat}
                             onCreateDirectChat={messenger.createDirectChat}
                             onDeleteMessengerChat={messenger.deleteChat}
-                            onLogout={onLogout}
-                            theme={theme}
-                            onToggleTheme={onToggleTheme}
                             onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
                             isCollapsed={sidebarCollapsed}
                             onOpenProjects={() => goToSection('projects')}
-                            currentUser={currentUser}
                         />
                         <main className="main-chat">
                             {chatHeader && (

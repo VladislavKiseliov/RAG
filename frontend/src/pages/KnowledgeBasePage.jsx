@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import DocumentCard from '../components/DocumentCard.jsx';
 import DocumentReader from '../components/DocumentReader.jsx';
+import SourceViewerWindow from '../components/SourceViewerWindow.jsx';
 import { useKnowledgeBase } from '../hooks/useKnowledgeBase';
 import MockBadge from '../components/MockBadge.jsx';
 
@@ -35,6 +36,7 @@ function KnowledgeBasePage() {
     const pChunks = sum(personal, 'chunks');
 
     const selectedDoc = kb.documents.find((d) => d.id === kb.selectedDocId);
+    const sourceDoc = kb.documents.find((d) => d.id === kb.sourceDocId);
 
     const headTitle = isPersonal
         ? 'Моя база знаний'
@@ -82,16 +84,6 @@ function KnowledgeBasePage() {
                         <span className="mono kb-collection-count">{personal.length}</span>
                     </div>
                 </div>
-
-                <div className="kb-index-summary">
-                    <div className="kb-index-summary-title">
-                        <span className="kb-ok-dot" />
-                        <span>Векторный индекс</span>
-                    </div>
-                    <div className="kb-index-row"><span>Документов</span><span key={kb.documents.length} className="mono counter-pop">{kb.documents.length}</span></div>
-                    <div className="kb-index-row"><span>Чанков текста</span><span key={sum(kb.documents, 'chunks')} className="mono counter-pop">{sum(kb.documents, 'chunks')}</span></div>
-                    <div className="kb-index-row"><span>Точек в БД</span><span key={sum(kb.documents, 'chunks')} className="mono kb-accent counter-pop">{sum(kb.documents, 'chunks')}</span></div>
-                </div>
             </aside>
 
             <main className="kb-main">
@@ -138,7 +130,7 @@ function KnowledgeBasePage() {
 
                     <div className="kb-grid">
                         {activeSet.map((d) => (
-                            <DocumentCard key={d.id} doc={d} onOpen={kb.openDoc} />
+                            <DocumentCard key={d.id} doc={d} onOpen={kb.openDoc} onOpenSource={kb.openSource} />
                         ))}
                     </div>
 
@@ -163,10 +155,12 @@ function KnowledgeBasePage() {
                     onSetMode={kb.setContentMode}
                     onClose={kb.closeDoc}
                     onReindex={selectedDoc.personal ? () => kb.reindex(selectedDoc.id) : undefined}
-                    sourceViewerOpen={kb.sourceViewerOpen}
                     onOpenSource={kb.openSource}
-                    onCloseSource={kb.closeSource}
                 />
+            )}
+
+            {sourceDoc && (
+                <SourceViewerWindow doc={sourceDoc} onClose={kb.closeSource} />
             )}
         </>
     );

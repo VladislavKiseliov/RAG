@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Rnd } from 'react-rnd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -31,7 +30,7 @@ const splitChapterText = (text) => {
 function DocumentReader({
     doc, chapterIdx, contentMode, chapterContent, chapterContentLoading,
     onOpenChapter, onBackToOverview, onSetMode, onClose, onReindex,
-    sourceViewerOpen, onOpenSource, onCloseSource,
+    onOpenSource,
 }) {
     const chapter = chapterIdx !== null ? doc.sections[chapterIdx] : null;
     const isProcessing = doc.status === 'processing';
@@ -47,7 +46,7 @@ function DocumentReader({
                     <div className="kb-reader-meta">{doc.type} · {doc.owner} · обновлён {doc.updated}</div>
                 </div>
                 {doc.file_url && (
-                    <div className="kb-reader-source-btn" title="Открыть исходный файл на этой странице" onClick={onOpenSource}>⤢ Открыть исходник</div>
+                    <div className="kb-reader-source-btn" title="Открыть исходный файл на этой странице" onClick={() => onOpenSource(doc.id)}>⤢ Открыть исходник</div>
                 )}
                 <div className="kb-reader-ask" onClick={() => setChatOpen(true)}>Спросить ассистента →</div>
                 {onReindex && (
@@ -55,25 +54,6 @@ function DocumentReader({
                 )}
                 <div className="kb-reader-icon-btn" title="Закрыть" onClick={onClose}>✕</div>
             </header>
-
-            {sourceViewerOpen && doc.file_url && (
-                <Rnd
-                    className="kb-source-window"
-                    default={{ x: 60, y: 50, width: 820, height: 620 }}
-                    bounds="parent"
-                    dragHandleClassName="kb-source-viewer-head"
-                    enableResizing={false}
-                >
-                    <div className="kb-source-viewer">
-                        <div className="kb-source-viewer-head">
-                            <span className="kb-source-viewer-title">{doc.title}</span>
-                            <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="kb-source-viewer-link">Открыть в новой вкладке ↗</a>
-                            <span className="kb-source-viewer-close" title="Закрыть" onClick={onCloseSource}>✕</span>
-                        </div>
-                        <iframe src={doc.file_url} className="kb-source-viewer-frame" title={`Исходник: ${doc.title}`} />
-                    </div>
-                </Rnd>
-            )}
 
             {chatOpen && (
                 <AssistantChatPanel title={doc.title} onClose={() => setChatOpen(false)} />

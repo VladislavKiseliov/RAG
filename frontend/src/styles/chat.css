@@ -109,71 +109,7 @@
 }
 .project-create-btn:hover { background: var(--accent-soft); }
 
-/* ===== Sidebar user row ===== */
-.sidebar-user-row {
-    border-top: 1px solid var(--border);
-    padding: 12px 14px;
-    position: relative;
-    flex-shrink: 0;
-}
-.sidebar-user-row-inner {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    border-radius: 10px;
-    padding: 4px;
-    margin: -4px;
-    transition: background var(--t);
-}
-.sidebar-user-row-inner:hover { background: var(--hover); }
-.sidebar-user-avatar-wrap {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--logo-a), var(--logo-b));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--accent-ink);
-    flex-shrink: 0;
-}
-.sidebar-user-info { flex: 1; min-width: 0; }
-.sidebar-user-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.sidebar-user-role {
-    font-size: 11.5px;
-    color: var(--muted);
-}
-.sidebar-user-caret {
-    color: var(--muted);
-    font-size: 12px;
-    transition: transform .15s;
-    flex-shrink: 0;
-}
-.sidebar-user-caret.open { transform: rotate(180deg); }
-
-/* ===== Profile dropdown ===== */
-.profile-dropdown {
-    position: absolute;
-    left: 12px;
-    right: 12px;
-    bottom: 62px;
-    background: var(--menu-bg);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: hidden;
-    box-shadow: 0 16px 40px rgba(0,0,0,.45);
-    z-index: 30;
-}
+/* ===== Profile dropdown (rendered by UserMenu.jsx, see .user-rich-menu for positioning) ===== */
 .profile-dropdown-header {
     padding: 14px 16px;
     display: flex;
@@ -531,19 +467,21 @@
     letter-spacing: 0.5px;
 }
 
-.user-menu {
+.user-rich-menu {
     position: absolute;
     bottom: 46px;
     left: 0;
-    min-width: 180px;
-    background: var(--bg-surface);
+    width: 260px;
+    background: var(--menu-bg);
     border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-md);
+    border-radius: 14px;
     overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0,0,0,.45);
     z-index: 100;
-    padding: 4px;
 }
+
+.profile-dropdown-item:disabled { opacity: .45; cursor: not-allowed; }
+.profile-dropdown-item:disabled:hover { background: none; }
 
 /* =====================================================
    Chat header

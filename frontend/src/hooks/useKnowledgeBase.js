@@ -14,7 +14,9 @@ export function useKnowledgeBase() {
     const [contentMode, setContentModeState] = useState('summary');
     const [chapterContent, setChapterContent] = useState(null);
     const [chapterContentLoading, setChapterContentLoading] = useState(false);
-    const [sourceViewerOpen, setSourceViewerOpen] = useState(false);
+    // Независим от selectedDocId — можно открыть исходник прямо с карточки в библиотеке,
+    // не заходя в читалку (DocumentReader) вообще.
+    const [sourceDocId, setSourceDocId] = useState(null);
 
     // Список отдаёт только summary — главы (sections) для оглавления читалки грузятся лениво
     // здесь, только для реально открытого документа, а не для всей библиотеки сразу.
@@ -22,7 +24,6 @@ export function useKnowledgeBase() {
         setSelectedDocId(id);
         setChapterIdx(null);
         setContentModeState('summary');
-        setSourceViewerOpen(false);
         api.get(ENDPOINTS.KNOWLEDGE_DOCUMENT_STATUS(id))
             .then((detail) => {
                 setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, ...detail } : d)));
@@ -32,11 +33,32 @@ export function useKnowledgeBase() {
 
     const closeDoc = useCallback(() => {
         setSelectedDocId(null);
-        setSourceViewerOpen(false);
     }, []);
 
-    const openSource = useCallback(() => setSourceViewerOpen(true), []);
-    const closeSource = useCallback(() => setSourceViewerOpen(false), []);
+    // GET /api/knowledge/documents (список) намеренно не отдаёт file_url — presigned-ссылка
+    // считается только в детальном ответе на документ, иначе список бы генерировал по
+    // presigned URL на каждый документ разом (тот самый N+1, которого тут явно избегали,
+    // см. _fetch_documents_from_rag_service в knowledge_routes.py). Если детали для этого
+    // документа уже подгружались раньше (например через openDoc) — file_url уже в кэше,
+    // повторный запрос не нужен.
+    const openSource = useCallback((docId) => {
+        const cached = documents.find((d) => d.id === docId);
+        if (cached?.file_url) {
+            setSourceDocId(docId);
+            return;
+        }
+        api.get(ENDPOINTS.KNOWLEDGE_DOCUMENT_STATUS(docId))
+            .then((detail) => {
+                setDocuments((prev) => prev.map((d) => (d.id === docId ? { ...d, ...detail } : d)));
+                if (detail.file_url) {
+                    setSourceDocId(docId);
+                } else {
+                    showError('Не удалось получить ссылку на исходный файл');
+                }
+            })
+            .catch((e) => showError(e.message));
+    }, [api, showError, documents]);
+    const closeSource = useCallback(() => setSourceDocId(null), []);
 
     const openChapter = useCallback((i) => {
         setChapterIdx(i);
@@ -118,7 +140,7 @@ export function useKnowledgeBase() {
         setContentMode,
         chapterContent,
         chapterContentLoading,
-        sourceViewerOpen,
+        sourceDocId,
         openSource,
         closeSource,
         openDoc,

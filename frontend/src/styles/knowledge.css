@@ -40,26 +40,6 @@
 .kb-collection-label { flex: 1; font-size: 13.5px; color: var(--text); }
 .kb-collection-count { font-size: 11px; color: var(--muted); }
 
-.kb-index-summary {
-    margin: 10px;
-    padding: 13px 14px;
-    border-radius: 12px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-}
-
-.kb-index-summary-title {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin-bottom: 10px;
-    font-size: 11px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 600;
-}
-
 .kb-ok-dot {
     width: 7px;
     height: 7px;
@@ -204,6 +184,21 @@
 
 .kb-card-status { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
 
+.kb-card-source-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--muted);
+    border: 1px solid transparent;
+    transition: color var(--t), border-color var(--t), background var(--t);
+}
+.kb-card-source-btn:hover { color: var(--accent); border-color: var(--accent-soft-border); background: var(--accent-soft); }
+
 .kb-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
 .kb-status-dot.processing { background: var(--accent); animation: kbPulse 1.1s ease-in-out infinite; }
 
@@ -268,11 +263,16 @@
 }
 
 /* =====================================================
-   Document reader (full-screen)
+   Document reader (full-screen, кроме app-rail — тот (62px, base.css)
+   остаётся видимым, чтобы можно было уйти в другой раздел без закрытия
+   читалки)
    ===================================================== */
 .kb-reader {
     position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 62px;
     z-index: 40;
     background: var(--bg);
     display: flex;

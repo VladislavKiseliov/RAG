@@ -1,12 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { ENDPOINTS } from '../config/api';
 import ChatList from './ChatList.jsx';
 import MessengerChatList from './MessengerChatList.jsx';
 import UserPickerModal from './UserPickerModal.jsx';
-import ProfileModal from './ProfileModal.jsx';
-import UserMenu from './UserMenu.jsx';
 import { useApi, useShowError } from '../context/ApiContext';
-import { useClickOutside } from '../hooks/useClickOutside';
 
 function SidebarSection({ title, onAdd, addTitle, children }) {
     const [open, setOpen] = useState(true);
@@ -42,27 +39,14 @@ function Sidebar({
     onSelectMessengerChat,
     onCreateDirectChat,
     onDeleteMessengerChat,
-    onLogout,
     onToggleSidebar,
     isCollapsed,
-    theme,
-    onToggleTheme,
     onOpenProjects,
-    currentUser,
 }) {
     const api = useApi();
     const showError = useShowError();
     const [isCreatingAi, setIsCreatingAi] = useState(false);
     const [showUserPicker, setShowUserPicker] = useState(false);
-    const [showProfile, setShowProfile] = useState(false);
-    const [profileOpen, setProfileOpen] = useState(false);
-    const userInfo = currentUser ?? { initials: '..', name: '', role: '', login: '' };
-
-    useClickOutside(
-        profileOpen,
-        ['.sidebar-user-row', '.profile-dropdown'],
-        useCallback(() => setProfileOpen(false), [])
-    );
 
     const handleNewAiChat = async () => {
         setIsCreatingAi(true);
@@ -94,7 +78,6 @@ function Sidebar({
                     <button className="icon-btn" onClick={() => setShowUserPicker(true)} title="Новый чат">✉</button>
                     <button className="icon-btn" onClick={handleNewAiChat} title="Новый AI чат" disabled={isCreatingAi}>✦</button>
                 </div>
-                <UserMenu initials={userInfo.initials} onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme} footerClassName="compact-footer" />
                 {showUserPicker && (
                     <UserPickerModal onSelect={handleSelectUser} onClose={() => setShowUserPicker(false)} />
                 )}
@@ -151,70 +134,8 @@ function Sidebar({
                 </SidebarSection>
             </div>
 
-            {/* User row */}
-            <div className="sidebar-user-row">
-                <div className="sidebar-user-row-inner" onClick={() => setProfileOpen((v) => !v)}>
-                    <div className="sidebar-user-avatar-wrap">{userInfo.initials}</div>
-                    <div className="sidebar-user-info">
-                        <div className="sidebar-user-name">{userInfo.name || userInfo.login}</div>
-                        <div className="sidebar-user-role">{userInfo.role}</div>
-                    </div>
-                    <span className={`sidebar-user-caret${profileOpen ? ' open' : ''}`}>▾</span>
-                </div>
-
-                {profileOpen && (
-                    <div className="profile-dropdown" onClick={(e) => e.stopPropagation()}>
-                        <div className="profile-dropdown-header">
-                            <div className="profile-dropdown-avatar">{userInfo.initials}</div>
-                            <div>
-                                <div className="profile-dropdown-name">{userInfo.name || userInfo.login}</div>
-                                <div className="profile-dropdown-meta">{userInfo.login}{userInfo.role ? ` · ${userInfo.role}` : ''}</div>
-                            </div>
-                        </div>
-                        <div className="profile-dropdown-items">
-                            <button
-                                className="profile-dropdown-item"
-                                onClick={() => { setProfileOpen(false); setShowProfile(true); }}
-                            >
-                                <span className="item-left"><span className="item-icon">◴</span> Профиль и данные</span>
-                            </button>
-                            <button className="profile-dropdown-item">
-                                <span className="item-left"><span className="item-icon">⚙</span> Настройки</span>
-                            </button>
-                            <div className="profile-dropdown-item" style={{ cursor: 'default' }}>
-                                <span className="item-left"><span className="item-icon">◐</span> Тема</span>
-                                <div className="theme-pills">
-                                    <button
-                                        className={`theme-pill${theme === 'dark' ? ' active' : ''}`}
-                                        onClick={() => theme !== 'dark' && onToggleTheme?.()}
-                                    >
-                                        Тёмная
-                                    </button>
-                                    <button
-                                        className={`theme-pill${theme === 'light' ? ' active' : ''}`}
-                                        onClick={() => theme !== 'light' && onToggleTheme?.()}
-                                    >
-                                        Светлая
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="profile-dropdown-divider" />
-                            <button
-                                className="profile-dropdown-item danger"
-                                onClick={() => { setProfileOpen(false); onLogout?.(true); }}
-                            >
-                                <span className="item-left"><span>⎋</span> Выйти</span>
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-
             {showUserPicker && (
                 <UserPickerModal onSelect={handleSelectUser} onClose={() => setShowUserPicker(false)} />
-            )}
-            {showProfile && (
-                <ProfileModal onClose={() => setShowProfile(false)} />
             )}
         </nav>
     );

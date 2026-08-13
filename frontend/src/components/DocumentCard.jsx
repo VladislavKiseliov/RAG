@@ -1,6 +1,6 @@
 import React from 'react';
 
-function DocumentCard({ doc, onOpen }) {
+function DocumentCard({ doc, onOpen, onOpenSource }) {
     const isProcessing = doc.status === 'processing';
 
     return (
@@ -10,6 +10,13 @@ function DocumentCard({ doc, onOpen }) {
                 <div className="kb-card-status">
                     <span className={`kb-status-dot${isProcessing ? ' processing' : ''}`} />
                     <span>{isProcessing ? 'Индексация…' : 'В индексе'}</span>
+                </div>
+                <div
+                    className="kb-card-source-btn"
+                    title="Открыть исходный файл"
+                    onClick={(e) => { e.stopPropagation(); onOpenSource(doc.id); }}
+                >
+                    ⤢
                 </div>
             </div>
             <div className="kb-card-title">{doc.title}</div>

@@ -28,7 +28,7 @@ function AppRail({ activeSection, onSelectSection, theme, onToggleTheme, isAdmin
                 </div>
             ))}
             <UserMenu
-                initials={currentUser?.initials}
+                currentUser={currentUser}
                 onLogout={onLogout}
                 theme={theme}
                 onToggleTheme={onToggleTheme}
